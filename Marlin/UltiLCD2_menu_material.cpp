@@ -140,7 +140,7 @@ static void lcd_menu_change_material_preheat()
     lcd_lib_draw_stringP(3, 20, PSTR("for material removal"));
 
     lcd_progressbar(progress);
-    
+    LED_HEAT();
     lcd_lib_update_screen();
 }
 
@@ -165,7 +165,7 @@ static void lcd_menu_change_material_remove()
     long targetPos = lround(FILAMENT_REVERSAL_LENGTH*axis_steps_per_unit[E_AXIS]);
     uint8_t progress = (pos * 125 / targetPos);
     lcd_progressbar(progress);
-    
+    lcd_lib_led_color(48,48,255);
     lcd_lib_update_screen();
 }
 
@@ -179,6 +179,7 @@ static void lcd_menu_change_material_remove_wait_user_ready()
     enquecommand_P(PSTR("G28 X0 Y0"));
     sprintf_P(buffer, PSTR("G1 F%i X%i Y%i"), int(homing_feedrate[0]), X_MAX_LENGTH/2, 10);
     enquecommand(buffer);
+	LED_GLOW();
 }
 
 static void lcd_menu_change_material_remove_wait_user()
@@ -250,7 +251,7 @@ static void lcd_menu_change_material_insert_forward()
     long targetPos = lround(FILAMENT_FORWARD_LENGTH*axis_steps_per_unit[E_AXIS]);
     uint8_t progress = (pos * 125 / targetPos);
     lcd_progressbar(progress);
-    
+    lcd_lib_led_color(48,48,255); 
     lcd_lib_update_screen();
 }
 
@@ -274,7 +275,7 @@ static void lcd_menu_change_material_insert()
         current_position[E_AXIS] += 0.5;
         plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], FILAMENT_INSERT_EXTRUDE_SPEED, active_extruder);
     }
-    
+     lcd_lib_led_color(48,48,255);
     lcd_lib_update_screen();
 }
 
@@ -298,9 +299,9 @@ static void lcd_menu_change_material_select_material_details_callback(uint8_t nr
         c += 5;
         c = int_to_string(eeprom_read_word(EEPROM_MATERIAL_FLOW_OFFSET(nr)), c, PSTR("%"));
     }else{
-        c = int_to_string(eeprom_read_word(EEPROM_MATERIAL_TEMPERATURE_OFFSET(nr)), c, PSTR("C"));
+        c = int_to_string(eeprom_read_word(EEPROM_MATERIAL_TEMPERATURE_OFFSET(nr)), c, PSTR( DEGREE_C_SYMBOL ));
         *c++ = ' ';
-        c = int_to_string(eeprom_read_word(EEPROM_MATERIAL_BED_TEMPERATURE_OFFSET(nr)), c, PSTR("C"));
+        c = int_to_string(eeprom_read_word(EEPROM_MATERIAL_BED_TEMPERATURE_OFFSET(nr)), c, PSTR( DEGREE_C_SYMBOL ));
         while(c < buffer + 10) *c++ = ' ';
         strcpy_P(c, PSTR("Fan: "));
         c += 5;
@@ -358,9 +359,9 @@ static void lcd_material_select_details_callback(uint8_t nr)
             c += 5;
             c = int_to_string(eeprom_read_word(EEPROM_MATERIAL_FLOW_OFFSET(nr)), c, PSTR("%"));
         }else{
-            c = int_to_string(eeprom_read_word(EEPROM_MATERIAL_TEMPERATURE_OFFSET(nr)), c, PSTR("C"));
+            c = int_to_string(eeprom_read_word(EEPROM_MATERIAL_TEMPERATURE_OFFSET(nr)), c, PSTR( DEGREE_C_SYMBOL ));
             *c++ = ' ';
-            c = int_to_string(eeprom_read_word(EEPROM_MATERIAL_BED_TEMPERATURE_OFFSET(nr)), c, PSTR("C"));
+            c = int_to_string(eeprom_read_word(EEPROM_MATERIAL_BED_TEMPERATURE_OFFSET(nr)), c, PSTR( DEGREE_C_SYMBOL ));
             while(c < buffer + 10) *c++ = ' ';
             strcpy_P(c, PSTR("Fan: "));
             c += 5;
@@ -435,10 +436,10 @@ static void lcd_material_settings_details_callback(uint8_t nr)
         return;
     }else if (nr == 1)
     {
-        int_to_string(material[active_extruder].temperature, buffer, PSTR("C"));
+        int_to_string(material[active_extruder].temperature, buffer, PSTR( DEGREE_C_SYMBOL ));
     }else if (nr == 2)
     {
-        int_to_string(material[active_extruder].bed_temperature, buffer, PSTR("C"));
+        int_to_string(material[active_extruder].bed_temperature, buffer, PSTR( DEGREE_C_SYMBOL ));
     }else if (nr == 3)
     {
         float_to_string(material[active_extruder].diameter, buffer, PSTR("mm"));
@@ -514,6 +515,7 @@ static void lcd_menu_material_settings_store()
                 eeprom_write_byte(EEPROM_MATERIAL_COUNT_OFFSET(), idx + 1);
             }
             lcd_material_store_material(idx);
+			lcd_lib_beep_ext (600,100);
         }
         lcd_change_to_menu(lcd_menu_material_settings, SCROLL_MENU_ITEM_POS(6));
     }

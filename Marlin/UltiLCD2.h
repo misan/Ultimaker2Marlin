@@ -6,15 +6,27 @@
 #ifdef ENABLE_ULTILCD2
 #include "UltiLCD2_low_lib.h"
 
+#define MAX_MESSAGE_LEN 20
+extern char message_string [MAX_MESSAGE_LEN+1];
+extern int message_counter ;
+extern bool serialScreenShown;
+#define DEFAULT_MESSAGE_DURATION 500
+
+FORCE_INLINE bool is_message_shown () { return message_counter > 0; };
+FORCE_INLINE void clear_message() { message_counter = 0; message_string[0] = 0;};
+
+typedef  const PROGMEM char * ppstr;
+
 void lcd_init();
 void lcd_update();
-FORCE_INLINE void lcd_setstatus(const char* message) {}
+FORCE_INLINE void lcd_setstatus(const char* message) {serialScreenShown=false;  message_counter = DEFAULT_MESSAGE_DURATION; strncpy (message_string, message,MAX_MESSAGE_LEN); }
+FORCE_INLINE void lcd_setstatusP(ppstr message) {serialScreenShown=false;  message_counter = DEFAULT_MESSAGE_DURATION; strncpy_P (message_string, message,MAX_MESSAGE_LEN); }
 void lcd_buttons_update();
 FORCE_INLINE void lcd_reset_alert_level() {}
 FORCE_INLINE void lcd_buzz(long duration,uint16_t freq) {}
 
-#define LCD_MESSAGEPGM(x) 
-#define LCD_ALERTMESSAGEPGM(x) 
+#define LCD_MESSAGEPGM(x) {lcd_setstatusP(x);}
+#define LCD_ALERTMESSAGEPGM(x) { lcd_setstatusP(x); lcd_lib_beep_ext(200,500);}; 
 
 extern unsigned long lastSerialCommandTime;
 extern uint8_t led_brightness_level;
@@ -25,7 +37,7 @@ extern uint8_t led_mode;
 #define LED_MODE_BLINK_ON_DONE  3
 
 void lcd_menu_main();
-
+bool lcd_lib_show_message(int position, bool decrement = true);
 #endif
 
 #endif//ULTI_LCD2_H

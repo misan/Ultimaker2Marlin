@@ -228,14 +228,30 @@ bool lcd_lib_update_ready()
 #endif
 }
 
-void lcd_lib_led_color(uint8_t r, uint8_t g, uint8_t b)
+bool led_forced=false;
+// if forced, then subsequent color requests will be ignored unless also forced.
+// setting a forced 0,0,0 will clear the forced state and go back to normal operation
+// this is to support user/ gcode setting of the rgb as an override and not 
+// letting the normal colors show.
+void lcd_lib_led_color(uint8_t r, uint8_t g, uint8_t b, bool forced)
 {
+	led_forced = forced;
+	if (led_forced) 
+		if (r==0 && g==0 && b==0) led_forced = false;
+	if (led_forced && !forced) return;
     led_r = r;
     led_g = g;
     led_b = b;
 }
 
+#define FONT_BASE_CHAR 28
+
 static const uint8_t lcd_font_7x5[] PROGMEM = {
+	0x11, 0x15, 0x0A, 0x00, 0x00,       // ^3 " CUBED_SYMBOL "  (alt+28)
+	0x19, 0x15, 0x12, 0x00, 0x00,        // ^2 " SQUARED_SYMBOL " 29
+	0x30, 0x0C, 0x43, 0xA8, 0x90,		//s " PER_SECOND_SYMBOL "   -- fugly, dont use
+	0x02,0x05,0x72,0x88,0x88,    		// deg C  " DEGREE_C_SYMBOL " 
+
     0x00, 0x00, 0x00, 0x00, 0x00,// (space)
 	0x00, 0x00, 0x5F, 0x00, 0x00,// !
 	0x00, 0x07, 0x00, 0x07, 0x00,// "
@@ -331,7 +347,8 @@ static const uint8_t lcd_font_7x5[] PROGMEM = {
 	0x00, 0x00, 0x7F, 0x00, 0x00,// |
 	0x00, 0x41, 0x36, 0x08, 0x00,// }
 	0x08, 0x08, 0x2A, 0x1C, 0x08,// ->
-	0x08, 0x1C, 0x2A, 0x08, 0x08 // <-
+	0x08, 0x1C, 0x2A, 0x08, 0x08 // <-,
+
 };
 
 void lcd_lib_draw_string(uint8_t x, uint8_t y, const char* str)
@@ -342,7 +359,7 @@ void lcd_lib_draw_string(uint8_t x, uint8_t y, const char* str)
     uint8_t yshift2 = 8 - yshift;
     while(*str)
     {
-        const uint8_t* src = lcd_font_7x5 + (*str - ' ') * 5;
+        const uint8_t* src = lcd_font_7x5 + (*str - FONT_BASE_CHAR) * 5;
         
         *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
         *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
@@ -353,7 +370,7 @@ void lcd_lib_draw_string(uint8_t x, uint8_t y, const char* str)
 
         if (yshift != 0)
         {
-            src = lcd_font_7x5 + (*str - ' ') * 5;
+            src = lcd_font_7x5 + (*str - FONT_BASE_CHAR) * 5;
             *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
             *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
             *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
@@ -373,7 +390,7 @@ void lcd_lib_clear_string(uint8_t x, uint8_t y, const char* str)
     uint8_t yshift2 = 8 - yshift;
     while(*str)
     {
-        const uint8_t* src = lcd_font_7x5 + (*str - ' ') * 5;
+        const uint8_t* src = lcd_font_7x5 + (*str - FONT_BASE_CHAR) * 5;
         
         *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
         *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
@@ -384,7 +401,7 @@ void lcd_lib_clear_string(uint8_t x, uint8_t y, const char* str)
 
         if (yshift != 0)
         {
-            src = lcd_font_7x5 + (*str - ' ') * 5;
+            src = lcd_font_7x5 + (*str - FONT_BASE_CHAR) * 5;
             *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
             *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
             *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
@@ -395,6 +412,12 @@ void lcd_lib_clear_string(uint8_t x, uint8_t y, const char* str)
         str++;
     }
 }
+
+void lcd_lib_draw_string_right(uint8_t y, const char* str)
+	{
+	lcd_lib_draw_string(126 - strlen(str) * 6, y, str);		// move 2 pixels in fom extreme right side
+	}
+
 
 void lcd_lib_draw_string_center(uint8_t y, const char* str)
 {
@@ -415,7 +438,7 @@ void lcd_lib_draw_stringP(uint8_t x, uint8_t y, const char* pstr)
     
     for(char c = pgm_read_byte(pstr); c; c = pgm_read_byte(++pstr))
     {
-        const uint8_t* src = lcd_font_7x5 + (c - ' ') * 5;
+        const uint8_t* src = lcd_font_7x5 + (c - FONT_BASE_CHAR) * 5;
         
         *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
         *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
@@ -426,7 +449,7 @@ void lcd_lib_draw_stringP(uint8_t x, uint8_t y, const char* pstr)
 
         if (yshift != 0)
         {
-            src = lcd_font_7x5 + (c - ' ') * 5;
+            src = lcd_font_7x5 + (c - FONT_BASE_CHAR) * 5;
             *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
             *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
             *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
@@ -446,7 +469,7 @@ void lcd_lib_clear_stringP(uint8_t x, uint8_t y, const char* pstr)
 
     for(char c = pgm_read_byte(pstr); c; c = pgm_read_byte(++pstr))
     {
-        const uint8_t* src = lcd_font_7x5 + (c - ' ') * 5;
+        const uint8_t* src = lcd_font_7x5 + (c - FONT_BASE_CHAR) * 5;
         
         *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
         *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
@@ -457,7 +480,7 @@ void lcd_lib_clear_stringP(uint8_t x, uint8_t y, const char* pstr)
 
         if (yshift != 0)
         {
-            src = lcd_font_7x5 + (c - ' ') * 5;
+            src = lcd_font_7x5 + (c - FONT_BASE_CHAR) * 5;
             *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
             *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
             *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
@@ -730,6 +753,44 @@ void lcd_lib_beep()
 #undef _BEEP
 }
 
+
+//-----------------------------------------------------------------------------------------------------------------
+// very short tick for UI feedback -- 1 millisecond  long
+void lcd_lib_tick( )
+	{
+#if EXTENDED_BEEP
+	for (int a =0; a<10; a++)
+			{
+			WRITE(BEEPER,0);
+			_delay_us (50);
+			WRITE(BEEPER,1);
+			_delay_us(50);
+			}
+		WRITE(BEEPER,0);
+#endif 
+
+	}
+//-----------------------------------------------------------------------------------------------------------------
+// freq in Hz, duration in milliseconds -- note that there will be a 
+// minimum time of one cycle.  ie: specifying a freq of 100Hz
+// would mean one cycle takes 10ms, and that is the 
+// minimum time for the duration.
+void lcd_lib_beep_ext( unsigned int freq, unsigned int dur )
+	{
+#if EXTENDED_BEEP
+	freq = 500000UL/freq;
+	unsigned long start_time = millis();
+	while (millis() - start_time < dur)
+		{
+			WRITE(BEEPER,0);
+			_delay_us (freq);
+			WRITE(BEEPER,1);
+			_delay_us(freq);
+		}
+	WRITE(BEEPER,0);
+#endif 
+	}
+
 int8_t lcd_lib_encoder_pos_interrupt = 0;
 int16_t lcd_lib_encoder_pos = 0;
 bool lcd_lib_button_pressed = false;
@@ -779,14 +840,54 @@ void lcd_lib_buttons_update_interrupt()
     }
 }
 
+
+bool allow_encoder_acceleration = false;
+
 void lcd_lib_buttons_update()
 {
-    lcd_lib_encoder_pos += lcd_lib_encoder_pos_interrupt;
+// Added encoder acceleration (Lars Jun 2014)
+// if we detect we're moving the encoder the same direction for repeated frames, we increase our step size (up to a maximum)
+// if we stop, or change direction, set the step size back to +/- 1
+// we only want this for SOME things, like changing a value, and not for other things, like a menu.
+// so we have an enable bit 
+	static char encoder_accel = 0;
+	if (lcd_lib_encoder_pos_interrupt > 0)		// positive -- were we already going positive last time?  If so, increase our accel
+		{ 
+		if (encoder_accel > 0 )
+			encoder_accel ++;
+		else
+			encoder_accel = 1;
+#if EXTENDED_BEEP
+		// if we're using acceleration, beep with a pitch changing tone based on the accel value
+		if (allow_encoder_acceleration) lcd_lib_beep_ext (500+encoder_accel*25,10);
+#endif	
+		}
+	if (lcd_lib_encoder_pos_interrupt <0)	// negative -- decrease our negative accel
+		{ 
+		if (encoder_accel < 0 )
+			encoder_accel --;
+		else
+			encoder_accel = -1;
+#if EXTENDED_BEEP
+		if (allow_encoder_acceleration) lcd_lib_beep_ext (300+encoder_accel*25,10);
+#endif	
+		}
+	 if (lcd_lib_encoder_pos_interrupt ==0)						// no movement --  back to 0 acceleration
+		{ 
+		encoder_accel=0;
+		}
+	if (encoder_accel <-MAX_ENCODER_ACCELERATION) encoder_accel = -MAX_ENCODER_ACCELERATION;
+	if (encoder_accel > MAX_ENCODER_ACCELERATION) encoder_accel = MAX_ENCODER_ACCELERATION;
+	if (!allow_encoder_acceleration) encoder_accel=1;
+
+    lcd_lib_encoder_pos += abs(encoder_accel) * lcd_lib_encoder_pos_interrupt;
+	if (lcd_lib_encoder_pos_interrupt!=0) last_user_interaction = millis();
     lcd_lib_encoder_pos_interrupt = 0;
 
     uint8_t buttonState = !READ(BTN_ENC);
     lcd_lib_button_pressed = (buttonState && !lcd_lib_button_down);
     lcd_lib_button_down = buttonState;
+	if  (lcd_lib_button_down) last_user_interaction=millis();
 }
 
 char* int_to_string(int i, char* temp_buffer, const char* p_postfix)
@@ -829,6 +930,16 @@ char* int_to_time_string(unsigned long i, char* temp_buffer)
         if (hours > 9)
             *c++ = '0' + (hours / 10) % 10;
         *c++ = '0' + hours % 10;
+// Lars changes -- let's add a decimal point for hours less than 10 -- so we can tell is that 1.8 or 1.1 hours remaining
+// comment: decimal hours is a little weird, as we're used to thinking in terms of hours and minutes, but we don't have much screen space
+// and we are using human-readable text ("hours") -- if we switched to a digital clock	 display HH:MM:SS we could be much
+// more detailed, although the accuracy of our time predictions isn't that great anyway, so it's probably a false precision.
+		if (hours < 10)
+			{
+			*c++ = '.';
+			*c++ = '0' + (10*mins/60) % 10;
+			}
+// end changes
         if (hours > 1)
         {
             strcpy_P(c, PSTR(" hours"));

@@ -48,6 +48,9 @@
 #if defined(DIGIPOTSS_PIN) && DIGIPOTSS_PIN > -1
 #include <SPI.h>
 #endif
+#include "UltiLCD2_hi_lib.h"
+#include "UltiLCD2_menu_print.h"
+
 
 #define VERSION_STRING  "1.0.0"
 
@@ -241,6 +244,9 @@ unsigned long starttime=0;
 unsigned long stoptime=0;
 
 static uint8_t tmp_extruder;
+
+
+unsigned long last_user_interaction=0;
 
 
 uint8_t Stopped = false;
@@ -448,7 +454,11 @@ void setup()
   servo_init();
 
   lcd_init();
-  
+		// play a happy wake tune
+  lcd_lib_beep_ext(880,50);
+  lcd_lib_beep_ext(792,50);
+  lcd_lib_beep_ext(880,25);
+  lcd_lib_beep_ext(1320,100);
   #if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
     SET_OUTPUT(CONTROLLERFAN_PIN); //Set pin used for driver cooling fan
   #endif 
@@ -783,6 +793,8 @@ static void homeaxis(int axis) {
   }
 }
 #define HOMEAXIS(LETTER) homeaxis(LETTER##_AXIS)
+const int min_fan_speed=20;
+
 
 void process_commands()
 {
@@ -816,7 +828,7 @@ void process_commands()
         return;
       }
     case 4: // G4 dwell
-      LCD_MESSAGEPGM(MSG_DWELL);
+    //  LCD_MESSAGEPGM(MSG_DWELL);
       codenum = 0;
       if(code_seen('P')) codenum = code_value(); // milliseconds to wait
       if(code_seen('S')) codenum = code_value() * 1000; // seconds to wait
@@ -826,10 +838,17 @@ void process_commands()
       previous_millis_cmd = millis();
       printing_state = PRINT_STATE_DWELL;
       while(millis()  < codenum ){
+		char buffer[20];
+		char *c = buffer;
+		c = strcpy_P (buffer,"WAIT: ");
+		c = float_to_string(codenum-millis()/1000,c," seconds");
+		*c++=0;
+		lcd_setstatus (buffer);
         manage_heater();
         manage_inactivity();
         lcd_update();
       }
+	  clear_message();
       break;
       #ifdef FWRETRACT
       case 10: // G10 retract
@@ -1059,6 +1078,11 @@ void process_commands()
   {
     switch( (int)code_value() )
     {
+		default: 
+			 SERIAL_ECHO_START;
+			 SERIAL_PROTOCOLPGM("UNSUPPORTED COMMAND: M" );
+			 SERIAL_PROTOCOLLN( (int)code_value() );
+			  break;
 #ifdef ULTIPANEL
     case 0: // M0 - Unconditional stop - Wait for user button press on LCD
     case 1: // M1 - Conditional stop - Wait for user button press on LCD
@@ -1104,16 +1128,26 @@ void process_commands()
       if (codenum > 0){
         codenum += millis();  // keep track of when we started waiting
         while(millis()  < codenum && !lcd_lib_button_down){
+			char buffer[20];
+			char *c = buffer;
+			c = strcpy_P (buffer,"WAIT: ");
+			c = float_to_string(codenum-millis()/1000,c," seconds");
+			*c++=0;
+			lcd_setstatus (buffer);
           manage_heater();
           manage_inactivity();
           lcd_update();
+		  last_user_interaction = millis();
         }
       }else{
         while(!lcd_lib_button_down){
+		 lcd_setstatusP (PSTR("CLICK TO CONTINUE!"));
           manage_heater();
           manage_inactivity();
           lcd_update();
+		  last_user_interaction = millis();
         }
+		clear_message();
       }
     }
     break;
@@ -1236,6 +1270,9 @@ void process_commands()
         {
           if (sensitive_pins[i] == pin_number)
           {
+		    SERIAL_ECHO_START;
+		    SERIAL_ECHOLNPGM("Cannot change pin value, that pin is important!");
+			ERROR_BEEP();
             pin_number = -1;
             break;
           }
@@ -1249,7 +1286,17 @@ void process_commands()
           pinMode(pin_number, OUTPUT);
           digitalWrite(pin_number, pin_status);
           analogWrite(pin_number, pin_status);
+		  SERIAL_ECHO_START;
+		  SERIAL_ECHOPGM ("Set pin #");
+		  SERIAL_ECHO(pin_number);
+		  SERIAL_ECHOPGM (" to " );
+		  SERIAL_ECHOLN(pin_status);
         }
+		else
+			{
+			SERIAL_ECHO_START;
+			SERIAL_ECHOLNPGM("Need (P)in # and (S)tatus to set pin!");
+			}
       }
      break;
     case 104: // M104
@@ -1298,6 +1345,7 @@ void process_commands()
       }
       printing_state = PRINT_STATE_HEATING;
       LCD_MESSAGEPGM(MSG_HEATING);
+	  LED_HEAT();
       #ifdef AUTOTEMP
         autotemp_enabled=false;
       #endif
@@ -1373,6 +1421,7 @@ void process_commands()
     #if defined(TEMP_BED_PIN) && TEMP_BED_PIN > -1
         printing_state = PRINT_STATE_HEATING_BED;
         LCD_MESSAGEPGM(MSG_BED_HEATING);
+		LED_HEAT();
         if (code_seen('S')) setTargetBed(code_value());
         codenum = millis();
         while(current_temperature_bed < target_temperature_bed - TEMP_WINDOW)
@@ -1406,6 +1455,7 @@ void process_commands()
         else {
           fanSpeed = 255 * int(fanSpeedPercent) / 100;
         }
+		if (fanSpeed < min_fan_speed) fanSpeed =0;
         break;
       case 107: //M107 Fan Off
         fanSpeed = 0;
@@ -1526,6 +1576,7 @@ void process_commands()
     case 115: // M115
       SERIAL_PROTOCOLPGM(MSG_M115_REPORT);
       break;
+	case 70:  // M70 display message (replicator)
     case 117: // M117 display message
       starpos = (strchr(strchr_pointer + 5,'*'));
       if(starpos!=NULL)
@@ -1750,28 +1801,50 @@ void process_commands()
       break;
     #endif // NUM_SERVOS > 0
 
-    #if LARGE_FLASH == true && ( BEEPER > 0 || defined(ULTRALCD) )
     case 300: // M300
     {
-      int beepS = code_seen('S') ? code_value() : 110;
-      int beepP = code_seen('P') ? code_value() : 1000;
+      int beepS = code_seen('S') ? code_value() : 880;
+      int beepP = code_seen('P') ? code_value() : 100;
       if (beepS > 0)
       {
-        #if BEEPER > 0
+#if LARGE_FLASH == true && ( BEEPER > 0 || defined(ULTRALCD) )
+      #if BEEPER > 0
           tone(BEEPER, beepS);
           delay(beepP);
           noTone(BEEPER);
         #elif defined(ULTRALCD)
           lcd_buzz(beepS, beepP);
         #endif
-      }
-      else
+     
+#else
+	  lcd_lib_beep_ext(beepS,beepP);
+#endif // M300
+	}
+      else  // even if we don't beep, we need to delay because it might be used for some timing purpose (it would be bad practice, but just being defensive) 
       {
         delay(beepP);
       }
     }
     break;
-    #endif // M300
+#if MOODLIGHT
+	case 420: 	// set RGB "mood light"
+		{
+		int r=0; int g=0; int b=0;
+		if (code_seen('R')) r=code_value();
+		if (code_seen('E')) g=code_value();
+		// yes, this is an E, not a G
+		if (code_seen('B')) b=code_value();
+		lcd_lib_led_color(r,g,b, true);
+		}
+		break;
+	case 421:
+		{
+		int s = 0;
+		if (code_seen('S')) s=code_value(); 
+		analogWrite(LED_PIN, s);
+		}
+		break;
+#endif 
 
     #ifdef PIDTEMP
     case 301: // M301
@@ -1820,9 +1893,9 @@ void process_commands()
       }
       break;
     #endif //PIDTEMP
+#if defined(PHOTOGRAPH_PIN) && PHOTOGRAPH_PIN > -1
     case 240: // M240  Triggers a camera by emulating a Canon RC-1 : http://www.doc-diy.net/photo/rc-1_hacked/
      {
-      #if defined(PHOTOGRAPH_PIN) && PHOTOGRAPH_PIN > -1
         const uint8_t NUM_PULSES=16;
         const float PULSE_LENGTH=0.01524;
         for(int i=0; i < NUM_PULSES; i++) {
@@ -1838,9 +1911,11 @@ void process_commands()
           WRITE(PHOTOGRAPH_PIN, LOW);
           _delay_ms(PULSE_LENGTH);
         }
-      #endif
      }
     break;
+#endif
+
+
     #ifdef PREVENT_DANGEROUS_EXTRUDE
     case 302: // allow cold extrudes, or set the minimum extrude temperature
     {
@@ -1871,6 +1946,8 @@ void process_commands()
     case 500: // M500 Store settings in EEPROM
     {
         Config_StoreSettings();
+		LCD_MESSAGEPGM("SETTINGS SAVED");
+		lcd_lib_beep();
     }
     break;
     case 501: // M501 Read settings from EEPROM
@@ -1881,6 +1958,8 @@ void process_commands()
     case 502: // M502 Revert to default settings
     {
         Config_ResetDefault();
+		LCD_MESSAGEPGM("DEFAULT SETTINGS");
+		lcd_lib_beep();
     }
     break;
     case 503: // M503 print settings currently in memory
@@ -2060,7 +2139,6 @@ void process_commands()
           target[E_AXIS] -= code_value()/volume_to_filament_length[active_extruder];
         }
         plan_buffer_line(target[X_AXIS], target[Y_AXIS], target[Z_AXIS], target[E_AXIS], retract_feedrate/60, active_extruder);
-
         //finish moves
         st_synchronize();
         //disable extruder steppers so filament can be removed
@@ -2068,11 +2146,12 @@ void process_commands()
         disable_e1();
         disable_e2();
         while(card.pause){
+		if (!is_message_shown) LCD_MESSAGEPGM ("PAUSED");
           manage_heater();
           manage_inactivity();
           lcd_update();
         }
-
+		clear_message();
         //return to normal
         if(code_seen('L'))
         {
@@ -2085,7 +2164,7 @@ void process_commands()
     }
     break;
     #endif//ENABLE_ULTILCD2
-
+	case 906: // M906 per http://reprap.org/wiki/G-code 
     case 907: // M907 Set digital trimpot motor current using axis codes.
     {
       #if defined(DIGIPOTSS_PIN) && DIGIPOTSS_PIN > -1
@@ -2104,29 +2183,29 @@ void process_commands()
       #endif
     }
     break;
+#if defined(DIGIPOTSS_PIN) && DIGIPOTSS_PIN > -1
     case 908: // M908 Control digital trimpot directly.
     {
-      #if defined(DIGIPOTSS_PIN) && DIGIPOTSS_PIN > -1
         uint8_t channel,current;
         if(code_seen('P')) channel=code_value();
         if(code_seen('S')) current=code_value();
         digitalPotWrite(channel, current);
-      #endif
     }
     break;
+#endif
+#if defined(X_MS1_PIN) && X_MS1_PIN > -1
     case 350: // M350 Set microstepping mode. Warning: Steps per unit remains unchanged. S code sets stepping mode for all drivers.
     {
-      #if defined(X_MS1_PIN) && X_MS1_PIN > -1
         if(code_seen('S')) for(int i=0;i<=4;i++) microstep_mode(i,code_value());
         for(int i=0;i<NUM_AXIS;i++) if(code_seen(axis_codes[i])) microstep_mode(i,(uint8_t)code_value());
         if(code_seen('B')) microstep_mode(4,code_value());
         microstep_readings();
-      #endif
     }
     break;
+#endif
+#if defined(X_MS1_PIN) && X_MS1_PIN > -1
     case 351: // M351 Toggle MS1 MS2 pins directly, S# determines MS1 or MS2, X# sets the pin high/low.
     {
-      #if defined(X_MS1_PIN) && X_MS1_PIN > -1
       if(code_seen('S')) switch((int)code_value())
       {
         case 1:
@@ -2139,9 +2218,9 @@ void process_commands()
           break;
       }
       microstep_readings();
-      #endif
     }
     break;
+#endif
     case 999: // M999: Restart after being stopped
       Stopped = false;
       lcd_reset_alert_level();
@@ -2517,6 +2596,11 @@ void controllerFan()
 
 void manage_inactivity()
 {
+  if (millis() - last_user_interaction > LED_DIM_TIME )  
+		analogWrite(LED_PIN, 255 * int(DIM_LEVEL) / 100);
+	else 
+		analogWrite(LED_PIN, 255 * int(led_brightness_level) / 100);
+
   if( (millis() - previous_millis_cmd) >  max_inactive_time )
     if(max_inactive_time)
       kill();

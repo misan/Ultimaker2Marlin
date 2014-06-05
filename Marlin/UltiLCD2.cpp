@@ -18,6 +18,8 @@ unsigned long lastSerialCommandTime;
 bool serialScreenShown;
 uint8_t led_brightness_level = 100;
 uint8_t led_mode = LED_MODE_ALWAYS_ON;
+char message_string [MAX_MESSAGE_LEN+1] ="---";
+int message_counter = 0;
 
 //#define SPECIAL_STARTUP
 
@@ -42,7 +44,8 @@ void lcd_init()
     analogWrite(LED_PIN, 0);
     lastSerialCommandTime = millis() - SERIAL_CONTROL_TIMEOUT;
 }
-
+//-----------------------------------------------------------------------------------------------------------------
+void lcd_lib_show_message();
 void lcd_update()
 {
     if (!lcd_lib_update_ready()) return;
@@ -85,6 +88,8 @@ void lcd_update()
         {
             lcd_lib_clear();
             lcd_lib_draw_string_centerP(20, PSTR("Printing with USB..."));
+			lcd_lib_show_message(40);
+
             serialScreenShown = true;
         }
         if (printing_state == PRINT_STATE_HEATING || printing_state == PRINT_STATE_HEATING_BED || printing_state == PRINT_STATE_HOMING)
@@ -311,5 +316,17 @@ void lcd_buttons_update()
 {
     lcd_lib_buttons_update_interrupt();
 }
-
+//-----------------------------------------------------------------------------------------------------------------
+// display a message, if we have one, at a given Y coord, and decrease it's counter.
+// returns TRUE if it displayed a message
+bool lcd_lib_show_message(int position, bool decrement)
+	{
+	if (message_string[0]==0) message_counter =0;
+	if (message_counter > 0) 
+		{
+		if (decrement) message_counter --;
+		lcd_lib_draw_string_center(position, message_string);
+		}
+	return message_counter>0;
+	}
 #endif//ENABLE_ULTILCD2

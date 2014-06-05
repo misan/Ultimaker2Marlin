@@ -229,6 +229,9 @@ extern uint8_t printing_state;
 #define PRINT_STATE_HEATING_BED 4
 #define PRINT_STATE_HOMING      5
 
+extern unsigned long last_user_interaction;
+
+
 // Handling multiple extruders pins
 extern uint8_t active_extruder;
 

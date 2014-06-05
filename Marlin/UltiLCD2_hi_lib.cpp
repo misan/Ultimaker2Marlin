@@ -20,6 +20,8 @@ uint8_t lcd_setting_type;
 int16_t lcd_setting_min;
 int16_t lcd_setting_max;
 
+int last_menu_index = 0;
+
 void lcd_change_to_menu(menuFunc_t nextMenu, int16_t newEncoderPos)
 {
     minProgress = 0;
@@ -30,7 +32,17 @@ void lcd_change_to_menu(menuFunc_t nextMenu, int16_t newEncoderPos)
     previousEncoderPos = lcd_lib_encoder_pos;
     currentMenu = nextMenu;
     lcd_lib_encoder_pos = newEncoderPos;
+	lcd_lib_enable_encoder_acceleration(false);			// by default, we do not want acceleration -- only enable it when needed in specific menus
+	last_menu_index=0;
 }
+
+// check to see if the selected menu item has changed, if so, do something (click in this case)
+FORCE_INLINE void lcd_check_menu_selected_change(int id)
+	{
+	if (last_menu_index!=id)
+		lcd_lib_tick();
+	last_menu_index=id;
+	}
 
 void lcd_tripple_menu(const char* left, const char* right, const char* bottom)
 {
@@ -42,6 +54,8 @@ void lcd_tripple_menu(const char* left, const char* right, const char* bottom)
             lcd_lib_encoder_pos -= 3*ENCODER_TICKS_PER_MAIN_MENU_ITEM;
     }
 
+	lcd_check_menu_selected_change(SELECTED_MAIN_MENU_ITEM());
+	
     lcd_lib_clear();
     lcd_lib_draw_vline(64, 5, 45);
     lcd_lib_draw_hline(3, 124, 48);
@@ -92,6 +106,8 @@ void lcd_info_screen(menuFunc_t cancelMenu, menuFunc_t callbackOnCancel, const c
         if (lcd_lib_encoder_pos >= 2*ENCODER_TICKS_PER_MAIN_MENU_ITEM)
             lcd_lib_encoder_pos -= 2*ENCODER_TICKS_PER_MAIN_MENU_ITEM;
     }
+	lcd_check_menu_selected_change(SELECTED_MAIN_MENU_ITEM());
+
     if (lcd_lib_button_pressed && IS_SELECTED_MAIN(0))
     {
         if (callbackOnCancel) callbackOnCancel();
@@ -120,6 +136,9 @@ void lcd_question_screen(menuFunc_t optionAMenu, menuFunc_t callbackOnA, const c
         if (lcd_lib_encoder_pos >= 2*ENCODER_TICKS_PER_MAIN_MENU_ITEM)
             lcd_lib_encoder_pos -= 2*ENCODER_TICKS_PER_MAIN_MENU_ITEM;
     }
+
+	lcd_check_menu_selected_change(SELECTED_MAIN_MENU_ITEM());
+
     if (lcd_lib_button_pressed)
     {
         if (IS_SELECTED_MAIN(0))
@@ -168,30 +187,76 @@ void lcd_progressbar(uint8_t progress)
     }
 }
 
+
+
 void lcd_scroll_menu(const char* menuNameP, int8_t entryCount, entryNameCallback_t entryNameCallback, entryDetailsCallback_t entryDetailsCallback)
 {
+	// we don't want encoder rotation acceleration in menus!
+	lcd_lib_enable_encoder_acceleration(false);
+
     if (lcd_lib_button_pressed)
+		{
+		last_menu_index=0;
 		return;//Selection possibly changed the menu, so do not update it this cycle.
+		}
 
     if (lcd_lib_encoder_pos == ENCODER_NO_SELECTION)
         lcd_lib_encoder_pos = 0;
 
 	static int16_t viewPos = 0;
+#ifdef NOWRAP_MENUS
+	if (lcd_lib_encoder_pos < 0) lcd_lib_encoder_pos =0;
+	if (lcd_lib_encoder_pos >= entryCount * ENCODER_TICKS_PER_SCROLL_MENU_ITEM) lcd_lib_encoder_pos = entryCount * ENCODER_TICKS_PER_SCROLL_MENU_ITEM-1;
+#else
 	if (lcd_lib_encoder_pos < 0) lcd_lib_encoder_pos += entryCount * ENCODER_TICKS_PER_SCROLL_MENU_ITEM;
 	if (lcd_lib_encoder_pos >= entryCount * ENCODER_TICKS_PER_SCROLL_MENU_ITEM) lcd_lib_encoder_pos -= entryCount * ENCODER_TICKS_PER_SCROLL_MENU_ITEM;
-
+#endif
     uint8_t selIndex = uint16_t(lcd_lib_encoder_pos/ENCODER_TICKS_PER_SCROLL_MENU_ITEM);
-
-    lcd_lib_clear();
-
-    int16_t targetViewPos = selIndex * 8 - 15;
-
+	
+	if (selIndex > last_menu_index) 
+		{ 
+		if (selIndex - last_menu_index > SKIP_FAST_SIZE)		// we're more than X menu items away from where we want to be, let's jump closer instead of single stepping a long way
+			{
+			selIndex = last_menu_index + SKIP_FAST_SIZE; 
+			lcd_lib_tick();					// extra ticks for feedback that we've jumped
+			lcd_lib_tick();
+			}
+		else 
+			{ 
+#ifdef SINGLE_STEP_MENU
+			selIndex = last_menu_index + 1;		//  single step the menu -- don't change what is selected by more than 1 step per update refresh
+#endif 
+			}
+		lcd_lib_tick();
+		}
+	if (selIndex < last_menu_index) 
+		{ 
+		if (selIndex - last_menu_index < -SKIP_FAST_SIZE)
+			{ 
+			selIndex = last_menu_index - SKIP_FAST_SIZE;
+			lcd_lib_tick();
+			lcd_lib_tick();
+			}
+		else {
+#ifdef SINGLE_STEP_MENU
+			selIndex = last_menu_index - 1;
+#endif 
+			}
+		lcd_lib_tick();
+		}
+	last_menu_index = selIndex; 
+	int16_t targetViewPos = selIndex * 8 - 15;
     int16_t viewDiff = targetViewPos - viewPos;
-    viewPos += viewDiff / 4;
+    if (abs (viewDiff) > SCROLL_MENU_FAR_DISTANCE)		// we're way off - skip forward so at least the selected item is close to being in view.
+		{
+		viewPos = targetViewPos ;
+		}
+	else viewPos += viewDiff / 3;				// move a fraction of the remaining distance....
     if (viewDiff > 0) { viewPos ++; led_glow = led_glow_dir = 0; }
     if (viewDiff < 0) { viewPos --; led_glow = led_glow_dir = 0; }
 
-    uint8_t drawOffset = 10 - (uint16_t(viewPos) % 8);
+	lcd_lib_clear();
+	uint8_t drawOffset = 10 - (uint16_t(viewPos) % 8);
     uint8_t itemOffset = uint16_t(viewPos) / 8;
     for(uint8_t n=0; n<6; n++)
     {
@@ -218,14 +283,14 @@ void lcd_scroll_menu(const char* menuNameP, int8_t entryCount, entryNameCallback
     lcd_lib_draw_hline(3, 124, 48);
 
     lcd_lib_clear_string_centerP(1, menuNameP);
-    
 	entryDetailsCallback(selIndex);
-	
     lcd_lib_update_screen();
+
 }
 
 void lcd_menu_edit_setting()
 {
+	lcd_lib_enable_encoder_acceleration(true);
     if (lcd_lib_encoder_pos < lcd_setting_min)
         lcd_lib_encoder_pos = lcd_setting_min;
     if (lcd_lib_encoder_pos > lcd_setting_max)
@@ -259,6 +324,6 @@ void lcd_menu_edit_setting()
     lcd_lib_update_screen();
 
     if (lcd_lib_button_pressed)
-        lcd_change_to_menu(previousMenu, previousEncoderPos);
+		lcd_change_to_menu(previousMenu, previousEncoderPos);
 }
 #endif//ENABLE_ULTILCD2

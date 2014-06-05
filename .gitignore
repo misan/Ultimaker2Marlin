@@ -3,3 +3,17 @@ applet/
 *~
 *.orig
 *.rej
+Marlin/Marlin.vcxproj
+*.h
+Marlin/Marlin.vcxproj.filters
+Marlin/Visual Micro/Compile.vmps.xml
+Marlin/Visual Micro/Configuration.Debug.vmps.xml
+Marlin/Marlin.sdf
+*.sln
+*.suo
+*.opensdf
+*.xml
+ArduinoAddons/
+MarlinSimulator/
+Marlin/Debug/
+ArduinoAddons/Arduino_1.x.x/sanguino/bootloaders/atmega/ATmegaBOOT_168.c

@@ -21,6 +21,7 @@ static void lcd_menu_maintenance_retraction();
 static void lcd_menu_advanced_version();
 static void lcd_menu_maintenance_motion();
 static void lcd_menu_advanced_factory_reset();
+extern bool allow_encoder_acceleration;
 
 void lcd_menu_maintenance()
 {
@@ -165,13 +166,14 @@ static void lcd_menu_maintenance_advanced_heatup()
     }
     if (lcd_lib_button_pressed)
         lcd_change_to_menu(previousMenu, previousEncoderPos);
-    
+    lcd_lib_enable_encoder_acceleration(true);
+	LED_HEAT();
     lcd_lib_clear();
     lcd_lib_draw_string_centerP(20, PSTR("Nozzle temperature:"));
     lcd_lib_draw_string_centerP(53, PSTR("Click to return"));
     char buffer[16];
-    int_to_string(int(current_temperature[active_extruder]), buffer, PSTR("C/"));
-    int_to_string(int(target_temperature[active_extruder]), buffer+strlen(buffer), PSTR("C"));
+    int_to_string(int(current_temperature[active_extruder]), buffer, PSTR( TEMPERATURE_SEPARATOR_S));
+    int_to_string(int(target_temperature[active_extruder]), buffer+strlen(buffer), PSTR( DEGREE_C_SYMBOL ));
     lcd_lib_draw_string_center(30, buffer);
     lcd_lib_update_screen();
 }
@@ -193,14 +195,15 @@ void lcd_menu_maintenance_extrude()
         target_temperature[active_extruder] = 0;
         lcd_change_to_menu(previousMenu, previousEncoderPos);
     }
-    
+    lcd_lib_enable_encoder_acceleration(false);
     lcd_lib_clear();
+	LED_GLOW();
     lcd_lib_draw_string_centerP(20, PSTR("Nozzle temperature:"));
     lcd_lib_draw_string_centerP(40, PSTR("Rotate to extrude"));
     lcd_lib_draw_string_centerP(53, PSTR("Click to return"));
     char buffer[16];
-    int_to_string(int(current_temperature[active_extruder]), buffer, PSTR("C/"));
-    int_to_string(int(target_temperature[active_extruder]), buffer+strlen(buffer), PSTR("C"));
+    int_to_string(int(current_temperature[active_extruder]), buffer, PSTR( TEMPERATURE_SEPARATOR_S));
+    int_to_string(int(target_temperature[active_extruder]), buffer+strlen(buffer), PSTR( DEGREE_C_SYMBOL ));
     lcd_lib_draw_string_center(30, buffer);
     lcd_lib_update_screen();
 }
@@ -216,15 +219,16 @@ void lcd_menu_maintenance_advanced_bed_heatup()
             target_temperature_bed = BED_MAXTEMP - 15;
         lcd_lib_encoder_pos = 0;
     }
+	LED_HEAT();
     if (lcd_lib_button_pressed)
         lcd_change_to_menu(previousMenu, previousEncoderPos);
-    
+    lcd_lib_enable_encoder_acceleration(true);
     lcd_lib_clear();
     lcd_lib_draw_string_centerP(20, PSTR("Buildplate temp.:"));
     lcd_lib_draw_string_centerP(53, PSTR("Click to return"));
     char buffer[16];
-    int_to_string(int(current_temperature_bed), buffer, PSTR("C/"));
-    int_to_string(int(target_temperature_bed), buffer+strlen(buffer), PSTR("C"));
+    int_to_string(int(current_temperature_bed), buffer, PSTR( TEMPERATURE_SEPARATOR_S));
+    int_to_string(int(target_temperature_bed), buffer+strlen(buffer), PSTR( DEGREE_C_SYMBOL ));
     lcd_lib_draw_string_center(30, buffer);
     lcd_lib_update_screen();
 }
@@ -239,6 +243,7 @@ void lcd_menu_advanced_version()
 
 static void doFactoryReset()
 {
+	lcd_lib_beep_ext(50,200);
     //Clear the EEPROM settings so they get read from default.
     eeprom_write_byte((uint8_t*)100, 0);
     eeprom_write_byte((uint8_t*)101, 0);
@@ -265,7 +270,8 @@ static void doFactoryReset()
 static void lcd_menu_advanced_factory_reset()
 {
     lcd_question_screen(NULL, doFactoryReset, PSTR("YES"), previousMenu, NULL, PSTR("NO"));
-    
+	lcd_lib_beep_ext(110,500);
+	lcd_lib_beep_ext(50,500);
     lcd_lib_draw_string_centerP(10, PSTR("Reset everything"));
     lcd_lib_draw_string_centerP(20, PSTR("to default?"));
     lcd_lib_update_screen();
@@ -287,13 +293,14 @@ static char* lcd_retraction_item(uint8_t nr)
 
 static void lcd_retraction_details(uint8_t nr)
 {
+	lcd_lib_enable_encoder_acceleration(true);
     char buffer[16];
     if (nr == 0)
         return;
     else if(nr == 1)
         float_to_string(retract_length, buffer, PSTR("mm"));
     else if(nr == 2)
-        int_to_string(retract_feedrate / 60 + 0.5, buffer, PSTR("mm/sec"));
+        int_to_string(retract_feedrate / 60 + 0.5, buffer, PSTR("mm" PER_SECOND_SYMBOL ));
     lcd_lib_draw_string(5, 53, buffer);
 }
 
@@ -310,7 +317,7 @@ static void lcd_menu_maintenance_retraction()
         else if (IS_SELECTED_SCROLL(1))
             LCD_EDIT_SETTING_FLOAT001(retract_length, "Retract length", "mm", 0, 50);
         else if (IS_SELECTED_SCROLL(2))
-            LCD_EDIT_SETTING_SPEED(retract_feedrate, "Retract speed", "mm/sec", 0, max_feedrate[E_AXIS] * 60);
+            LCD_EDIT_SETTING_SPEED(retract_feedrate, "Retract speed", "mm" PER_SECOND_SYMBOL , 0, max_feedrate[E_AXIS] * 60);
     }
 }
 
@@ -339,15 +346,15 @@ static void lcd_motion_details(uint8_t nr)
     if (nr == 0)
         return;
     else if(nr == 1)
-        int_to_string(acceleration, buffer, PSTR("mm/sec^2"));
+        int_to_string(acceleration, buffer, PSTR("mm" PER_SECOND_SYMBOL "" SQUARED_SYMBOL ));
     else if(nr == 2)
-        int_to_string(max_xy_jerk, buffer, PSTR("mm/sec"));
+        int_to_string(max_xy_jerk, buffer, PSTR("mm" PER_SECOND_SYMBOL ));
     else if(nr == 3)
-        int_to_string(max_feedrate[X_AXIS], buffer, PSTR("mm/sec"));
+        int_to_string(max_feedrate[X_AXIS], buffer, PSTR("mm" PER_SECOND_SYMBOL ));
     else if(nr == 4)
-        int_to_string(max_feedrate[Y_AXIS], buffer, PSTR("mm/sec"));
+        int_to_string(max_feedrate[Y_AXIS], buffer, PSTR("mm" PER_SECOND_SYMBOL ));
     else if(nr == 5)
-        int_to_string(max_feedrate[Z_AXIS], buffer, PSTR("mm/sec"));
+        int_to_string(max_feedrate[Z_AXIS], buffer, PSTR("mm" PER_SECOND_SYMBOL ));
     lcd_lib_draw_string(5, 53, buffer);
 }
 
@@ -362,15 +369,15 @@ static void lcd_menu_maintenance_motion()
             lcd_change_to_menu(lcd_menu_maintenance_advanced, SCROLL_MENU_ITEM_POS(7));
         }
         else if (IS_SELECTED_SCROLL(1))
-            LCD_EDIT_SETTING_FLOAT100(acceleration, "Acceleration", "mm/sec^2", 0, 20000);
+            LCD_EDIT_SETTING_FLOAT100(acceleration, "Acceleration", "mm" PER_SECOND_SYMBOL  SQUARED_SYMBOL , 0, 20000);
         else if (IS_SELECTED_SCROLL(2))
-            LCD_EDIT_SETTING_FLOAT1(max_xy_jerk, "X/Y Jerk", "mm/sec", 0, 100);
+            LCD_EDIT_SETTING_FLOAT1(max_xy_jerk, "X/Y Jerk", "mm" PER_SECOND_SYMBOL , 0, 100);
         else if (IS_SELECTED_SCROLL(3))
-            LCD_EDIT_SETTING_FLOAT1(max_feedrate[X_AXIS], "Max speed X", "mm/sec", 0, 1000);
+            LCD_EDIT_SETTING_FLOAT1(max_feedrate[X_AXIS], "Max speed X", "mm" PER_SECOND_SYMBOL , 0, 1000);
         else if (IS_SELECTED_SCROLL(4))
-            LCD_EDIT_SETTING_FLOAT1(max_feedrate[Y_AXIS], "Max speed Y", "mm/sec", 0, 1000);
+            LCD_EDIT_SETTING_FLOAT1(max_feedrate[Y_AXIS], "Max speed Y", "mm" PER_SECOND_SYMBOL , 0, 1000);
         else if (IS_SELECTED_SCROLL(5))
-            LCD_EDIT_SETTING_FLOAT1(max_feedrate[Z_AXIS], "Max speed Z", "mm/sec", 0, 1000);
+            LCD_EDIT_SETTING_FLOAT1(max_feedrate[Z_AXIS], "Max speed Z", "mm" PER_SECOND_SYMBOL , 0, 1000);
     }
 }
 
@@ -397,14 +404,17 @@ static char* lcd_led_item(uint8_t nr)
 
 static void lcd_led_details(uint8_t nr)
 {
+	analogWrite(LED_PIN, 255 * int(led_brightness_level) / 100);
     char buffer[16];
     if (nr == 0)
         return;
     else if(nr == 1)
     {
+		lcd_lib_enable_encoder_acceleration(true);
         int_to_string(led_brightness_level, buffer, PSTR("%"));
         lcd_lib_draw_string(5, 53, buffer);
     }
+	
 }
 
 static void lcd_menu_maintenance_led()

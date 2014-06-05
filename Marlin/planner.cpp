@@ -548,6 +548,7 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
       position[E_AXIS]=target[E_AXIS]; //behave as if the move really took place, but ignore E part
       SERIAL_ECHO_START;
       SERIAL_ECHOLNPGM(MSG_ERR_COLD_EXTRUDE_STOP);
+      lcd_setstatusP(MSG_ERR_COLD_EXTRUDE_STOP);
     }
     
     #ifdef PREVENT_LENGTHY_EXTRUDE
@@ -556,6 +557,7 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
       position[E_AXIS]=target[E_AXIS]; //behave as if the move really took place, but ignore E part
       SERIAL_ECHO_START;
       SERIAL_ECHOLNPGM(MSG_ERR_LONG_EXTRUDE_STOP);
+	  lcd_setstatusP(MSG_ERR_LONG_EXTRUDE_STOP);
     }
     #endif
   }
@@ -880,7 +882,10 @@ block->steps_y = labs((target[X_AXIS]-position[X_AXIS]) - (target[Y_AXIS]-positi
   // Update previous path unit_vector and nominal speed
   memcpy(previous_speed, current_speed, sizeof(previous_speed)); // previous_speed[] = current_speed[]
   previous_nominal_speed = block->nominal_speed;
-
+  block->speed_e = current_speed[E_AXIS];
+  block->speed_x = current_speed[X_AXIS];
+  block->speed_y = current_speed[Y_AXIS];
+  block->speed_z = current_speed[Z_AXIS];
 
 #ifdef ADVANCE
   // Calculate advance rate

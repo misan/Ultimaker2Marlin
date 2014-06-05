@@ -31,7 +31,8 @@ void lcd_scroll_menu(const char* menuNameP, int8_t entryCount, entryNameCallback
 void lcd_progressbar(uint8_t progress);
 
 void lcd_menu_edit_setting();
-
+extern bool allow_encoder_acceleration;
+FORCE_INLINE void lcd_lib_enable_encoder_acceleration( bool enabled ) 	{ allow_encoder_acceleration = enabled; }
 extern const char* lcd_setting_name;
 extern const char* lcd_setting_postfix;
 extern void* lcd_setting_ptr;
@@ -109,7 +110,11 @@ extern uint8_t minProgress;
 extern uint8_t led_glow;
 extern uint8_t led_glow_dir;
 #define LED_NORMAL() lcd_lib_led_color(48,48,60)
+#define LED_FLASH() lcd_lib_led_color(8 + (led_glow<<3), 8 + min(255-8,(led_glow<<3)), 32 + min(255-32,led_glow<<3))
 #define LED_GLOW() lcd_lib_led_color(8 + led_glow, 8 + led_glow, 32 + led_glow)
-#define LED_GLOW_ERROR() lcd_lib_led_color(led_glow,128-led_glow,led_glow);
+#define LED_HEAT() lcd_lib_led_color(192 + led_glow/4, 8 + led_glow/4, 0)
+#define LED_DONE() lcd_lib_led_color(0, 8 + led_glow, 8)
+#define LED_COOL() lcd_lib_led_color(0, 4,16 + led_glow)
+#define LED_GLOW_ERROR() lcd_lib_led_color(8+min(245,led_glow<<3),0,0);
 
 #endif//ULTI_LCD2_HI_LIB_H

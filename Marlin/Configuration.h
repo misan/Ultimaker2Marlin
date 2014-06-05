@@ -9,7 +9,9 @@
 // startup. Implementation of an idea by Prof Braino to inform user that any changes made to this
 // build by the user have been successfully uploaded into firmware.
 #define STRING_VERSION_CONFIG_H __DATE__ " " __TIME__ // build date and time
-#define STRING_CONFIG_H_AUTHOR "Version 14.04.1" // Who made the changes.
+#define STRING_CONFIG_H_AUTHOR "Version 14.04.1_E" // Who made the changes.
+// _E version added by Lars Norpchen
+
 
 // SERIAL_PORT selects which serial port should be used for communication with the host.
 // This allows the connection of wireless adapters (for instance) to non-default port pins.
@@ -17,8 +19,8 @@
 #define SERIAL_PORT 0
 
 // This determines the communication speed of the printer
-#define BAUDRATE 250000
-//#define BAUDRATE 115200
+// #define BAUDRATE 250000
+#define BAUDRATE 115200
 
 //// The following define selects which electronics board you have. Please choose the one that matches your setup
 // 10 = Gen7 custom (Alfons3 Version) "https://github.com/Alfons3/Generation_7_Electronics"
@@ -569,5 +571,26 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 
 #include "Configuration_adv.h"
 #include "thermistortables.h"
+
+
+// customizations and enhancements (added by Lars June 3,2014)
+#define EXTENDED_BEEP 1					// enables extened audio feedback
+#define MOODLIGHT 1						// enables M420 and M421 lighting control G-codes
+#define MAX_ENCODER_ACCELERATION 4		// set this to 1 for no acceleration
+#define NOWRAP_MENUS 					// menus don't wrap around if defined
+#define SKIP_FAST_SIZE 3				// let the menu skip when it gets behind on long lists --  set to huge number to disable
+#define SINGLE_STEP_MENU 				//  if defined, this will force scroll menus to step in single steps, which is less disorienting  (esp when WRAP is enabled)
+#define SCROLL_MENU_FAR_DISTANCE 15		// distance which the scrolling menu will do a jump instead of a scroll -- to prevent lag when the selected item is far far away
+
+#define START_FEED_RATE 5				// was 25 -- how fast to extrude when priming the nozzle at the start
+// #define RAISE_BED_ON_START				// define this to have the bed raise up just before the initial extrude
+#define PRIMING_AMOUNT 25				// how much to extrude when priming at start
+
+#define MILLISECONDS_PER_SECOND 1000UL
+#define MILLISECONDS_PER_MINUTE (MILLISECONDS_PER_SECOND*60UL)
+
+#define LED_DIM_TIME (MILLISECONDS_PER_MINUTE*30UL)		// ten min
+#define DIM_LEVEL 5
+
 
 #endif //__CONFIGURATION_H
