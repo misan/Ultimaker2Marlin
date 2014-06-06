@@ -692,9 +692,9 @@ static void lcd_menu_print_ready()
 	// Let's show the final print time....
 	unsigned long printTimeSec = (stoptime-starttime)/1000;
 	char buffer[24];
-	char* c = buffer; 
-	c = strcpy_P(buffer, PSTR("Total time: "));
-	c =int_to_time_string(printTimeSec,c);
+	char* c;
+	strcpy_P(buffer, PSTR("Done in "));
+	c =int_to_time_string(printTimeSec,buffer+8);
 	*c++=0;
 	lcd_lib_draw_string_center(10, buffer);
 	// changed to a comparison with prior state saved and a gap between states to avoid switching back and forth
@@ -708,7 +708,7 @@ static void lcd_menu_print_ready()
         
         lcd_lib_draw_string_centerP(20, PSTR("Printer cooling down"));
 
-        int16_t progress = 124 - (current_temperature[0] - 60);
+        int16_t progress = 124 - max ((current_temperature[0] - 60),(current_temperature_bed-40));		// whichever is slowest (usually the bed) 
         if (progress < 0) progress = 0;
         if (progress > 124) progress = 124;
         

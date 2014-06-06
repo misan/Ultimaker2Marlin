@@ -843,8 +843,8 @@ void process_commands()
       while(millis()  < codenum ){
 		char buffer[20];
 		char *c = buffer;
-		c = strcpy_P (buffer,"WAIT: ");
-		c = float_to_string(codenum-millis()/1000,c," seconds");
+		c = strcpy_P (buffer,PSTR("WAIT: "));
+		c = float_to_string(codenum-millis()/1000,c,PSTR(" seconds"));
 		*c++=0;
 		lcd_setstatus (buffer);
         manage_heater();
@@ -1136,8 +1136,8 @@ void process_commands()
         while(millis()  < codenum && !lcd_lib_button_down){
 			char buffer[20];
 			char *c = buffer;
-			c = strcpy_P (buffer,"WAIT: ");
-			c = float_to_string(codenum-millis()/1000,c," seconds");
+			c = strcpy_P (buffer,PSTR("WAIT: "));
+			c = float_to_string(codenum-millis()/1000,c,PSTR(" seconds"));
 			*c++=0;
 			lcd_setstatus (buffer);
           manage_heater();
