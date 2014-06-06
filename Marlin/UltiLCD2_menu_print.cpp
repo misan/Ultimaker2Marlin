@@ -33,7 +33,7 @@ static void lcd_menu_print_tune_retraction();
 
 //  filament diameter of pi * r^2
 // nominal 2.85mm filament -- will be recalculated at StartPrint each time
-float PI_R2_09 = 2.0306;
+float PI_R2 = 2.0306;
 
 
 void lcd_clear_cache()
@@ -89,7 +89,7 @@ static void checkPrintFinished()
 
 static void doStartPrint()
 {
-	PI_R2_09 =((PI*((material[0].diameter/2)*(material[0].diameter/2))));
+	PI_R2 =((PI*((material[0].diameter/2)*(material[0].diameter/2))));
     plan_set_e_position(0);
 #ifdef RAISE_BED_ON_START
 	current_position[Z_AXIS] = 20.0;
@@ -276,7 +276,8 @@ void lcd_menu_print_select()
 	static bool beeped = false;
     if (!card.sdInserted)
     {
-        LED_GLOW_ERROR();
+        // beep, but only once
+		LED_GLOW_ERROR();
 		if (!beeped) ERROR_BEEP();
 		beeped = true;
         lcd_lib_encoder_pos = MAIN_MENU_ITEM_POS(0);
@@ -410,7 +411,7 @@ void lcd_menu_print_select()
 static void lcd_menu_print_heatup()
 {
     lcd_question_screen(lcd_menu_print_tune, NULL, PSTR("TUNE"), lcd_menu_print_abort, NULL, PSTR("ABORT"));
-    
+    starttime=stoptime =millis();		// kept the timers paused
     if (current_temperature_bed > target_temperature_bed - 10 && target_temperature_bed > 5)
     {
         for(uint8_t e=0; e<EXTRUDERS; e++)
@@ -476,19 +477,24 @@ static void lcd_menu_print_heatup()
 }
 
 
-// low pass filter constant, from 0.0 to 1.0 -- Higher numbers mean more smoothing, less responsiveness.
-// 0.0 would be completely disabled, 1.0 would ignore any changes
-#define LOW_PASS_SMOOTHING 0.95
+
 //-----------------------------------------------------------------------------------------------------------------
+// Draws a bargraph of the specified size and location, filled based on the value of 0.0 to 1.0 
 void drawMiniBargraph( int x1,int y1,int x2,int y2,double value )
-{
+	{
 	lcd_lib_draw_box(x1, y1, x2, y2);
 	value = constrain(value,0.0,1.0);
 	if (value ==0.0) return;
 	int val = value * abs(x2-x1-4);
 
 	lcd_lib_set (x1+2,y1+2,x1+2+val,y2-2);
-}
+	}
+
+
+// low pass filter constant, from 0.0 to 1.0 -- Higher numbers mean more smoothing, less responsiveness.
+// 0.0 would be completely disabled, 1.0 would ignore any changes
+#define LOW_PASS_SMOOTHING 0.9
+
 
 static void lcd_menu_print_printing()
 {
@@ -504,21 +510,29 @@ static void lcd_menu_print_printing()
 		static float e_smoothed_speed = 0.0;
 		static float xy_speed = 0.0;
 
-		// we only want to track xy movements, not Z or E only (retraction)
 		if (current_block!=NULL) {
 				if (current_block->steps_x != 0 ||  current_block->steps_y != 0) {
-					// calculate live extrusion rate from e speed and filament area
+					// we only want to track movements that have some xy component
+				
 					if (current_block->speed_e >= 0 && current_block->speed_e < retract_feedrate) 
-						e_smoothed_speed = e_smoothed_speed*LOW_PASS_SMOOTHING + ( PI_R2_09 * current_block->speed_e *(1.0-LOW_PASS_SMOOTHING));
-					xy_speed = LOW_PASS_SMOOTHING*xy_speed + ((1.0-LOW_PASS_SMOOTHING) * sqrt (current_block->speed_x*current_block->speed_x+current_block->speed_y*current_block->speed_y));
-				} else {										 // zero XY movement...
-					xy_speed = LOW_PASS_SMOOTHING*xy_speed;
-					if (current_block->steps_z == 0)		// no z-step, must be a retract
+							// calculate live extrusion rate from e speed and filament area
+							e_smoothed_speed = (e_smoothed_speed*LOW_PASS_SMOOTHING) + ( PI_R2 * current_block->speed_e *(1.0-LOW_PASS_SMOOTHING));
+
+					xy_speed = (LOW_PASS_SMOOTHING*xy_speed) + (((1.0-LOW_PASS_SMOOTHING)) * sqrt ((current_block->speed_x*current_block->speed_x)+(current_block->speed_y*current_block->speed_y)));
+					// might want to replace that sqrt with a fast approximation, since accuracy isn't that important here.
+					// or likely in the planner we've already got sqrt(dX*dX + dY*dY) .....somewhere....
+					// idea: consider reading XY position and delta time to calculate actual movement rather than what the planner is giving us.
+					//		 would that be more useful? It might lose some motion in fast zig zag or cut corners, so it would likely under-report 
+					//		 but I'm not certain the planner updates the current speed values with acceleration reduction -- so it may be over-reporting 
+				} else {		
+					 // zero XY movement...
+					xy_speed *= LOW_PASS_SMOOTHING;		// equivalent to above, but since sqrt(0) we can drop that term and calculate less
+					if (current_block->steps_z == 0)		// no z-steps, must be a retract -- flash the RGB LED to show we're retracting
 						lcd_lib_led_color(8,32,128);
 			} } else {
-				// no current block
-				xy_speed = LOW_PASS_SMOOTHING*xy_speed;
-				e_smoothed_speed = e_smoothed_speed*LOW_PASS_SMOOTHING;
+				// no current block -- we're paused, buffer has run out, ISR has not yet advanced to the next block, or we're not printing
+				xy_speed *= LOW_PASS_SMOOTHING;
+				e_smoothed_speed *= LOW_PASS_SMOOTHING;
 			}
 
 // Show the extruder temperature and target temperature: 
@@ -535,7 +549,7 @@ static void lcd_menu_print_printing()
 // show the xy travel speed
 		c = buffer;
 		//	 c = float_to_string( xy_speed,c,PSTR (" mm" PER_SECOND_SYMBOL ));
-		c = int_to_string( round(xy_speed),c,PSTR ("mm" PER_SECOND_SYMBOL ));
+		c = int_to_string( round(xy_speed),c,PSTR ("mm" PER_SECOND_SYMBOL ));		// we don't need decimal places here.
 		lcd_lib_draw_string_right(30, buffer);
 				
 		// show the fan speed
@@ -544,6 +558,7 @@ static void lcd_menu_print_printing()
 		// show the buffer  depth
 		drawMiniBargraph (3+2+32+10,29,3+2+32+10+32,36,(float) movesplanned() / (BLOCK_BUFFER_SIZE-1));
 
+		// show pink or red if the movement buffer is low / dry
 		if (movesplanned() < 2)
 			lcd_lib_led_color(255,0,0);
 		else if (movesplanned() < BLOCK_BUFFER_SIZE/4)
@@ -553,11 +568,13 @@ static void lcd_menu_print_printing()
 		}
         break;
     case PRINT_STATE_WAIT_USER:
+// get the user's attention by flashing the control knob LED, clicking, and disabling the automatic LED lighting dimming
 		LED_FLASH();
 		if (led_glow == 128) lcd_lib_tick();
 		last_user_interaction = millis();
         lcd_lib_encoder_pos = ENCODER_NO_SELECTION;
 		lcd_lib_draw_string_centerP(20, PSTR("Press button"));
+		// show a message, if we have one.  Otherwise, use a default.
 		 if (!lcd_lib_show_message (30, false)) 
 	        lcd_lib_draw_string_centerP(30, PSTR("to continue"));
         break;
@@ -672,18 +689,17 @@ static void lcd_menu_print_ready()
 
     lcd_info_screen(lcd_menu_main, postPrintReady, PSTR("BACK TO MENU"));
     
+	// Let's show the final print time....
 	unsigned long printTimeSec = (stoptime-starttime)/1000;
-
 	char buffer[24];
 	char* c = buffer; 
 	c = strcpy_P(buffer, PSTR("Total time: "));
 	c =int_to_time_string(printTimeSec,c);
 	*c++=0;
-	// SERIAL_ECHO (buffer);
 	lcd_lib_draw_string_center(10, buffer);
-	static bool print_is_cool = false;		
 	// changed to a comparison with prior state saved and a gap between states to avoid switching back and forth
 	// at the trigger point (hysteresis)
+	static bool print_is_cool = false;		
 	if (current_temperature_bed>42 || current_temperature[0] > 62) print_is_cool = false;
 	if (current_temperature_bed<40 && current_temperature[0] < 60) print_is_cool = true;
     if (!print_is_cool )

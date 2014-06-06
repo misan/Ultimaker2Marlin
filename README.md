@@ -1,4 +1,61 @@
 ==========================
+Norpchen's Changes to Ultimaker2 Marlin 
+==========================
+
+These are changes I've made for my own use and benefit,  Use at your own risk.  If your Ultimaker2 explodes, bursts into flame, tries to kill you, etc. don't come crying to me or to Ultimaker about it.
+
+Change log: 
+---------------------
+
+*June 5, 2014:*
+* Brought in sync with Ultimaker's master changes (lifetime stats, z axis homing) 
+
+* June 3, 2014* 
+
+*Display changes:*
+* Time display now show one decimal point of hours when time is > 1 and < 10 hrs (ie: 2.3 hours vs 2 hours)
+* Head temperature, fan speed, XY movement speed, extrusion volume, and movement planner buffer depth shown while printing
+* bed & head temperatures shown while preheating
+* Added hysteresis to print complete / cooldown display to prevent oscillations
+* Added M117 support for g-code messages (shown on printing and USB comm screens) 
+* Added symbols in the font for deg C, ^2 and ^3
+* Show total print time & name of file at end
+
+*Controls / UI changes:*
+* audible feedback (clicks) when moving encoder and navigating menu items
+* beeps on startup, error, completion, etc.
+* Faster SD card directory scrolling / listing
+* acceleration on encoder wheel when changing values (temperature, brightness, etc) with pitch changing beeps.  <-- Be careful changing things like print speed / flow until you are used to the acceleration!
+* menus no longer wrap around and single step scroll (but are faster!) -- which is less confusing overall and easier to navigate (these are easily changed options in configuration.h) 
+* LEDs will dim after thirty minutes of no user input (control knob) -- time and dim level set in configuration.h -- just rotate the control knob one click to wake up.
+* LED RGB ring around encoder is more informative about state:
+** orange glow when pre-heating
+** blue glow when cooling
+** green glow when all done
+** flashes red in error (it used to cycle through purple and green) 
+** turns pink when the print buffer is running low while printing.  This is not an error but a warning that the planner / USB host is not able to process / send movement commands fast enough to keep the movement buffer filled. A low buffer does not cause a problem, but an empty one will cause the head to stop and wait for new commands, which can cause oozing and blobs.  Often many tiny moves can cause a low buffer situation, as the movement happens very quickly and the planner cannot keep up.  Marlin will compensate by automatically slowing down movement commands when the buffer is less than half full.  It is normal for the buffer to drain during "head cool lift", if you pause the USB host, and at the end of the print.
+** turns red when the print buffer is empty (stall) while printing
+**  turns blue during retraction while printing
+** turns bright white when moving z-axis
+	
+* Added GCode support: *
+* support for M420 code for RGB led on controller wheel (r, e, b = 0-255 (yes, that's E and not G for the green) -- if set by g-code, normal opertating status colors will not be shown until 0,0,0 color is set by g-code (which can also be done with an M420 with no parameters)
+* support for M421 code for LED lighting brightness (s = 0-255 brightness)
+* support for M300 code to make a "beep"  (s = freq, p = duration) 
+* Serial feedback when it encounters an unsupported command
+
+* Other: *
+* fix for minimum fan speed "kickstart" logic not working when set too low 
+* Bigger menu cache and movement planner buffer for Mega2560 based boards (UM2, UM) -- smoother menus and smoother printing.  Reduced memory allocated to USB serial buffers,
+* Moved lifting the bed and nozzle prime values at start of print to configuration.h file (defaults to a slower extrusion and no bed lift than the official version) 
+* I set the default baud rate to 115200 because some linux configs have issues with 250000 (rasp pi, etc)
+
+
+==========================
+
+
+
+==========================
 Marlin 3D Printer Firmware
 ==========================
 

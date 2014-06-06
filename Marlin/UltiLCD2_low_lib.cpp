@@ -244,6 +244,8 @@ void lcd_lib_led_color(uint8_t r, uint8_t g, uint8_t b, bool forced)
     led_b = b;
 }
 
+// the baseline ASCII->font table offset.  Was 32 (space) but shifted down by four as I added four custom characters to the font
+// had to add them to the start of the table, because we're using char, which are signed and top out at 128, which is already the max table value.
 #define FONT_BASE_CHAR 28
 
 static const uint8_t lcd_font_7x5[] PROGMEM = {
@@ -840,7 +842,7 @@ void lcd_lib_buttons_update_interrupt()
     }
 }
 
-
+// this is changed by the various menus to enable or disable encoder acceleration for that time.
 bool allow_encoder_acceleration = false;
 
 void lcd_lib_buttons_update()
@@ -869,7 +871,7 @@ void lcd_lib_buttons_update()
 		else
 			encoder_accel = -1;
 #if EXTENDED_BEEP
-		if (allow_encoder_acceleration) lcd_lib_beep_ext (300+encoder_accel*25,10);
+		if (allow_encoder_acceleration) lcd_lib_beep_ext (400+encoder_accel*25,10);
 #endif	
 		}
 	 if (lcd_lib_encoder_pos_interrupt ==0)						// no movement --  back to 0 acceleration
@@ -881,13 +883,13 @@ void lcd_lib_buttons_update()
 	if (!allow_encoder_acceleration) encoder_accel=1;
 
     lcd_lib_encoder_pos += abs(encoder_accel) * lcd_lib_encoder_pos_interrupt;
-	if (lcd_lib_encoder_pos_interrupt!=0) last_user_interaction = millis();
-    lcd_lib_encoder_pos_interrupt = 0;
-
+	
     uint8_t buttonState = !READ(BTN_ENC);
     lcd_lib_button_pressed = (buttonState && !lcd_lib_button_down);
     lcd_lib_button_down = buttonState;
-	if  (lcd_lib_button_down) last_user_interaction=millis();
+
+	if  (lcd_lib_button_down || lcd_lib_encoder_pos_interrupt!=0 ) last_user_interaction=millis();
+	lcd_lib_encoder_pos_interrupt = 0;
 }
 
 char* int_to_string(int i, char* temp_buffer, const char* p_postfix)

@@ -4,10 +4,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
+// these are in OCTAL, for your convenience.
 #define DEGREE_C_SYMBOL "\037"
 #define SQUARED_SYMBOL "\035"
 #define CUBED_SYMBOL "\034"
 #define PER_SECOND_SYMBOL "/s"
+
+// this is what appears between two temperature values (ie: current and target temperatures) 
+// Octal 176 is 126 binary, which is a right arrow symbol in the lcd's font
 #define TEMPERATURE_SEPARATOR '\176'
 #define TEMPERATURE_SEPARATOR_S "\176"
 
