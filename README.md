@@ -29,14 +29,14 @@ Change log:
 * Menus no longer wrap around and single step scroll (but are faster!) -- It's a matter of personal perference, but I find this less confusing overall and easier to navigate.  
 * LEDs will dim after thirty minutes of no user input (control knob) -- time and dim level set in configuration.h -- just rotate the control knob one click to wake up.  (I'll need to make that timeout an adjustable preference eventually).  The LEDs don't use a lot of power, but this is handy for overnight unattended printing. 
 * LED RGB ring around encoder is more informative about state:
-** orange glow when pre-heating
-** blue glow when cooling
-** green glow when all done
-** flashes red in error (it used to cycle through purple and green) 
-** turns pink when the print buffer is running low while printing.  This is not an error but a warning that the planner / USB host is not able to process / send movement commands fast enough to keep the movement buffer filled. A low buffer does not cause a problem, but an empty one will cause the head to stop and wait for new commands, which can cause oozing and blobs.  Often many tiny moves can cause a low buffer situation, as the movement happens very quickly and the planner cannot keep up.  Marlin will compensate by automatically slowing down movement commands when the buffer is less than half full.  It is normal for the buffer to drain during "head cool lift", if you pause the USB host, and at the end of the print.
-** turns red when the print buffer is empty (stall) while printing
-** turns blue during retraction while printing
-** turns bright white when moving z-axis
+	* orange glow when pre-heating
+	* blue glow when cooling
+	* green glow when all done
+	* flashes red in error (it used to cycle through purple and green) 
+	* turns pink when the print buffer is running low while printing.  This is not an error but a warning that the planner / USB host is not able to process / send movement commands fast enough to keep the movement buffer filled. A low buffer does not cause a problem, but an empty one will cause the head to stop and wait for new commands, which can cause oozing and blobs.  Often many tiny moves can cause a low buffer situation, as the movement happens very quickly and the planner cannot keep up.  Marlin will compensate by automatically slowing down movement commands when the buffer is less than half full.  It is normal for the buffer to drain during "head cool lift", if you pause the USB host, and at the end of the print.
+	* turns red when the print buffer is empty (stall) while printing
+	* turns blue during retraction while printing
+	* turns bright white when moving z-axis
 	
 *Added GCode support:*
 * support for M420 code for RGB led on controller wheel (r, e, b = 0-255 (yes, that's E and not G for the green) -- if set by g-code, normal opertating status colors will not be shown until 0,0,0 color is set by g-code (which can also be done with an M420 with no parameters)
