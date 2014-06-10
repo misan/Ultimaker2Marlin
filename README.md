@@ -43,6 +43,7 @@ Change log:
 * support for M300 code to make a "beep"  (s = freq, p = duration) 
 * Serial feedback when it encounters an unsupported command
 * Previously mentioned M117 command for text messages on display.
+* Timed wait / dwell commands show countdown (or M117 message)
 
 *Other:*
 * Fix for minimum fan speed "kickstart" logic not working when set too low 
