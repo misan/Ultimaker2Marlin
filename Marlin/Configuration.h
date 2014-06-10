@@ -585,6 +585,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define START_FEED_RATE 5				// was 25 -- how fast to extrude when priming the nozzle at the start
 // #define RAISE_BED_ON_START				// define this to have the bed raise up just before the initial extrude
 #define PRIMING_AMOUNT 25				// how much to extrude when priming at start
+#define PRINT_END_RETRACTION 15			// in mm
 
 #define MILLISECONDS_PER_SECOND 1000UL
 #define MILLISECONDS_PER_MINUTE (MILLISECONDS_PER_SECOND*60UL)

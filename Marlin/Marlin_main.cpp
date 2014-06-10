@@ -302,6 +302,12 @@ void clear_command_queue()
 //needs overworking someday
 void enquecommand(const char *cmd)
 {
+  while (buflen >= BUFSIZE) 
+	  {
+	  SERIAL_ECHO_START;
+	  SERIAL_ECHOPGM("waiting to enque");
+	  delay(100);
+	  }
   if(buflen < BUFSIZE)
   {
     //this is dangerous if a mixing of serial and this happsens
@@ -317,6 +323,13 @@ void enquecommand(const char *cmd)
 
 void enquecommand_P(const char *cmd)
 {
+
+while (buflen >= BUFSIZE) 
+	{
+	SERIAL_ECHO_START;
+	SERIAL_ECHOPGM("waiting to enque");
+	delay(100);
+	}
   if(buflen < BUFSIZE)
   {
     //this is dangerous if a mixing of serial and this happsens
@@ -330,6 +343,7 @@ void enquecommand_P(const char *cmd)
   }
 }
 
+//-----------------------------------------------------------------------------------------------------------------
 bool is_command_queued()
 {
     return buflen > 0;
@@ -843,8 +857,8 @@ void process_commands()
       while(millis()  < codenum ){
 		char buffer[20];
 		char *c = buffer;
-		c = strcpy_P (buffer,PSTR("WAIT: "));
-		c = float_to_string(codenum-millis()/1000,c,PSTR(" seconds"));
+		c+=strlen (strcpy_P (buffer,PSTR("WAIT: ")));
+		c = int_to_string((int) (codenum-millis()/1000),c,PSTR(" sec"));
 		*c++=0;
 		lcd_setstatus (buffer);
         manage_heater();
@@ -1136,8 +1150,8 @@ void process_commands()
         while(millis()  < codenum && !lcd_lib_button_down){
 			char buffer[20];
 			char *c = buffer;
-			c = strcpy_P (buffer,PSTR("WAIT: "));
-			c = float_to_string(codenum-millis()/1000,c,PSTR(" seconds"));
+			c+=strlen (strcpy_P (buffer,PSTR("WAIT: ")));
+			c = int_to_string((int) (codenum-millis()/1000),c,PSTR(" sec"));
 			*c++=0;
 			lcd_setstatus (buffer);
           manage_heater();

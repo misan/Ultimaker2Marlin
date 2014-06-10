@@ -295,8 +295,8 @@ const unsigned int dropsegments=5; //everything with less than this number of st
 
 
 //The ASCII buffer for recieving from the serial:
-#define MAX_CMD_SIZE 96
-#define BUFSIZE 3		// reduced since we aren't officially supporting USB printing....we need the RAM elsewhere
+#define MAX_CMD_SIZE 64
+#define BUFSIZE 5		// reduced since we aren't officially supporting USB printing....we need the RAM elsewhere
 
 
 // Firmware based and LCD controled retract
