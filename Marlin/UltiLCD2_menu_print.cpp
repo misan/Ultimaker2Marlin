@@ -57,9 +57,14 @@ static void abortPrint()
 
     char buffer[32];
     card.sdprinting = false;
-	sprintf_P(buffer, PSTR("G92 E%i"), int(PRINT_END_RETRACTION / volume_to_filament_length[active_extruder]));
-	enquecommand(buffer);
-	enquecommand_P(PSTR("G1 F1500 E0"));
+
+    // set up the end of print retraction
+    sprintf_P(buffer, PSTR("G92 E%i"), int(((float)END_OF_PRINT_RETRACTION) / volume_to_filament_length[active_extruder]));
+    enquecommand(buffer);
+    // perform the retraction at the standard retract speed
+    sprintf_P(buffer, PSTR("G1 F%i E0"), int(retract_feedrate));
+    enquecommand(buffer);
+
     enquecommand_P(PSTR("G28"));
     enquecommand_P(PSTR("M84"));
 
@@ -92,24 +97,37 @@ static void doStartPrint()
 	PI_R2 =((PI*((material[0].diameter/2)*(material[0].diameter/2))));
 	current_position[E_AXIS] = 0.0;
     plan_set_e_position(0);
+	// since we are going to prime the nozzle, forget about any G10/G11 retractions that happened at end of previous print
+	retracted = false;
 #ifdef RAISE_BED_ON_START
 	current_position[Z_AXIS] = 20.0;
 #endif 
    plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], homing_feedrate[Z_AXIS], 0);
+
     for(uint8_t e = 0; e<EXTRUDERS; e++)
     {
         if (!LCD_DETAIL_CACHE_MATERIAL(e))
+        {
+        	// don't prime the extruder if it isn't used in the (Ulti)gcode
+        	// traditional gcode files typically won't have the Material lines at start, so we won't prime for those
             continue;
+        }
         active_extruder = e;
-        plan_set_e_position(-PRIMING_AMOUNT / volume_to_filament_length[e]);
-	
 
-        plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], START_FEED_RATE, e);
-        
+
+        // undo the end-of-print retraction
+        plan_set_e_position((0.0 - END_OF_PRINT_RETRACTION) / volume_to_filament_length[e]);
+        plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], END_OF_PRINT_RECOVERY_SPEED, e);
+
+        // perform additional priming
+        plan_set_e_position(-PRIMING_MM3);
+        plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], (PRIMING_MM3_PER_SEC * volume_to_filament_length[e]), e);
+
+        // for extruders other than the first one, perform end of print retraction
         if (e > 0)
         {
-            plan_set_e_position(PRIMING_AMOUNT / volume_to_filament_length[e]);
-            plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], START_FEED_RATE, e);
+            plan_set_e_position((END_OF_PRINT_RETRACTION) / volume_to_filament_length[e]);
+            plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], retract_feedrate/60, e);
         }
     }
     active_extruder = 0;
