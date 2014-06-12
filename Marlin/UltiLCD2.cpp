@@ -11,6 +11,7 @@
 #include "ConfigurationStore.h"
 #include "temperature.h"
 #include "pins.h"
+#include "Marlin.h"
 
 #define SERIAL_CONTROL_TIMEOUT 5000
 
@@ -328,5 +329,25 @@ bool lcd_lib_show_message(int position, bool decrement)
 		lcd_lib_draw_string_center(position, message_string);
 		}
 	return message_counter>0;
+	}
+//-----------------------------------------------------------------------------------------------------------------
+void lcd_setstatus( const char* message )
+	{
+	serialScreenShown=false;  
+	message_counter = DEFAULT_MESSAGE_DURATION; 
+	strncpy (message_string, message,MAX_MESSAGE_LEN); 
+	SERIAL_ECHO_START; 
+	SERIAL_ECHOPGM("LCD: " );
+	SERIAL_ECHOLN(message_string);
+	}
+//-----------------------------------------------------------------------------------------------------------------
+void lcd_setstatusP( ppstr message )
+	{
+	serialScreenShown=false;  
+	message_counter = DEFAULT_MESSAGE_DURATION; 
+	strncpy_P (message_string, message,MAX_MESSAGE_LEN);
+	SERIAL_ECHO_START; 
+	SERIAL_ECHOPGM("LCD: " );
+	SERIAL_ECHOLN(message_string);
 	}
 #endif//ENABLE_ULTILCD2

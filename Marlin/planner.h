@@ -119,6 +119,9 @@ FORCE_INLINE void plan_discard_current_block()
   }
 }
 
+
+ void plan_discard_all_blocks ();
+
 // Gets the current block. Returns NULL if buffer empty
 FORCE_INLINE block_t *plan_get_current_block() 
 {

@@ -43,27 +43,30 @@ void lcd_clear_cache()
     LCD_DETAIL_CACHE_ID() = 0;
     LCD_CACHE_NR_OF_FILES() = 0xFF;
 }
+//-----------------------------------------------------------------------------------------------------------------
 
 static void abortPrint()
 {
 	lcd_lib_beep_ext(220,150);
     postMenuCheck = NULL;
     lifetime_stats_print_end();
-    doCooldown();
-
+    doCooldown();		
+	/// stop any printing that's in the queue -- either from planner or the serial buffer
+	plan_discard_all_blocks();
     clear_command_queue();
+
     char buffer[32];
     if (card.sdprinting)
     {
         card.sdprinting = false;
-        sprintf_P(buffer, PSTR("G92 E%i"), int(20.0 / volume_to_filament_length[active_extruder]));
+        sprintf_P(buffer, PSTR("G92 E%i"), int(PRINT_END_RETRACTION / volume_to_filament_length[active_extruder]));
         enquecommand(buffer);
         enquecommand_P(PSTR("G1 F1500 E0"));
     }
     enquecommand_P(PSTR("G28"));
     enquecommand_P(PSTR("M84"));
-	stoptime = millis();
 
+	stoptime = millis();
 }
 
 
@@ -93,15 +96,16 @@ static void doStartPrint()
     plan_set_e_position(0);
 #ifdef RAISE_BED_ON_START
 	current_position[Z_AXIS] = 20.0;
+   plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], homing_feedrate[Z_AXIS], 0);
 #endif 
 
-    plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], homing_feedrate[Z_AXIS], 0);
     for(uint8_t e = 0; e<EXTRUDERS; e++)
     {
         if (!LCD_DETAIL_CACHE_MATERIAL(e))
             continue;
         active_extruder = e;
         plan_set_e_position(-PRIMING_AMOUNT / volume_to_filament_length[e]);
+	
         current_position[E_AXIS] = 0.0;
         plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], START_FEED_RATE, e);
         
@@ -114,11 +118,11 @@ static void doStartPrint()
     active_extruder = 0;
     
     postMenuCheck = checkPrintFinished;
-    card.startFileprint();
     lcd_setstatusP(PSTR("HERE WE GO!"));
 	lcd_lib_beep_ext(440,100);
 	lcd_lib_beep_ext(660,150);
 	lcd_lib_beep_ext(880,150);
+	card.startFileprint();
 	last_user_interaction=starttime = millis();
 	stoptime=0;
     lifetime_stats_print_start();
@@ -199,7 +203,7 @@ void lcd_sd_menu_details_callback(uint8_t nr)
 					if (file_read_delay_counter>0)
 						file_read_delay_counter --;
 					if (file_read_delay_counter > 0) return;		// wait, don't read yet, we may just be scanning through the list quickly....
-					file_read_delay_counter=30;
+					file_read_delay_counter=30;						// but don't make the wait too long - we don't want them to select a file without having hit this block
                     card.getfilename(nr - 1);
                     if (card.errorCode())
                     {
@@ -559,12 +563,9 @@ static void lcd_menu_print_printing()
 		drawMiniBargraph (3+2+32+10,29,3+2+32+10+32,36,(float) movesplanned() / (BLOCK_BUFFER_SIZE-1));
 
 		// show pink or red if the movement buffer is low / dry
-		if (movesplanned() < 2)
-			lcd_lib_led_color(255,0,0);
-		else if (movesplanned() < BLOCK_BUFFER_SIZE/4)
-			lcd_lib_led_color(255,0,160);
-		else if (movesplanned() < BLOCK_BUFFER_SIZE/2)
-			lcd_lib_led_color(192,32,192);
+		if (movesplanned() < 2)							lcd_lib_led_color(255,0,0);
+		else if (movesplanned() < BLOCK_BUFFER_SIZE/4)	lcd_lib_led_color(255,0,160);
+		else if (movesplanned() < BLOCK_BUFFER_SIZE/2)  lcd_lib_led_color(192,32,192);
 		}
         break;
     case PRINT_STATE_WAIT_USER:
@@ -663,7 +664,7 @@ static void lcd_menu_print_classic_warning()
 
 static void lcd_menu_print_abort()
 {
-    LED_GLOW();
+    LED_FLASH();
     lcd_question_screen(lcd_menu_print_ready, abortPrint, PSTR("YES"), previousMenu, NULL, PSTR("NO"));
     
     lcd_lib_draw_string_centerP(20, PSTR("Abort the print?"));

@@ -5,6 +5,7 @@
 
 #ifdef ENABLE_ULTILCD2
 #include "UltiLCD2_low_lib.h"
+#include "..\..\..\Users\Lars\AppData\Local\VMicro\Arduino\Builds\Marlin\mega_atmega2560\Marlin.h"
 
 #define MAX_MESSAGE_LEN 20
 extern char message_string [MAX_MESSAGE_LEN+1];
@@ -19,8 +20,8 @@ typedef  const PROGMEM char * ppstr;
 
 void lcd_init();
 void lcd_update();
-FORCE_INLINE void lcd_setstatus(const char* message) {serialScreenShown=false;  message_counter = DEFAULT_MESSAGE_DURATION; strncpy (message_string, message,MAX_MESSAGE_LEN); }
-FORCE_INLINE void lcd_setstatusP(ppstr message) {serialScreenShown=false;  message_counter = DEFAULT_MESSAGE_DURATION; strncpy_P (message_string, message,MAX_MESSAGE_LEN); }
+void lcd_setstatus(const char* message);
+void lcd_setstatusP(ppstr message);
 void lcd_buttons_update();
 FORCE_INLINE void lcd_reset_alert_level() {}
 FORCE_INLINE void lcd_buzz(long duration,uint16_t freq) {}
