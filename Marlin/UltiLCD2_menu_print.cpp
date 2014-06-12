@@ -56,13 +56,10 @@ static void abortPrint()
     clear_command_queue();
 
     char buffer[32];
-    if (card.sdprinting)
-    {
-        card.sdprinting = false;
-        sprintf_P(buffer, PSTR("G92 E%i"), int(PRINT_END_RETRACTION / volume_to_filament_length[active_extruder]));
-        enquecommand(buffer);
-        enquecommand_P(PSTR("G1 F1500 E0"));
-    }
+    card.sdprinting = false;
+	sprintf_P(buffer, PSTR("G92 E%i"), int(PRINT_END_RETRACTION / volume_to_filament_length[active_extruder]));
+	enquecommand(buffer);
+	enquecommand_P(PSTR("G1 F1500 E0"));
     enquecommand_P(PSTR("G28"));
     enquecommand_P(PSTR("M84"));
 
@@ -93,12 +90,12 @@ static void checkPrintFinished()
 static void doStartPrint()
 {
 	PI_R2 =((PI*((material[0].diameter/2)*(material[0].diameter/2))));
+	current_position[E_AXIS] = 0.0;
     plan_set_e_position(0);
 #ifdef RAISE_BED_ON_START
 	current_position[Z_AXIS] = 20.0;
-   plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], homing_feedrate[Z_AXIS], 0);
 #endif 
-
+   plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], homing_feedrate[Z_AXIS], 0);
     for(uint8_t e = 0; e<EXTRUDERS; e++)
     {
         if (!LCD_DETAIL_CACHE_MATERIAL(e))
@@ -106,7 +103,7 @@ static void doStartPrint()
         active_extruder = e;
         plan_set_e_position(-PRIMING_AMOUNT / volume_to_filament_length[e]);
 	
-        current_position[E_AXIS] = 0.0;
+
         plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], START_FEED_RATE, e);
         
         if (e > 0)
