@@ -23,6 +23,8 @@ static void lcd_menu_advanced_version();
 static void lcd_menu_advanced_stats();
 static void lcd_menu_maintenance_motion();
 static void lcd_menu_advanced_factory_reset();
+static void lcd_menu_advanced_materials_reset();
+static void  doMaterialsReset();
 extern bool allow_encoder_acceleration;
 
 void lcd_menu_maintenance()
@@ -82,7 +84,9 @@ static char* lcd_advanced_item(uint8_t nr)
         strcpy_P(card.longFilename, PSTR("Runtime stats"));
     else if (nr == 10 + EXTRUDERS * 2)
         strcpy_P(card.longFilename, PSTR("Factory reset"));
-    else
+	else if (nr == 11 + EXTRUDERS * 2)
+		strcpy_P(card.longFilename, PSTR("Reset Materials"));
+	else
         strcpy_P(card.longFilename, PSTR("???"));
     return card.longFilename;
 }
@@ -93,7 +97,7 @@ static void lcd_advanced_details(uint8_t nr)
 
 static void lcd_menu_maintenance_advanced()
 {
-    lcd_scroll_menu(PSTR("ADVANCED"), 11 + EXTRUDERS * 2, lcd_advanced_item, lcd_advanced_details);
+    lcd_scroll_menu(PSTR("ADVANCED"), 12 + EXTRUDERS * 2, lcd_advanced_item, lcd_advanced_details);
     if (lcd_lib_button_pressed)
     {
         if (IS_SELECTED_SCROLL(0))
@@ -156,6 +160,8 @@ static void lcd_menu_maintenance_advanced()
             lcd_change_to_menu(lcd_menu_advanced_stats, SCROLL_MENU_ITEM_POS(0));
         else if (IS_SELECTED_SCROLL(10 + EXTRUDERS * 2))
             lcd_change_to_menu(lcd_menu_advanced_factory_reset, SCROLL_MENU_ITEM_POS(1));
+		else if (IS_SELECTED_SCROLL(11 + EXTRUDERS * 2))
+			lcd_change_to_menu(lcd_menu_advanced_materials_reset, SCROLL_MENU_ITEM_POS(1));
     }
 }
 
@@ -269,6 +275,14 @@ void lcd_menu_advanced_stats()
     lcd_lib_draw_string_center(40, buffer);
     lcd_lib_update_screen();
 }
+static void doMaterialsReset()
+{
+	lcd_material_reset_defaults();
+	lcd_lib_beep_ext(500,200);
+	lcd_lib_beep_ext(700,350);
+	lcd_material_read_current_material();
+	 lcd_change_to_menu(lcd_menu_maintenance_advanced);
+}
 
 static void doFactoryReset()
 {
@@ -306,6 +320,13 @@ static void lcd_menu_advanced_factory_reset()
     lcd_lib_update_screen();
 }
 
+static void lcd_menu_advanced_materials_reset()
+	{
+	lcd_question_screen(NULL, doMaterialsReset, PSTR("YES"), previousMenu, NULL, PSTR("NO"));
+	lcd_lib_draw_string_centerP(10, PSTR("Reset materials"));
+	lcd_lib_draw_string_centerP(20, PSTR("to default?"));
+	lcd_lib_update_screen();
+	}
 
 static char* lcd_retraction_item(uint8_t nr)
 {

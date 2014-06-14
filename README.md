@@ -6,6 +6,11 @@ These are changes I've made for my own use and benefit,  Use at your own risk.  
 
 Change log: 
 ---------------------
+*Jun 13,2014:*
+* Added more material presets (nylon, PET, flex PLA) 
+* Made it easier to add presets in the source code
+* Longer material names
+* Reset materials option in the advanced menu
 
 *June 5, 2014:*
 * Brought in sync with Ultimaker's master changes (lifetime stats, z axis homing) 

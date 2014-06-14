@@ -25,6 +25,29 @@ void inline eeprom_write_float(float* addr, float f)
 }
 #endif
 
+const int MATERIAL_PRESETS=7;
+
+struct material_preset
+	{
+	prog_char name[MATERIAL_NAME_LENGTH];		// 7 chars max
+	int temperature;
+	int bed;
+	byte fan_speed;
+	int flow;
+	float diameter;
+	};
+
+PROGMEM const material_preset  presets[MATERIAL_PRESETS] =
+	{
+		{("GENERIC PLA")     , 210, 60,100,100,2.85},
+		{("GENERIC ABS")     , 250, 105,50,107,2.85},
+		{("IC3D ABS")        , 235,105, 50,107,2.85},
+		{("JET ABS")         , 250,105, 50,107,2.95},
+		{("ECOFLEX PLA")     , 235, 75,100,110,2.85},
+		{("T 618 NYLON")     , 245, 45,100,110,2.85},
+		{("TGLASE/PET+")     , 225, 70,100, 90,2.9 }
+	};
+
 struct materialSettings material[EXTRUDERS];
 
 void doCooldown();//TODO
@@ -282,8 +305,8 @@ static void lcd_menu_change_material_insert()
 
 static char* lcd_menu_change_material_select_material_callback(uint8_t nr)
 {
-    eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr), 8);
-    card.longFilename[8] = '\0';
+    eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr), MATERIAL_NAME_LENGTH);
+    card.longFilename[MATERIAL_NAME_LENGTH] = '\0';
     return card.longFilename;
 }
 
@@ -333,8 +356,8 @@ static char* lcd_material_select_callback(uint8_t nr)
     else if (nr > count)
         strcpy_P(card.longFilename, PSTR("Customize"));
     else{
-        eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr - 1), 8);
-        card.longFilename[8] = '\0';
+        eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr - 1), MATERIAL_NAME_LENGTH);
+        card.longFilename[MATERIAL_NAME_LENGTH] = '\0';
     }
     return card.longFilename;
 }
@@ -378,7 +401,7 @@ static void lcd_menu_material_select()
 {
     uint8_t count = eeprom_read_byte(EEPROM_MATERIAL_COUNT_OFFSET());
     
-    lcd_scroll_menu(PSTR("MATERIAL"), count + 2, lcd_material_select_callback, lcd_material_select_details_callback);
+    lcd_scroll_menu(PSTR("MATERIAL"), count + MATERIAL_PRESETS, lcd_material_select_callback, lcd_material_select_details_callback);
     if (lcd_lib_button_pressed)
     {
         if (IS_SELECTED_SCROLL(0))
@@ -486,8 +509,8 @@ static char* lcd_menu_material_settings_store_callback(uint8_t nr)
     else if (nr > count)
         strcpy_P(card.longFilename, PSTR("New preset"));
     else{
-        eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr - 1), 8);
-        card.longFilename[8] = '\0';
+        eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr - 1), MATERIAL_NAME_LENGTH);
+        card.longFilename[MATERIAL_NAME_LENGTH] = '\0';
     }
     return card.longFilename;
 }
@@ -501,7 +524,7 @@ static void lcd_menu_material_settings_store()
     uint8_t count = eeprom_read_byte(EEPROM_MATERIAL_COUNT_OFFSET());
     if (count == EEPROM_MATERIAL_SETTINGS_MAX_COUNT)
         count--;
-    lcd_scroll_menu(PSTR("PRESETS"), 2 + count, lcd_menu_material_settings_store_callback, lcd_menu_material_settings_store_details_callback);
+    lcd_scroll_menu(PSTR("PRESETS"), MATERIAL_PRESETS + count, lcd_menu_material_settings_store_callback, lcd_menu_material_settings_store_details_callback);
 
     if (lcd_lib_button_pressed)
     {
@@ -510,9 +533,10 @@ static void lcd_menu_material_settings_store()
             uint8_t idx = SELECTED_SCROLL_MENU_ITEM() - 1;
             if (idx == count)
             {
-                char buffer[9] = "CUSTOM";
-                int_to_string(idx - 1, buffer + 6);
-                eeprom_write_block(buffer, EEPROM_MATERIAL_NAME_OFFSET(idx), 8);
+                char buffer[MATERIAL_NAME_LENGTH+1] = "CUSTOM";
+                char * c= int_to_string(idx - 1 - MATERIAL_PRESETS+2, buffer + 6);
+				*c++=0;
+                eeprom_write_block(buffer, EEPROM_MATERIAL_NAME_OFFSET(idx), MATERIAL_NAME_LENGTH);
                 eeprom_write_byte(EEPROM_MATERIAL_COUNT_OFFSET(), idx + 1);
             }
             lcd_material_store_material(idx);
@@ -522,28 +546,28 @@ static void lcd_menu_material_settings_store()
     }
 }
 
+
+
 void lcd_material_reset_defaults()
 {
     //Fill in the defaults
-    char buffer[8];
-    
-    strcpy_P(buffer, PSTR("PLA"));
-    eeprom_write_block(buffer, EEPROM_MATERIAL_NAME_OFFSET(0), 4);
-    eeprom_write_word(EEPROM_MATERIAL_TEMPERATURE_OFFSET(0), 210);
-    eeprom_write_word(EEPROM_MATERIAL_BED_TEMPERATURE_OFFSET(0), 60);
-    eeprom_write_byte(EEPROM_MATERIAL_FAN_SPEED_OFFSET(0), 100);
-    eeprom_write_word(EEPROM_MATERIAL_FLOW_OFFSET(0), 100);
-    eeprom_write_float(EEPROM_MATERIAL_DIAMETER_OFFSET(0), 2.85);
+	SERIAL_ECHO_START;
+	SERIAL_ECHOLNPGM("Materials reset");
+    char buffer[MATERIAL_NAME_LENGTH];
+    for (int a= 0; a< MATERIAL_PRESETS;a++)
+     {
+		 strncpy_P(buffer, (prog_char*) presets[a].name,MATERIAL_NAME_LENGTH);		// this will pad out the whole length with 0 as needed.
+		 eeprom_write_block(buffer                                  , EEPROM_MATERIAL_NAME_OFFSET(a), MATERIAL_NAME_LENGTH);
+		 material_preset temp;
+		 memcpy_P((void*) &temp,&presets[a],sizeof (material_preset));
+		 eeprom_write_word(EEPROM_MATERIAL_TEMPERATURE_OFFSET(a)    ,temp.temperature);
+		 eeprom_write_word(EEPROM_MATERIAL_BED_TEMPERATURE_OFFSET(a),temp.bed);
+		 eeprom_write_byte(EEPROM_MATERIAL_FAN_SPEED_OFFSET(a)      ,temp.fan_speed);
+		 eeprom_write_word(EEPROM_MATERIAL_FLOW_OFFSET(a)           ,temp.flow);
+		 eeprom_write_float(EEPROM_MATERIAL_DIAMETER_OFFSET(a)      ,temp.diameter);   
+     }
 
-    strcpy_P(buffer, PSTR("ABS"));
-    eeprom_write_block(buffer, EEPROM_MATERIAL_NAME_OFFSET(1), 4);
-    eeprom_write_word(EEPROM_MATERIAL_TEMPERATURE_OFFSET(1), 260);
-    eeprom_write_word(EEPROM_MATERIAL_BED_TEMPERATURE_OFFSET(1), 90);
-    eeprom_write_byte(EEPROM_MATERIAL_FAN_SPEED_OFFSET(1), 50);
-    eeprom_write_word(EEPROM_MATERIAL_FLOW_OFFSET(1), 107);
-    eeprom_write_float(EEPROM_MATERIAL_DIAMETER_OFFSET(1), 2.85);
-    
-    eeprom_write_byte(EEPROM_MATERIAL_COUNT_OFFSET(), 2);
+    eeprom_write_byte(EEPROM_MATERIAL_COUNT_OFFSET(), MATERIAL_PRESETS);
 }
 
 void lcd_material_set_material(uint8_t nr, uint8_t e)
@@ -554,8 +578,8 @@ void lcd_material_set_material(uint8_t nr, uint8_t e)
 
     material[e].fan_speed = eeprom_read_byte(EEPROM_MATERIAL_FAN_SPEED_OFFSET(nr));
     material[e].diameter = eeprom_read_float(EEPROM_MATERIAL_DIAMETER_OFFSET(nr));
-    eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr), 8);
-    card.longFilename[8] = '\0';
+    eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr), MATERIAL_NAME_LENGTH);
+    card.longFilename[MATERIAL_NAME_LENGTH] = '\0';
     if (material[e].temperature > HEATER_0_MAXTEMP - 15)
         material[e].temperature = HEATER_0_MAXTEMP - 15;
     if (material[e].bed_temperature > BED_MAXTEMP - 15)
@@ -572,7 +596,7 @@ void lcd_material_store_material(uint8_t nr)
 
     eeprom_write_byte(EEPROM_MATERIAL_FAN_SPEED_OFFSET(nr), material[active_extruder].fan_speed);
     eeprom_write_float(EEPROM_MATERIAL_DIAMETER_OFFSET(nr), material[active_extruder].diameter);
-    //eeprom_write_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr), 8);
+    //eeprom_write_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr), MATERIAL_NAME_LENGTH);
 }
 
 void lcd_material_read_current_material()
@@ -602,12 +626,16 @@ void lcd_material_store_current_material()
 
 bool lcd_material_verify_material_settings()
 {
+	SERIAL_ECHO_START;
     uint8_t cnt = eeprom_read_byte(EEPROM_MATERIAL_COUNT_OFFSET());
-    if (cnt < 2 || cnt > 16)
+	SERIAL_ECHOPAIR("Found presets: ",(unsigned long) cnt);
+    SERIAL_ECHOLN("");
+	if (cnt < 2 || cnt > EEPROM_MATERIAL_SETTINGS_MAX_COUNT)
         return false;
     while(cnt > 0)
     {
         cnt --;
+		SERIAL_ECHOPAIR("Checking preset # ",(unsigned long) cnt);
         if (eeprom_read_word(EEPROM_MATERIAL_TEMPERATURE_OFFSET(cnt)) > HEATER_0_MAXTEMP)
             return false;
         if (eeprom_read_word(EEPROM_MATERIAL_BED_TEMPERATURE_OFFSET(cnt)) > BED_MAXTEMP)
@@ -620,6 +648,8 @@ bool lcd_material_verify_material_settings()
             return false;
         if (eeprom_read_float(EEPROM_MATERIAL_DIAMETER_OFFSET(cnt)) < 0.1)
             return false;
+		SERIAL_ECHOPAIR(".....OK with preset # ",(unsigned long) cnt);
+		SERIAL_ECHOLN("");
     }
     return true;
 }
