@@ -12,6 +12,9 @@ Change log:
 * Longer material names
 * Reset materials option in the advanced menu
 
+*Jun 11,2014:*
+* brought in Illuminarti's startup / priming fixes
+
 *June 5, 2014:*
 * Brought in sync with Ultimaker's master changes (lifetime stats, z axis homing) 
 
