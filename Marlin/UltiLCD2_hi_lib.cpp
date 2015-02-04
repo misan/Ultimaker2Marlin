@@ -20,20 +20,21 @@ uint8_t lcd_setting_type;
 int16_t lcd_setting_min;
 int16_t lcd_setting_max;
 
-int last_menu_index = 0;
+int last_menu_index = -1;
 
 void lcd_change_to_menu(menuFunc_t nextMenu, int16_t newEncoderPos)
 {
     minProgress = 0;
     led_glow = led_glow_dir = 0;
-    LED_NORMAL();
+	LED_WHITE() ;   
     lcd_lib_beep();
     previousMenu = currentMenu;
     previousEncoderPos = lcd_lib_encoder_pos;
     currentMenu = nextMenu;
-    lcd_lib_encoder_pos = newEncoderPos;
+	LED_NORMAL();
+	lcd_lib_encoder_pos = newEncoderPos;
 	lcd_lib_enable_encoder_acceleration(false);			// by default, we do not want acceleration -- only enable it when needed in specific menus
-	last_menu_index=0;
+	last_menu_index=-1;
 }
 
 // check to see if the selected menu item has changed, if so, do something (click in this case)
@@ -196,7 +197,7 @@ void lcd_scroll_menu(const char* menuNameP, int8_t entryCount, entryNameCallback
 
     if (lcd_lib_button_pressed)
 		{
-		last_menu_index=0;
+		last_menu_index=-1;
 		return;//Selection possibly changed the menu, so do not update it this cycle.
 		}
 

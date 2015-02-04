@@ -9,7 +9,7 @@
 // startup. Implementation of an idea by Prof Braino to inform user that any changes made to this
 // build by the user have been successfully uploaded into firmware.
 #define STRING_VERSION_CONFIG_H __DATE__ " " __TIME__ // build date and time
-#define STRING_CONFIG_H_AUTHOR "Version 14.06.2_E" // Who made the changes.
+#define STRING_CONFIG_H_AUTHOR "Version 14.06.4_xE" // Who made the changes.
 // _E version added by Lars Norpchen
 
 
@@ -136,7 +136,8 @@
 // 52 is 200k thermistor - ATC Semitec 204GT-2 (1k pullup)
 // 55 is 100k thermistor - ATC Semitec 104GT-2 (Used in ParCan) (1k pullup)
 
-#define TEMP_SENSOR_0 20
+#define TEMP_SENSOR_0 20 //99
+
 #define TEMP_SENSOR_1 20
 #define TEMP_SENSOR_2 0
 #define TEMP_SENSOR_BED 20
@@ -161,7 +162,7 @@
 // When temperature exceeds max temp, your heater will be switched off.
 // This feature exists to protect your hotend from overheating accidentally, but *NOT* from thermistor short/failure!
 // You should use MINTEMP for thermistor short/failure protection.
-#define HEATER_0_MAXTEMP 275
+#define HEATER_0_MAXTEMP 300 //275
 #define HEATER_1_MAXTEMP 275
 #define HEATER_2_MAXTEMP 275
 #define BED_MAXTEMP 200
@@ -193,8 +194,12 @@
 
 // Ultimaker2
     #define  DEFAULT_Kp 12.15
-    #define  DEFAULT_Ki 1.0
-    #define  DEFAULT_Kd 37.02
+   #define  DEFAULT_Ki 1.0
+  #define  DEFAULT_Kd 37.02
+
+//#define  DEFAULT_Kp 17.28
+//#define  DEFAULT_Ki 0.86
+//#define  DEFAULT_Kd 86.91
 
 // Makergear
 //    #define  DEFAULT_Kp 7.0
@@ -328,9 +333,9 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define min_software_endstops true // If true, axis won't move to coordinates less than HOME_POS.
 #define max_software_endstops true  // If true, axis won't move to coordinates greater than the defined lengths below.
 // Travel limits after homing
-#define X_MAX_POS 230
+#define X_MAX_POS 220			// reduced from 230
 #define X_MIN_POS 0
-#define Y_MAX_POS 230
+#define Y_MAX_POS 220		// reduced from 230
 #define Y_MIN_POS 0
 #define Z_MAX_POS 230
 #define Z_MIN_POS 0
@@ -357,7 +362,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 // default settings
 
 #define DEFAULT_AXIS_STEPS_PER_UNIT   {80.0,80.0,200,282}  // default steps per unit for ultimaker2
-#define DEFAULT_MAX_FEEDRATE          {300, 300, 40, 45}    // (mm/sec)
+#define DEFAULT_MAX_FEEDRATE          {250, 250, 40, 80}    // (mm/sec)
 #define DEFAULT_MAX_ACCELERATION      {9000,9000,100,10000}    // X, Y, Z, E maximum start speed for accelerated moves. E default values are good for skeinforge 40+, for older versions raise them a lot.
 
 #define DEFAULT_ACCELERATION          3000    // X, Y, Z and E max acceleration in mm/s^2 for printing moves
@@ -600,8 +605,10 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define MILLISECONDS_PER_SECOND 1000UL
 #define MILLISECONDS_PER_MINUTE (MILLISECONDS_PER_SECOND*60UL)
 
-#define LED_DIM_TIME (MILLISECONDS_PER_MINUTE*30UL)		// ten min
+#define LED_DIM_TIME (MILLISECONDS_PER_MINUTE*30UL)		// 30 min
 #define DIM_LEVEL 5
+
+
 
 
 #endif //__CONFIGURATION_H

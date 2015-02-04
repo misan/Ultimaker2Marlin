@@ -29,7 +29,7 @@ const int MATERIAL_PRESETS=7;
 
 struct material_preset
 	{
-	prog_char name[MATERIAL_NAME_LENGTH];		// 7 chars max
+	char PROGMEM name[MATERIAL_NAME_LENGTH];		// 7 chars max
 	int temperature;
 	int bed;
 	byte fan_speed;
@@ -39,13 +39,13 @@ struct material_preset
 
 PROGMEM const material_preset  presets[MATERIAL_PRESETS] =
 	{
-		{("GENERIC PLA")     , 210, 60,100,100,2.85},
-		{("GENERIC ABS")     , 250, 105,50,107,2.85},
-		{("IC3D ABS")        , 235,105, 50,107,2.85},
-		{("JET ABS")         , 250,105, 50,107,2.95},
-		{("ECOFLEX PLA")     , 235, 75,100,110,2.85},
-		{("T 618 NYLON")     , 245, 45,100,110,2.85},
-		{("TGLASE/PET+")     , 225, 70,100, 90,2.9 }
+		{(("GENERIC PLA")   )  , 210, 60, 100, 100, 2.85},
+		{(("GENERIC ABS")   )  , 250, 105,  0, 104, 2.85},
+		{(("IC3D ABS")      )  , 235, 105,  0, 104, 2.85},
+		{(("JET ABS")       )  , 250, 105,  0, 104, 2.95},
+		{(("ECOFLEX PLA")   )  , 235, 75, 100, 110, 2.85},
+		{(("T 618 NYLON")   )  , 245, 45, 100, 110, 2.85},
+		{(("TGLASE/PET+")   )  , 225, 70, 100, 100, 2.9 }
 	};
 
 struct materialSettings material[EXTRUDERS];
@@ -159,8 +159,16 @@ static void lcd_menu_change_material_preheat()
         minProgress = progress;
     
     lcd_info_screen(lcd_menu_material_main, cancelMaterialInsert);
-    lcd_lib_draw_stringP(3, 10, PSTR("Heating printhead"));
-    lcd_lib_draw_stringP(3, 20, PSTR("for material removal"));
+    lcd_lib_draw_stringP(3, 0, PSTR("Heating printhead"));
+    lcd_lib_draw_stringP(3, 10, PSTR("for material removal"));
+
+	char buffer[20];
+	char* c;
+
+	c = int_to_string(temp, buffer/*, PSTR( DEGREE_C_SYMBOL )*/);
+	*c++ = TEMPERATURE_SEPARATOR;
+	c = int_to_string(target, c, PSTR( DEGREE_C_SYMBOL ));
+    lcd_lib_draw_string_center(20, buffer);
 
     lcd_progressbar(progress);
     LED_HEAT();
@@ -556,7 +564,7 @@ void lcd_material_reset_defaults()
     char buffer[MATERIAL_NAME_LENGTH];
     for (int a= 0; a< MATERIAL_PRESETS;a++)
      {
-		 strncpy_P(buffer, (prog_char*) presets[a].name,MATERIAL_NAME_LENGTH);		// this will pad out the whole length with 0 as needed.
+		 strncpy_P(buffer, (char PROGMEM *) presets[a].name,MATERIAL_NAME_LENGTH);		// this will pad out the whole length with 0 as needed.
 		 eeprom_write_block(buffer                                  , EEPROM_MATERIAL_NAME_OFFSET(a), MATERIAL_NAME_LENGTH);
 		 material_preset temp;
 		 memcpy_P((void*) &temp,&presets[a],sizeof (material_preset));

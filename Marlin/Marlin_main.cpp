@@ -256,6 +256,18 @@ uint8_t Stopped = false;
   Servo servos[NUM_SERVOS];
 #endif
 
+
+  float readVoltage () 
+	  {
+
+	  float v = analogRead(MAIN_VOLTAGE_MEASURE_PIN);
+	  v = v  / 1024;
+	  v *= 5.0;		// todo: make this the VCC reading from chip.
+	  v /=0.045;					// divider network is 100K and 4.7K, so that's a 0.045 divisor
+	  return v;
+	  }
+
+
 //===========================================================================
 //=============================ROUTINES=============================
 //===========================================================================
@@ -454,11 +466,17 @@ void setup()
   SERIAL_ECHO(freeMemory());
   SERIAL_ECHOPGM(MSG_PLANNER_BUFFER_BYTES);
   SERIAL_ECHOLN((int)sizeof(block_t)*BLOCK_BUFFER_SIZE);
+  SERIAL_ECHOPGM("Voltage: ");
+  SERIAL_ECHO(readVoltage());
+  SERIAL_ECHOLNPGM("VDC");
+  
+
   for(int8_t i = 0; i < BUFSIZE; i++)
   {
     fromsd[i] = false;
   }
 
+  lcd_init();
   // loads data from EEPROM if available else uses defaults (and resets step acceleration rate)
   Config_RetrieveSettings();
   lifetime_stats_init();
@@ -469,7 +487,6 @@ void setup()
   setup_photpin();
   servo_init();
 
-  lcd_init();
 		// play a happy wake tune
   lcd_lib_beep_ext(880,50);
   lcd_lib_beep_ext(792,50);
@@ -1866,6 +1883,7 @@ void process_commands()
 		int s = 0;
 		if (code_seen('S')) s=code_value(); 
 		analogWrite(LED_PIN, s);
+		led_brightness_level = (s * 100) >> 8;
 		}
 		break;
 #endif 
@@ -2709,7 +2727,9 @@ void Stop(uint8_t reasonNr)
     SERIAL_ERROR_START;
     SERIAL_ERRORLNPGM(MSG_ERR_STOPPED);
     LCD_MESSAGEPGM(MSG_STOPPED);
+	led_glow = 31;
   }
+  LED_GLOW_ERROR();
 }
 
 bool IsStopped() { return Stopped; };

@@ -157,7 +157,16 @@ void lcd_menu_startup()
         {
             currentMenu = lcd_menu_first_run_init;
         }else{
+			lcd_lib_clear();
+			lcd_lib_draw_string_center(10,"UM" SQUARED_SYMBOL " - Nerd fork");
+			lcd_lib_draw_string_center(30,STRING_CONFIG_H_AUTHOR);
+			lcd_lib_draw_string_center(40,STRING_VERSION_CONFIG_H);
+			lcd_lib_led_color(255,255,255,false);
+			lcd_lib_update_screen();
+
+			delay (2500);
             currentMenu = lcd_menu_main;
+			LED_GLOW();
         }
 #endif//SPECIAL_STARTUP
     }
@@ -200,7 +209,7 @@ void doCooldown()
 void lcd_menu_main()
 {
     lcd_tripple_menu(PSTR("PRINT"), PSTR("MATERIAL"), PSTR("MAINTENANCE"));
-
+		LED_GLOW();
     if (lcd_lib_button_pressed)
     {
         if (IS_SELECTED_MAIN(0))

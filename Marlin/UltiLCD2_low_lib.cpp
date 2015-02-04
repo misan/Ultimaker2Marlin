@@ -1,6 +1,7 @@
 #include "Configuration.h"
 #include "pins.h"
 #include "UltiLCD2_low_lib.h"
+#include "UltiLCD2_hi_lib.h"
 
 #ifdef ENABLE_ULTILCD2
 /**
@@ -760,6 +761,7 @@ void lcd_lib_beep()
 // very short tick for UI feedback -- 1 millisecond  long
 void lcd_lib_tick( )
 	{
+		LED_WHITE() ;
 #if EXTENDED_BEEP
 	for (int a =0; a<10; a++)
 			{
@@ -770,6 +772,8 @@ void lcd_lib_tick( )
 			}
 		WRITE(BEEPER,0);
 #endif 
+		LED_NORMAL();
+
 
 	}
 //-----------------------------------------------------------------------------------------------------------------
@@ -777,6 +781,9 @@ void lcd_lib_tick( )
 // minimum time of one cycle.  ie: specifying a freq of 100Hz
 // would mean one cycle takes 10ms, and that is the 
 // minimum time for the duration.
+//
+// and if it isn't obvious, THIS IS A BLOCKING CALL!
+// don't try to be playing fancy chip tunes when time is important!  ;) 
 void lcd_lib_beep_ext( unsigned int freq, unsigned int dur )
 	{
 #if EXTENDED_BEEP

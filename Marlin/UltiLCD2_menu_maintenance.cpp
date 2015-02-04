@@ -30,6 +30,7 @@ extern bool allow_encoder_acceleration;
 void lcd_menu_maintenance()
 {
     lcd_tripple_menu(PSTR("BUILD-|PLATE"), PSTR("ADVANCED"), PSTR("RETURN"));
+	LED_NORMAL();
 
     if (lcd_lib_button_pressed)
     {
@@ -98,6 +99,8 @@ static void lcd_advanced_details(uint8_t nr)
 static void lcd_menu_maintenance_advanced()
 {
     lcd_scroll_menu(PSTR("ADVANCED"), 12 + EXTRUDERS * 2, lcd_advanced_item, lcd_advanced_details);
+	LED_NORMAL();
+
     if (lcd_lib_button_pressed)
     {
         if (IS_SELECTED_SCROLL(0))
@@ -251,6 +254,8 @@ void lcd_menu_advanced_version()
     lcd_lib_draw_string_centerP(30, PSTR(STRING_VERSION_CONFIG_H));
     lcd_lib_draw_string_centerP(40, PSTR(STRING_CONFIG_H_AUTHOR));
     lcd_lib_update_screen();
+	LED_FLASH();
+
 }
 
 void lcd_menu_advanced_stats()
@@ -274,6 +279,8 @@ void lcd_menu_advanced_stats()
     c = int_to_string(lifetime_print_centimeters / 100, c, PSTR("m"));
     lcd_lib_draw_string_center(40, buffer);
     lcd_lib_update_screen();
+	LED_NORMAL();
+
 }
 static void doMaterialsReset()
 {
@@ -352,10 +359,14 @@ static void lcd_retraction_details(uint8_t nr)
     else if(nr == 2)
         int_to_string(retract_feedrate / 60 + 0.5, buffer, PSTR("mm" PER_SECOND_SYMBOL ));
     lcd_lib_draw_string(5, 53, buffer);
+	LED_NORMAL();
+
 }
 
 static void lcd_menu_maintenance_retraction()
 {
+LED_NORMAL();
+
     lcd_scroll_menu(PSTR("RETRACTION"), 3, lcd_retraction_item, lcd_retraction_details);
     if (lcd_lib_button_pressed)
     {
@@ -411,6 +422,8 @@ static void lcd_motion_details(uint8_t nr)
 static void lcd_menu_maintenance_motion()
 {
     lcd_scroll_menu(PSTR("MOTION"), 6, lcd_motion_item, lcd_motion_details);
+	LED_NORMAL();
+
     if (lcd_lib_button_pressed)
     {
         if (IS_SELECTED_SCROLL(0))
@@ -469,6 +482,8 @@ static void lcd_led_details(uint8_t nr)
 
 static void lcd_menu_maintenance_led()
 {
+LED_NORMAL();
+
     analogWrite(LED_PIN, 255 * int(led_brightness_level) / 100);
     lcd_scroll_menu(PSTR("LED"), 6, lcd_led_item, lcd_led_details);
     if (lcd_lib_button_pressed)

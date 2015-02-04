@@ -116,5 +116,5 @@ extern uint8_t led_glow_dir;
 #define LED_DONE() lcd_lib_led_color(0, 8 + led_glow, 8)
 #define LED_COOL() lcd_lib_led_color(0, 4,16 + led_glow)
 #define LED_GLOW_ERROR() lcd_lib_led_color(8+min(245,led_glow<<3),0,0);
-
+#define LED_WHITE() lcd_lib_led_color(255,255,255,false);
 #endif//ULTI_LCD2_HI_LIB_H
