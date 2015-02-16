@@ -147,8 +147,8 @@
 #define MAX_REDUNDANT_TEMP_SENSOR_DIFF 10
 
 // Actual temperature must be close to target for this long before M109 returns success
-#define TEMP_RESIDENCY_TIME 3   // (seconds)
-#define TEMP_HYSTERESIS 3       // (degC) range of +/- temperatures considered "close" to the target one
+#define TEMP_RESIDENCY_TIME 10   // (seconds)
+#define TEMP_HYSTERESIS 2       // (degC) range of +/- temperatures considered "close" to the target one
 #define TEMP_WINDOW     2       // (degC) Window around target to start the residency timer x degC early.
 
 // The minimal temperature defines the temperature below which the heater will not be enabled It is used
@@ -162,7 +162,7 @@
 // When temperature exceeds max temp, your heater will be switched off.
 // This feature exists to protect your hotend from overheating accidentally, but *NOT* from thermistor short/failure!
 // You should use MINTEMP for thermistor short/failure protection.
-#define HEATER_0_MAXTEMP 300 //275
+#define HEATER_0_MAXTEMP 325 //275
 #define HEATER_1_MAXTEMP 275
 #define HEATER_2_MAXTEMP 275
 #define BED_MAXTEMP 200
@@ -180,7 +180,7 @@
 #ifdef PIDTEMP
   //#define PID_DEBUG // Sends debug data to the serial port.
   //#define PID_OPENLOOP 1 // Puts PID in open loop. M104/M140 sets the output power from 0 to PID_MAX
-  #define PID_FUNCTIONAL_RANGE 1000 // If the temperature difference between the target temperature and the actual temperature
+  #define PID_FUNCTIONAL_RANGE 30 // If the temperature difference between the target temperature and the actual temperature
                                   // is more then PID_FUNCTIONAL_RANGE then the PID will be shut off and the heater will be set to min/max.
   #define PID_INTEGRAL_DRIVE_MAX 255  //limit for the integral term
   #define K1 0.99 //smoothing factor within the PID
@@ -193,12 +193,19 @@
     //#define  DEFAULT_Kd 114
 
 // Ultimaker2
-    #define  DEFAULT_Kp 12.15
-   #define  DEFAULT_Ki 1.0
-  #define  DEFAULT_Kd 37.02
+
+//#define  DEFAULT_Kp 12.15
+ //  #define  DEFAULT_Ki 1.0
+  //#define  DEFAULT_Kd 37.02
+
+// 40W heatter with custom  heater block in e3D head
+#define  DEFAULT_Kp 2.5
+#define  DEFAULT_Ki 0.25
+#define  DEFAULT_Kd 100
+
 
 //#define  DEFAULT_Kp 17.28
-//#define  DEFAULT_Ki 0.86
+//#define  DEFAULT_Ki 0.86 
 //#define  DEFAULT_Kd 86.91
 
 // Makergear
@@ -333,9 +340,9 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define min_software_endstops true // If true, axis won't move to coordinates less than HOME_POS.
 #define max_software_endstops true  // If true, axis won't move to coordinates greater than the defined lengths below.
 // Travel limits after homing
-#define X_MAX_POS 220			// reduced from 230
+#define X_MAX_POS 200			// reduced from 230
 #define X_MIN_POS 0
-#define Y_MAX_POS 220		// reduced from 230
+#define Y_MAX_POS 200		// reduced from 230
 #define Y_MIN_POS 0
 #define Z_MAX_POS 230
 #define Z_MIN_POS 0
@@ -362,10 +369,10 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 // default settings
 
 #define DEFAULT_AXIS_STEPS_PER_UNIT   {80.0,80.0,200,282}  // default steps per unit for ultimaker2
-#define DEFAULT_MAX_FEEDRATE          {250, 250, 40, 80}    // (mm/sec)
+#define DEFAULT_MAX_FEEDRATE          {280, 280, 40, 80}    // (mm/sec)
 #define DEFAULT_MAX_ACCELERATION      {9000,9000,100,10000}    // X, Y, Z, E maximum start speed for accelerated moves. E default values are good for skeinforge 40+, for older versions raise them a lot.
 
-#define DEFAULT_ACCELERATION          3000    // X, Y, Z and E max acceleration in mm/s^2 for printing moves
+#define DEFAULT_ACCELERATION          1500    // X, Y, Z and E max acceleration in mm/s^2 for printing moves
 #define DEFAULT_RETRACT_ACCELERATION  3000   // X, Y, Z and E max acceleration in mm/s^2 for retracts
 
 // Offset of the extruders (uncomment if using more than one and relying on firmware to position when changing).
@@ -576,7 +583,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 
 
 // Configuration of behaviors at the start and end of prints
-#define END_OF_PRINT_RETRACTION 20		// number of mm to retract when printer goes idle
+#define END_OF_PRINT_RETRACTION 30		// number of mm to retract when printer goes idle
 #define END_OF_PRINT_RECOVERY_SPEED 5 	// speed to recover that assumed retraction at (mm/s)
 #define PRIMING_MM3	30					// number of mm^3 of plastic to extrude when priming
 										// (Ultimaker 2 hot end capacity is approx 80 mm^3)
@@ -600,7 +607,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define START_FEED_RATE 5				// was 25 -- how fast to extrude when priming the nozzle at the start
 // #define RAISE_BED_ON_START				// define this to have the bed raise up just before the initial extrude
 #define PRIMING_AMOUNT 25				// how much to extrude when priming at start
-#define PRINT_END_RETRACTION 15			// in mm
+#define PRINT_END_RETRACTION 30			// in mm
 
 #define MILLISECONDS_PER_SECOND 1000UL
 #define MILLISECONDS_PER_MINUTE (MILLISECONDS_PER_SECOND*60UL)

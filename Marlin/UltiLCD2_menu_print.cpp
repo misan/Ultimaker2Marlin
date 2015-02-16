@@ -11,6 +11,10 @@
 #include "UltiLCD2_menu_print.h"
 #include "UltiLCD2_menu_material.h"
 
+
+// #pragma GCC diagnostic push 
+#pragma GCC diagnostic ignored "-Wstrict-aliasing" // Code that causes warning goes here #pragma GCC diagnostic pop
+
 uint8_t lcd_cache[LCD_CACHE_SIZE];
 #define LCD_CACHE_NR_OF_FILES() lcd_cache[(LCD_CACHE_COUNT*(LONG_FILENAME_LENGTH+2))]
 #define LCD_CACHE_ID(n) lcd_cache[(n)]
@@ -20,6 +24,8 @@ uint8_t lcd_cache[LCD_CACHE_SIZE];
 #define LCD_DETAIL_CACHE_ID() lcd_cache[LCD_DETAIL_CACHE_START]
 #define LCD_DETAIL_CACHE_TIME() (*(uint32_t*)&lcd_cache[LCD_DETAIL_CACHE_START+1])
 #define LCD_DETAIL_CACHE_MATERIAL(n) (*(uint32_t*)&lcd_cache[LCD_DETAIL_CACHE_START+5+4*n])
+
+// #pragma GCC diagnostic pop 
 
 void doCooldown();//TODO
 static void lcd_menu_print_heatup();
@@ -31,11 +37,47 @@ static void lcd_menu_print_ready();
 static void lcd_menu_print_tune();
 static void lcd_menu_print_tune_retraction();
 
+float estimated_filament_length_in_m =0;
 //  filament diameter of pi * r^2
 // nominal 2.85mm filament -- will be recalculated at StartPrint each time
 float PI_R2 = 2.0306;
 
 extern long position[4];
+
+// introduce a short delay before reading file details so director listings are more responsive...
+#define FILE_READ_DELAY 100
+int file_read_delay_counter = FILE_READ_DELAY;
+unsigned long estimatedTime=0;
+
+char temp_history[HISTORY_SIZE];
+ char bed_history[HISTORY_SIZE];
+
+
+// smoothing for the print speed display values
+// low pass filter constant, from 0.0 to 1.0 -- Higher numbers mean more smoothing, less responsiveness.
+// 0.0 would be completely disabled, 1.0 would ignore any changes
+#define LOW_PASS_SMOOTHING 0.9
+
+void calculateSpeeds(float & xy_speed, float & e_smoothed_speed);
+
+// integer square root approximation.  faster
+unsigned isqrt(unsigned long val)
+	{
+	unsigned long temp, g=0, b = 0x8000, bshft = 15;
+	do
+		{
+		if (val >= (temp = (((g << 1) + b)<<bshft--)))
+			{
+			g += b;
+			val -= temp;
+			}
+		}
+		while (b >>= 1);
+		return g;
+	}
+
+
+
 
 void lcd_clear_cache()
 {
@@ -45,6 +87,7 @@ void lcd_clear_cache()
     LCD_CACHE_NR_OF_FILES() = 0xFF;
 }
 //-----------------------------------------------------------------------------------------------------------------
+extern float final_e_position;
 
 static void abortPrint()
 {
@@ -53,6 +96,7 @@ static void abortPrint()
     clear_command_queue();
     char buffer[32];
     card.sdprinting = false;
+	final_e_position = true_e_position + current_position[E_AXIS];
 
     // set up the end of print retraction
     sprintf_P(buffer, PSTR("G92 E%i"), int(((float)END_OF_PRINT_RETRACTION) / volume_to_filament_length[active_extruder]));
@@ -81,6 +125,7 @@ static void checkPrintFinished()
 
             SELECT_MAIN_MENU_ITEM(0);
             lcd_lib_beep_ext(440,250);
+
         }
     if (card.errorCode())
         {
@@ -144,6 +189,7 @@ static void doStartPrint()
     stoptime=0;
     lifetime_stats_print_start();
     starttime = millis();
+	true_e_position=0;
 
 }
 
@@ -199,10 +245,7 @@ static char* lcd_sd_menu_filename_callback(uint8_t nr)
         }
     return card.longFilename;
 }
-#define FILE_READ_DELAY 100
 
-int file_read_delay_counter = FILE_READ_DELAY;
-unsigned long estimatedTime=0;
 //-----------------------------------------------------------------------------------------------------------------
 void updateFileDetails( uint8_t nr, char * filename);
 void lcd_sd_menu_details_callback(uint8_t nr)
@@ -221,7 +264,7 @@ void lcd_sd_menu_details_callback(uint8_t nr)
                         }
                     else
                         {
-                            char buffer[64];
+                            char buffer[32];
 
 
                             if ( LCD_DETAIL_CACHE_ID() != nr)
@@ -244,17 +287,19 @@ void lcd_sd_menu_details_callback(uint8_t nr)
                                     char* c = buffer;
                                     if (led_glow_dir)
                                         {
-                                            strcpy_P(c, PSTR("Time: ")); c += 6;
+                                            strcpy_P(c, PSTR("Time: "));
+											c += 6;
                                             c = int_to_time_string(LCD_DETAIL_CACHE_TIME(), c);
                                         }
                                     else
                                         {
-                                            strcpy_P(c, PSTR("Material: ")); c += 10;
-                                            float length = float(LCD_DETAIL_CACHE_MATERIAL(0)) / (M_PI * (material[0].diameter / 2.0) * (material[0].diameter / 2.0));
-                                            if (length < 10000)
-                                                c = float_to_string(length / 1000.0, c, PSTR("m"));
+                                            strcpy_P(c, PSTR("Material: "));
+											c += 10;
+                                            estimated_filament_length_in_m = float(LCD_DETAIL_CACHE_MATERIAL(0)) / (M_PI * (material[0].diameter / 2.0) * (material[0].diameter / 2.0)) / 1000.0;
+                                            if (estimated_filament_length_in_m < 10)
+                                                c = float_to_string(estimated_filament_length_in_m , c, PSTR("m"));
                                             else
-                                                c = int_to_string(length / 1000.0, c, PSTR("m"));
+                                                c = int_to_string(estimated_filament_length_in_m , c, PSTR("m"));
 #if EXTRUDERS > 1
                                             if (LCD_DETAIL_CACHE_MATERIAL(1))
                                                 {
@@ -431,8 +476,20 @@ void lcd_menu_print_select()
 
 static void lcd_menu_print_heatup()
 {
-    lcd_question_screen(lcd_menu_print_tune, NULL, PSTR("TUNE"), lcd_menu_print_abort, NULL, PSTR("ABORT"));
-    starttime=stoptime =millis();		// kept the timers paused
+bool draw_filename = true;
+if (millis() - last_user_interaction < 5000)
+	{
+	lcd_question_screen(lcd_menu_print_tune, NULL, PSTR("TUNE"), lcd_menu_print_abort, NULL, PSTR("ABORT"));
+
+	draw_filename = false;
+	}
+else
+	{
+	lcd_lib_encoder_pos = ENCODER_NO_SELECTION;
+	lcd_lib_clear ();
+	//  lcd_basic_screen();
+	}
+     starttime=stoptime =millis();		// kept the timers paused
     if (current_temperature_bed > target_temperature_bed - 10 && target_temperature_bed > 5)
         {
             for(uint8_t e=0; e<EXTRUDERS; e++)
@@ -441,11 +498,11 @@ static void lcd_menu_print_heatup()
                         continue;
                     if (target_temperature[e] != material[e].temperature)
 						{
-
+						analogWrite(LED_PIN,0);
 						lcd_lib_beep_ext(600,50);
 						delay (100);
 						lcd_lib_beep_ext(660,50);
-
+						analogWrite(LED_PIN, 255 * led_brightness_level / 100);
 						}
 
 
@@ -475,34 +532,52 @@ static void lcd_menu_print_heatup()
             else
                 progress = 0;
         }
-    if (current_temperature_bed > 20)
-        progress = min(progress, (current_temperature_bed - 20) * 125 / (target_temperature_bed - 20 - TEMP_WINDOW));
-    else
-        progress = 0;
+    if (target_temperature_bed > BED_MINTEMP) 
+		if (current_temperature_bed > 20)							//  what if we're printing without hearing the bed?
+	        progress = min(progress, (current_temperature_bed - 20) * 125 / (target_temperature_bed - 20 - TEMP_WINDOW));
+	    else
+		    progress = 0;
 
     if (progress < minProgress)
         progress = minProgress;
     else
         minProgress = progress;
 
-    lcd_lib_draw_string_centerP(10, PSTR("Heating up..."));
 
-    char buffer[20];
+    char buffer[25];
     char* c;
 
     c = int_to_string(current_temperature[0], buffer/*, PSTR( DEGREE_C_SYMBOL )*/);
     *c++ = TEMPERATURE_SEPARATOR;
-    c = int_to_string(target_temperature[0], c, PSTR( DEGREE_C_SYMBOL ));
+    c = int_to_string(target_temperature[0], c, PSTR( DEGREE_C_SYMBOL ),true);
     *c++ = ' ';
     *c++ = ' ';
-
+    *c++ = ' ';
     c = int_to_string(current_temperature_bed, c/*, PSTR( DEGREE_C_SYMBOL )*/);
     *c++ = TEMPERATURE_SEPARATOR;
-    c = int_to_string(target_temperature_bed, c, PSTR( DEGREE_C_SYMBOL ));
-    lcd_lib_draw_string_center(20, buffer);
+    c = int_to_string(target_temperature_bed, c, PSTR( DEGREE_C_SYMBOL ),true);
+	*c++=0;
+    lcd_lib_draw_string_center(HALF_ROW(ROW1), buffer);
 
-    lcd_lib_draw_string_center(30, card.longFilename);
-    lcd_progressbar(progress);
+
+
+    drawTempHistory (3,ROW2+3,DISPLAY_RIGHT/2-2,ROW6-3,temp_history);
+    drawTempHistory (DISPLAY_RIGHT/2+2,ROW2+3,DISPLAY_RIGHT-3,ROW6-3,bed_history);
+
+	  
+	  if (draw_filename) 
+		  {
+		  c = buffer;
+		  c = float_to_string((estimated_filament_length_in_m) ,c,PSTR ("m of "));
+		  strcpy (c,material_name[0]);
+		  lcd_lib_draw_string_center(ROW6, buffer);
+
+		//  lcd_lib_draw_string_centerP(ROW6, PSTR("Heating up..."));
+		  lcd_lib_draw_string_center(ROW7, card.longFilename);
+		  lcd_lib_invert(3, ROW7-1, progress, DISPLAY_BOTTOM);
+		  } 
+
+//	lcd_progressbar(progress);
     lcd_lib_update_screen();
     LED_HEAT();
 }
@@ -522,12 +597,9 @@ void drawMiniBargraph( int x1,int y1,int x2,int y2,double value )
 }
 
 
-// low pass filter constant, from 0.0 to 1.0 -- Higher numbers mean more smoothing, less responsiveness.
-// 0.0 would be completely disabled, 1.0 would ignore any changes
-#define LOW_PASS_SMOOTHING 0.9
 
 
-char *  printDigits( int digits, int places, char * buffer )
+char *  printDigits( byte digits, byte places, char * buffer )
 {
     if (digits < 0)
         {
@@ -556,20 +628,21 @@ char *  printDigits( int digits, int places, char * buffer )
 // Returns:   char* predfined buffer
 // Qualifier:
 // Parameter: long t  time in seconds
-// Parameter: bool shortform if true, use concise HH:MM:SS or DD;HH:MM format
 //************************************
-char *   EchoTimeSpan (long t, char * buffer)
+// returned string will be in HH:MM:SS (8 chars) or HH:MM (5 chars) format 
+char *   EchoTimeSpan (unsigned long t, char * buffer, bool seconds)
 {
-    int sec,min,hr;
-    hr = t/3600;
-    t-=hr*3600;
+    unsigned long sec,min,hr;
+	if (!seconds) t+=29;	// to round things up
+    hr = t/3600L;
+    t-=hr*3600L; 
     //if (hr>99) hr=99;
-    min=t/60;
-    t-=min*60;
-    min%=60;
+    min=t/60L;
+    t-=min*60L;
+    min%=60L;
 
-    sec=t%60;
-    if (hr > 99)
+    sec=t%60L;
+    if (hr > 24)
         {
             int days =hr / 24;
             hr -= days * (24);
@@ -580,125 +653,98 @@ char *   EchoTimeSpan (long t, char * buffer)
     buffer = printDigits(hr, 2,buffer);
     *buffer++=':';
     buffer = printDigits(min, 2,buffer);
-    *buffer++=':';
-    buffer = printDigits(sec, 2,buffer);
+    if (seconds) 
+		{ 
+		*buffer++=':';
+		buffer = printDigits(sec, 2,buffer);
+		}
+	*buffer=0;
     return buffer;
 };
+//-----------------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------
+static long calculateRemainingTime( unsigned long printTimeMs, long timeLeftSec );
+//-----------------------------------------------------------------------------------------------------------------
+static char* drawCurrentTemp( char* c );
 
-
-unsigned isqrt(unsigned long val)
-{
-    unsigned long temp, g=0, b = 0x8000, bshft = 15;
-    do
-        {
-            if (val >= (temp = (((g << 1) + b)<<bshft--)))
-                {
-                    g += b;
-                    val -= temp;
-                }
-        }
-    while (b >>= 1);
-    return g;
-}
-
-#define time_phase1 ((millis() >> 11) & 1)
-#define time_phase0 (!time_phase1)
-
-
+// ROW 1  = SPEED and FLOW and Z
+// ROW2 =  TEMP and bed temp
+// ROW3 = GRAPH and FAN
+// ROW4 = Graph amd  BUFFER,
+// ROW5 =  extrusion volume  and linear speed
+// ROW6 = filament and time progress values
+// ROW7 = MENU / Progress / MESSAGE OR FILENAME
 
 static void lcd_menu_print_printing()
 {
-    bool print_time_detail = true;
-    if (millis() - last_user_interaction < 15000)
+    bool draw_filename = true;
+    if (millis() - last_user_interaction < 5000)
         {
             lcd_question_screen(lcd_menu_print_tune, NULL, PSTR("TUNE"), lcd_menu_print_abort, NULL, PSTR("ABORT"));
-            print_time_detail = false;
+            draw_filename = false;
         }
     else
         {
             lcd_lib_encoder_pos = ENCODER_NO_SELECTION;
-            lcd_basic_screen();
+			lcd_lib_clear ();
+          //  lcd_basic_screen();
         }
-
-
     uint8_t progress = card.getFilePos() / ((card.getFileSize() + 123) / 124);
-    char buffer[21];
+    char buffer[40];
     char* c;
     switch(printing_state)
         {
             default:
                 {
-
                     LED_NORMAL();
                     // these are used to maintain a simple low-pass filter on the speeds
                     static float e_smoothed_speed = 0.0;
                     static float xy_speed = 0.0;
+					calculateSpeeds(xy_speed, e_smoothed_speed);
 
-                    if (current_block!=NULL)
-                        {
-                            if (current_block->steps_x != 0 ||  current_block->steps_y != 0)
-                                {
-                                    // we only want to track movements that have some xy component
+					
+					drawSpeedAndFlow(buffer, c,ROW5);
 
-                                    if (current_block->speed_e >= 0 && current_block->speed_e < retract_feedrate)
-                                        // calculate live extrusion rate from e speed and filament area
-                                        e_smoothed_speed = (e_smoothed_speed*LOW_PASS_SMOOTHING) + ( PI_R2 * current_block->speed_e *(1.0-LOW_PASS_SMOOTHING));
+					// Show the extruder temperature and target temperature:
+					c = buffer/* + 3*/;
+					c = drawCurrentTemp(c);
+					*c++=0;
+					lcd_lib_draw_string(10,ROW1, buffer);
+                 
+					c = buffer /*+ 2*/;	
+					c = int_to_string(current_temperature_bed, c, PSTR( TEMPERATURE_SEPARATOR_S ));
+					c = int_to_string(target_temperature_bed, c, PSTR( DEGREE_C_SYMBOL ));
+					*c++=0;
 
-                                    xy_speed = (LOW_PASS_SMOOTHING*xy_speed) + (((1.0-LOW_PASS_SMOOTHING)) * isqrt ((unsigned long) (current_block->speed_x*current_block->speed_x)+(current_block->speed_y*current_block->speed_y)));
-                                    // might want to replace that sqrt with a fast approximation, since accuracy isn't that important here.
-                                    // or likely in the planner we've already got sqrt(dX*dX + dY*dY) .....somewhere....
-                                    // idea: consider reading XY position and delta time to calculate actual movement rather than what the planner is giving us.
-                                    //		 would that be more useful? It might lose some motion in fast zig zag or cut corners, so it would likely under-report
-                                    //		 but I'm not certain the planner updates the current speed values with acceleration reduction -- so it may be over-reporting
-                                }
-                            else
-                                {
-                                    // zero XY movement...
-                                    xy_speed *= LOW_PASS_SMOOTHING;		// equivalent to above, but since sqrt(0) we can drop that term and calculate less
-                                    if (current_block->steps_z == 0)		// no z-steps, must be a retract -- flash the RGB LED to show we're retracting
-                                        lcd_lib_led_color(8,32,128);
-                                }
-                        } //  current_block !=null
-                    else //    it is null,
-                        {
-                            // no current block -- we're paused, buffer has run out, ISR has not yet advanced to the next block, or we're not printing
-                            xy_speed *= LOW_PASS_SMOOTHING;
-                            e_smoothed_speed *= LOW_PASS_SMOOTHING;
-                        }//  current_block ==null
-
-                    // Show the extruder temperature and target temperature:
-                    c = buffer;
-                    if (time_phase0)
-                        {
-
-                            c = int_to_string(current_temperature[0], c, PSTR(TEMPERATURE_SEPARATOR_S));
-                            c = int_to_string(target_temperature[0], c, PSTR( DEGREE_C_SYMBOL "  "));
-                        }
-                    else
-                        {
-                            buffer[0]='Z';
-                            buffer[1]='=';
-                            float_to_string(position[Z_AXIS] / axis_steps_per_unit[Z_AXIS],buffer+2);
-                        }
-                    lcd_lib_draw_string(5,20, buffer);
-
+					lcd_lib_draw_string_right(ROW1, buffer);
 
                     // show the extrusion rate
                     c=buffer;
+					*c=32;
+					if (e_smoothed_speed<10.0) c++;
                     c = float_to_string( e_smoothed_speed,c, PSTR ("mm" CUBED_SYMBOL  PER_SECOND_SYMBOL ));
-                    lcd_lib_draw_string_right(20, buffer);
+                    *c++=0;
+					lcd_lib_draw_string(5,ROW4, buffer);
 
                     // show the xy travel speed
                     c = buffer;
-                    //	 c = float_to_string( xy_speed,c,PSTR (" mm" PER_SECOND_SYMBOL ));
                     c = int_to_string( round(xy_speed),c,PSTR ("mm" PER_SECOND_SYMBOL ));		// we don't need decimal places here.
-                    lcd_lib_draw_string_right(30, buffer);
+                    *c++=0;
+					lcd_lib_draw_string_right(ROW4, buffer);
 
                     // show the fan speed
-                    drawMiniBargraph (3,29,3+2+32,36,(float) fanSpeed / 255.0);
+                    drawMiniBargraph (DISPLAY_RIGHT-(3+2+32),ROW2+1,DISPLAY_RIGHT,ROW3-1,(float) getFanSpeed()/ 255.0);
+					strcpy_P(buffer,PSTR ("FAN"));
+					lcd_lib_draw_string_right(ROW2+1,buffer,DISPLAY_RIGHT-(3+2+32));
+                    drawTempHistory (3,ROW2,DISPLAY_RIGHT/2-2,ROW4-2,temp_history);
+// 					lcd_lib_draw_box(DISPLAY_RIGHT/2,ROW2,DISPLAY_RIGHT/2+6,ROW4-2);
+// 					lcd_lib_set (DISPLAY_RIGHT/2,ROW4-2 - ((int) (ROW4-ROW2-2) * (int) getHeaterPower(active_extruder)) >> 7,DISPLAY_RIGHT/2+6,ROW4-2);
+
 
                     // show the buffer  depth
-                    drawMiniBargraph (3+2+32+10,29,3+2+32+10+32,36,(float) movesplanned() / (BLOCK_BUFFER_SIZE-1));
+					strcpy_P(buffer,PSTR ("BUF"));
+					lcd_lib_draw_string_right(ROW3,buffer,DISPLAY_RIGHT-(3+2+32));
+					drawMiniBargraph (DISPLAY_RIGHT-(3+2+32),ROW3,DISPLAY_RIGHT,ROW4-2,(float) movesplanned() / (BLOCK_BUFFER_SIZE-1));
 
                     // show pink or red if the movement buffer is low / dry
                     if (movesplanned() < 2)							lcd_lib_led_color(255,0,0);
@@ -714,112 +760,81 @@ static void lcd_menu_print_printing()
                 if (led_glow == 128) lcd_lib_tick();
                 last_user_interaction = millis();
                 lcd_lib_encoder_pos = ENCODER_NO_SELECTION;
-                lcd_lib_draw_string_centerP(20, PSTR("Press button"));
+                lcd_lib_draw_string_centerP(ROW3, PSTR("Press button"));
                 // show a message, if we have one.  Otherwise, use a default.
-                if (!lcd_lib_show_message (30, false))
-                    lcd_lib_draw_string_centerP(30, PSTR("to continue"));
+                if (!lcd_lib_show_message (ROW5, false))
+                    lcd_lib_draw_string_centerP(ROW4, PSTR("to continue"));
                 break;
             case PRINT_STATE_HEATING:
                 LED_HEAT();
-                lcd_lib_draw_string_centerP(20, PSTR("Heating"));
+                lcd_lib_draw_string_centerP(ROW2, PSTR("Heating"));
                 c = int_to_string(current_temperature[0], buffer/*, PSTR( DEGREE_C_SYMBOL )*/);
                 *c++ = TEMPERATURE_SEPARATOR;
-                c = int_to_string(target_temperature[0], c, PSTR( DEGREE_C_SYMBOL ));
-                lcd_lib_draw_string_center(30, buffer);
+				c = drawCurrentTemp(c);
+                lcd_lib_draw_string_center(ROW4, buffer);
                 break;
             case PRINT_STATE_HEATING_BED:
                 LED_HEAT();
-                lcd_lib_draw_string_centerP(20, PSTR("Heating buildplate"));
+                lcd_lib_draw_string_centerP(ROW2, PSTR("Heating buildplate"));
                 c = int_to_string(current_temperature_bed, buffer/*, PSTR( DEGREE_C_SYMBOL )*/);
                 *c++ = TEMPERATURE_SEPARATOR;
                 c = int_to_string(target_temperature_bed, c, PSTR( DEGREE_C_SYMBOL ));
-                lcd_lib_draw_string_center(30, buffer);
+                lcd_lib_draw_string_center(ROW4, buffer);
                 break;
         }
 
-    lcd_lib_draw_hline(3,125,17);
-    // top row - show any M117 GCODE messages, or if none, then  alternate between time remaining and currently printing file, switch every 2 seconds
-    if (!lcd_lib_show_message (8))
-        {
-            static long timeLeftSec =estimatedTime;
-            unsigned long printTimeMs = (millis() - starttime);
-            if (time_phase1)
-                {
-                    long printTimeSec = printTimeMs / 1000L;
-                    float percent_done = min(1.0,float(card.getFilePos()) / float(card.getFileSize()));
-                    unsigned long totalTimeMs = float(printTimeMs) / percent_done;
-                    static float totalTimeSmoothSec=estimatedTime;
-                    totalTimeSmoothSec *= 0.95;
-                    totalTimeSmoothSec += (totalTimeMs/1000) / 20;
-                    if (isinf(totalTimeSmoothSec))
-                        totalTimeSmoothSec = totalTimeMs;
-                    long totalTimeSec;
+    lcd_lib_draw_hline(3,125,ROW6-1);
+    lcd_lib_draw_dotted_hline(3,125,ROW7-1);
+	lcd_lib_draw_hline(3,ROW7,DISPLAY_BOTTOM);
+	lcd_lib_draw_hline(125,ROW7,DISPLAY_BOTTOM);
 
-                    // take a linear weighted balance between original estimate and actual time -- at the start, we trust the estimate more.  At the end, we trust the elapsed and percentage calculattion
-                    totalTimeSec =( (1.0 - percent_done) * estimatedTime) + (totalTimeSmoothSec*percent_done);
-                    //
-                    // 			if (printTimeSec < LCD_DETAIL_CACHE_TIME() / 2)
-                    // 				{
-                    // 				float f = float(printTimeSec) / max(1.0,float(estimatedTime / 2));
-                    // 				totalTimeSec = float(totalTimeSmoothSec) * f + float(estimatedTime) * (1 - f);
-                    // 				}
-                    // 			else
-                    // 				{
-                    // 					totalTimeSec = totalTimeSmoothSec;
-                    // 		}
-                    timeLeftSec = max(0l, totalTimeSec - printTimeSec);		// avoid negative time...
+	if (draw_filename)
+		{	// draw time and filament progress
+		static long timeLeftSec =estimatedTime;
+		unsigned long printTimeMs = (millis() - starttime);
+		timeLeftSec = calculateRemainingTime(printTimeMs, timeLeftSec);
+		float pos ;
+		if (time_phase0)   
+			EchoTimeSpan(round (printTimeMs / 1000),buffer);
+		else
+			{ 
+			pos  = (true_e_position+current_position[E_AXIS]) * volume_to_filament_length[0];
+			pos /=1000.0;
+			c= float_to_string3(pos,buffer,PSTR("m"));
+			*c++=0;
+			}
 
-#if 0
-                    if (estimatedTime == 0 && printTimeSec < 60)
-                        {
-                            totalTimeSmoothSec = totalTimeMs / 1000;
-                            lcd_lib_draw_stringP(5, 10, PSTR("Time left unknown"));
-                        }
-                    else
-                        {
-                            int_to_time_string(timeLeftSec, buffer);
-                            lcd_lib_draw_stringP(5, 8, PSTR("Time left"));
-                            lcd_lib_draw_string(65, 8, buffer);
-                        }
-#endif
-                    buffer[0] ='S';
-                    buffer[1] ='P';
-                    buffer[2] ='D';
-                    buffer[3] =':';
-                    c = int_to_string(feedmultiply,buffer+4);
-                    *c++='%';
-                    *c++=0;
-                    lcd_lib_draw_string(5, 8, buffer);
+		lcd_lib_draw_string(5,ROW6,buffer);
 
-                    buffer[0] ='F';
-                    buffer[1] ='L';
-                    buffer[2] ='O';
-                    buffer[3] ='W';
-                    buffer[4] =':';
+		if (time_phase0)   
+			EchoTimeSpan (timeLeftSec,buffer);
+		else   
+			{
+			c = float_to_string3((estimated_filament_length_in_m) - pos,buffer,PSTR("m"));
+			*c++=0;
+			}
 
-                    c = int_to_string(extrudemultiply[0],buffer+5);
-                    *c++='%';
-                    *c++=0;
-                    lcd_lib_draw_string_right(8, buffer);
+		lcd_lib_draw_string_right(ROW6,buffer);
 
-                }
-            else lcd_lib_draw_string_center(8, card.longFilename);
-            if (print_time_detail)
-                {
-                    EchoTimeSpan(round (printTimeMs / 1000),buffer);
-                    //				int_to_time_string (round (printTimeMs / 1000),buffer);
-                    lcd_lib_draw_string(5,50,buffer);
+					// bottom  row - show any M117 GCODE messages, or if none, then  alternate between time remaining and currently printing file, switch every 2 seconds
+				if (!lcd_lib_show_message (ROW7+1))
+					{ 
+					if (time_phase0) 
+						lcd_lib_draw_string_center(ROW7+1, card.longFilename);
+					else   
+						{
+						// show the Z height 
+						buffer[0]='Z';
+						buffer[1]='=';
+						c = buffer + 2;
+						c=float_to_string(current_position[Z_AXIS],c,PSTR ("mm"));
+						*c++=0;
+						lcd_lib_draw_string_center(ROW7, buffer);
 
-                    EchoTimeSpan (timeLeftSec,buffer);
-                    //lcd_lib_draw_string_center(50, buffer);
-                    lcd_lib_draw_string_right(50,buffer);
-                }
-
-        }
-    lcd_progressbar(progress);
-
-
-
+						}
+					lcd_lib_invert(3, ROW7-1, progress, 63);
+					}
+				}
     lcd_lib_update_screen();
 }
 
@@ -867,6 +882,9 @@ static void postPrintReady()
     if (led_mode == LED_MODE_BLINK_ON_DONE)
         analogWrite(LED_PIN, 0);
 }
+//-----------------------------------------------------------------------------------------------------------------
+static void printDoneBeep();
+#define SKIP_END_SCREEN 1
 
 static void lcd_menu_print_ready()
 {
@@ -879,6 +897,14 @@ static void lcd_menu_print_ready()
         if (led_mode == LED_MODE_BLINK_ON_DONE)
             analogWrite(LED_PIN, (led_glow << 1) * int(led_brightness_level) / 100);
 
+
+	if (SKIP_END_SCREEN && (millis() - stoptime > 10000))	// ten seconds to let retraction and homing complete
+		{
+		LED_NORMAL();
+		printDoneBeep();
+		lcd_change_to_menu(lcd_menu_main);
+		return;
+	}
     lcd_info_screen(lcd_menu_main, postPrintReady, PSTR("BACK TO MENU"));
     char buffer[24];
     char* c;
@@ -903,17 +929,14 @@ static void lcd_menu_print_ready()
     // changed to a comparison with prior state saved and a gap between states to avoid switching back and forth
     // at the trigger point (hysteresis)
     static bool print_is_cool = false;
-    if (current_temperature_bed>42 || current_temperature[0] > 62) print_is_cool = false;
+    if (current_temperature_bed>44 || current_temperature[0] > 64) print_is_cool = false;
     if (current_temperature_bed<40 && current_temperature[0] < 60)
             if (!print_is_cool)
                 {
 					LED_NORMAL();
-					analogWrite(LED_PIN, 0);
-                    lcd_lib_beep_ext(480,50);
-                    delay (100);
-                    lcd_lib_beep_ext(440,90);
+                    printDoneBeep();
                     print_is_cool = true;
-					analogWrite(LED_PIN, 255 * led_brightness_level / 100);
+					
                 }
             if (!print_is_cool )
                 {
@@ -1002,6 +1025,9 @@ static void lcd_menu_print_ready()
                                             else
                                                 if (nr == 6 + EXTRUDERS * 2)
                                                     strcpy_P(c, PSTR("LED Brightness"));
+												else 
+													if (nr == 7+ EXTRUDERS * 2)
+														strcpy_P(c, PSTR("Home head and resume"));
         return c;
     }
 
@@ -1035,7 +1061,7 @@ static void lcd_menu_print_ready()
                         }
                     else
                         if (nr == 4 + EXTRUDERS)
-                            c = int_to_string(int(fanSpeed) * 100 / 255, c, PSTR("%"));
+                            c = int_to_string(int(getFanSpeed()) * 100 / 255, c, PSTR("%"));
                         else
                             if (nr == 5 + EXTRUDERS)
                                 c = int_to_string(extrudemultiply[0], c, PSTR("%"));
@@ -1106,9 +1132,12 @@ static void lcd_menu_print_ready()
     }
 #endif
     extern void lcd_menu_maintenance_advanced_bed_heatup();//TODO
+
+
+	// -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     static void lcd_menu_print_tune()
     {
-        lcd_scroll_menu(PSTR("TUNE"), 7 + EXTRUDERS * 2, tune_item_callback, tune_item_details_callback);
+        lcd_scroll_menu(PSTR("TUNE"), 8 + EXTRUDERS * 2, tune_item_callback, tune_item_details_callback);
         if (lcd_lib_button_pressed)
             {
                 if (IS_SELECTED_SCROLL(0))
@@ -1119,7 +1148,7 @@ static void lcd_menu_print_ready()
                             lcd_change_to_menu(lcd_menu_print_heatup);
                     }
                 else
-                    if (IS_SELECTED_SCROLL(1))
+                    if (IS_SELECTED_SCROLL(1) || IS_SELECTED_SCROLL(7 + EXTRUDERS * 2))
                         {
                             if (card.sdprinting)
                                 {
@@ -1129,6 +1158,8 @@ static void lcd_menu_print_ready()
                                                 {
                                                     card.pause = false;
                                                     lcd_lib_beep();
+													if (IS_SELECTED_SCROLL(7 + EXTRUDERS * 2))
+														enquecommand_P(PSTR("G28 XY"));		// home the head again after a pause, in case it was forcibly moved or is offset
                                                 }
                                         }
                                     else
@@ -1164,7 +1195,7 @@ static void lcd_menu_print_ready()
                                         lcd_change_to_menu(lcd_menu_maintenance_advanced_bed_heatup, 0);//Use the maintainace heatup menu, which shows the current temperature.
                                     else
                                         if (IS_SELECTED_SCROLL(4 + EXTRUDERS))
-                                            LCD_EDIT_SETTING_BYTE_PERCENT(fanSpeed, "Fan speed", "%", 0, 100);
+                                            LCD_EDIT_SETTING_FAN_OVERRIDE(fanSpeedOverride, "Fan speed", "%", 0, 100);
                                         else
                                             if (IS_SELECTED_SCROLL(5 + EXTRUDERS))
                                                 LCD_EDIT_SETTING(extrudemultiply[0], "Material flow", "%", 10, 1000);
@@ -1179,6 +1210,7 @@ static void lcd_menu_print_ready()
                                                     else
                                                         if (IS_SELECTED_SCROLL(6 + EXTRUDERS * 2))
                                                             LCD_EDIT_SETTING(led_brightness_level, "Brightness", "%", 0, 100);
+															
             }
     }
 
@@ -1231,7 +1263,7 @@ static void lcd_menu_print_ready()
                     lcd_change_to_menu(lcd_menu_print_tune, SCROLL_MENU_ITEM_POS(6));
                 else
                     if (IS_SELECTED_SCROLL(1))
-                        LCD_EDIT_SETTING_FLOAT001(retract_length, "Retract length", "mm", 0, 50);
+                        LCD_EDIT_SETTING_FLOAT01(retract_length, "Retract length", "mm", 0, 50);
                     else
                         if (IS_SELECTED_SCROLL(2))
                             LCD_EDIT_SETTING_SPEED(retract_feedrate, "Retract speed", "mm" PER_SECOND_SYMBOL , 0, max_feedrate[E_AXIS] * 60);
@@ -1268,7 +1300,10 @@ static void lcd_menu_print_ready()
                             LCD_DETAIL_CACHE_TIME() = atol(buffer + 6);
                         else
                             if (strncmp_P(buffer, PSTR(";MATERIAL:"), 10) == 0)
+								{
                                 LCD_DETAIL_CACHE_MATERIAL(0) = atol(buffer + 10);
+								estimated_filament_length_in_m = float(LCD_DETAIL_CACHE_MATERIAL(0)) / (M_PI * (material[0].diameter / 2.0) * (material[0].diameter / 2.0)) / 1000.0; 
+								}
 #if EXTRUDERS > 1
                             else
                                 if (strncmp_P(buffer, PSTR(";MATERIAL2:"), 11) == 0)
@@ -1284,5 +1319,145 @@ static void lcd_menu_print_ready()
             }
         card.closefile();
     }
+	//-----------------------------------------------------------------------------------------------------------------
+	void printDoneBeep()
+		{
+		analogWrite(LED_PIN, 0);
+		lcd_lib_beep_ext(480,50);
+		delay (100);
+		lcd_lib_beep_ext(440,90);
+		analogWrite(LED_PIN, 255 * led_brightness_level / 100);
+		}
+	//-----------------------------------------------------------------------------------------------------------------
+	char* drawSpeedAndFlow( char * buffer, char* c , byte y)
+		{
+		buffer[0] ='S';
+ 		buffer[1] ='P';
+ 		buffer[2] ='D';
+ 		buffer[3] =':';
+		c = int_to_string(feedmultiply,buffer+4,PSTR("%"));
+// 		*c++='%';
+		*c++=0;
+		lcd_lib_draw_string_right(y, buffer);
+
+		buffer[0] ='F';
+		buffer[1] ='L';
+		buffer[2] ='O';
+		buffer[3] =':';
+
+		c = int_to_string(extrudemultiply[0],buffer+4,PSTR("%"));
+// 		*c++='%';
+		*c++=0;
+		lcd_lib_draw_string(5,y, buffer);
+
+		return c;
+		}
+	//-----------------------------------------------------------------------------------------------------------------
+	long calculateRemainingTime( unsigned long printTimeMs, long timeLeftSec )
+		{
+		long printTimeSec = printTimeMs / 1000L;
+		float percent_done = min(1.0,float(card.getFilePos()) / float(card.getFileSize()));
+		unsigned long totalTimeMs = float(printTimeMs) / percent_done;
+		static float totalTimeSmoothSec=estimatedTime;
+		totalTimeSmoothSec *= 0.95;
+		totalTimeSmoothSec += (totalTimeMs/1000) / 20;
+		if (isinf(totalTimeSmoothSec))
+			totalTimeSmoothSec = totalTimeMs;
+		long totalTimeSec;
+
+		// take a linear weighted balance between original estimate and actual time -- at the start, we trust the estimate more.  At the end, we trust the elapsed and percentage calculattion
+		totalTimeSec =( (1.0 - percent_done) * estimatedTime) + (totalTimeSmoothSec*percent_done);
+		//
+		// 			if (printTimeSec < LCD_DETAIL_CACHE_TIME() / 2)
+		// 				{
+		// 				float f = float(printTimeSec) / max(1.0,float(estimatedTime / 2));
+		// 				totalTimeSec = float(totalTimeSmoothSec) * f + float(estimatedTime) * (1 - f);
+		// 				}
+		// 			else
+		// 				{
+		// 					totalTimeSec = totalTimeSmoothSec;
+		// 		}
+		timeLeftSec = max(0l, totalTimeSec - printTimeSec);		// avoid negative time...	return timeLeftSec;
+		}
+	//-----------------------------------------------------------------------------------------------------------------
+	char* drawCurrentTemp( char* c )
+		{
+		c = int_to_string(current_temperature[0], c, PSTR(TEMPERATURE_SEPARATOR_S));
+		c = int_to_string(target_temperature[0], c, PSTR( DEGREE_C_SYMBOL "  "),true);	
+		
+		return c;
+		}
+	//-----------------------------------------------------------------------------------------------------------------
+	void calculateSpeeds(float & xy_speed, float & e_smoothed_speed)
+		{
+		if (current_block!=NULL)
+			{
+			if (current_block->steps_x != 0 ||  current_block->steps_y != 0)
+				{
+				// we only want to track movements that have some xy component
+
+				if (current_block->speed_e >= 0 && current_block->speed_e < retract_feedrate)
+					// calculate live extrusion rate from e speed and filament area
+						e_smoothed_speed = (e_smoothed_speed*LOW_PASS_SMOOTHING) + ( PI_R2 * current_block->speed_e *(1.0-LOW_PASS_SMOOTHING));
+
+				xy_speed = (LOW_PASS_SMOOTHING*xy_speed) + (((1.0-LOW_PASS_SMOOTHING)) * isqrt ((unsigned long) (current_block->speed_x*current_block->speed_x)+(current_block->speed_y*current_block->speed_y)));
+				// might want to replace that sqrt with a fast approximation, since accuracy isn't that important here.
+				// or likely in the planner we've already got sqrt(dX*dX + dY*dY) .....somewhere....
+				// idea: consider reading XY position and delta time to calculate actual movement rather than what the planner is giving us.
+				//		 would that be more useful? It might lose some motion in fast zig zag or cut corners, so it would likely under-report
+				//		 but I'm not certain the planner updates the current speed values with acceleration reduction -- so it may be over-reporting
+				}
+			else
+				{
+				// zero XY movement...
+				xy_speed *= LOW_PASS_SMOOTHING;		// equivalent to above, but since sqrt(0) we can drop that term and calculate less
+				if (current_block->steps_z == 0)		// no z-steps, must be a retract -- flash the RGB LED to show we're retracting
+					lcd_lib_led_color(8,32,128);
+				}
+			} //  current_block !=null
+		else //    it is null,
+			{
+			// no current block -- we're paused, buffer has run out, ISR has not yet advanced to the next block, or we're not printing
+			xy_speed *= LOW_PASS_SMOOTHING;
+			e_smoothed_speed *= LOW_PASS_SMOOTHING;
+			}//  current_block ==null
+		}
+
+	extern byte history_position;
+
+
+void drawTempHistory(byte x1, byte y1, byte x2, byte y2, char *data)
+		{
+		int height = y2 - y1;
+		int width  = x2 - x1;
+		int mid_point = (y2+y1)>>1;
+		lcd_lib_draw_box(x1,y1,x2,y2);
+		lcd_lib_draw_dotted_hline (x1,x2,mid_point);
+		byte x = x2;
+		int prev_offset = mid_point;
+		int b = history_position-1;
+		for (byte a=0;a<x2-x1;a++)
+			{
+			if (b<0) b += HISTORY_SIZE;
+
+			int offset = data[b];
+			if (offset < 120 &&  offset  > -120)
+				{
+					offset+= mid_point;
+					if (offset < y1) offset = y1;
+					if (offset > y2) offset = y2;
+					lcd_lib_draw_vline(x,prev_offset,offset);
+					prev_offset = offset;
+					x--;
+					b--;
+				}
+			}
+		};
+
 
 #endif//ENABLE_ULTILCD2
+
+
+	//-----------------------------------------------------------------------------------------------------------------
+
+

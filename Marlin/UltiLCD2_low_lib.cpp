@@ -39,13 +39,16 @@
 #define LCD_COMMAND_DISPLAY_OFF             0xAE
 #define LCD_COMMAND_DISPLAY_ON              0xAF
 #define LCD_COMMAND_NOP                     0xE3
-#define LCD_COMMAND_LOCK_COMMANDS           0xDF
+#define LCD_COMMAND_LOCK_COMMANDS           0xFD	// 0xDF  
 
 #define LCD_COMMAND_SET_ADDRESSING_MODE     0x20
 
 /** Backbuffer for LCD */
 uint8_t lcd_buffer[LCD_GFX_WIDTH * LCD_GFX_HEIGHT / 8];
 uint8_t led_r, led_g, led_b;
+
+#define XORSWAP(a, b)	((a)^=(b),(b)^=(a),(a)^=(b))
+
 
 /**
  * i2c communiation low level functions.
@@ -416,9 +419,9 @@ void lcd_lib_clear_string(uint8_t x, uint8_t y, const char* str)
     }
 }
 
-void lcd_lib_draw_string_right(uint8_t y, const char* str)
+void lcd_lib_draw_string_right(uint8_t y, const char* str, byte startpos)
 	{
-	lcd_lib_draw_string(126 - strlen(str) * 6, y, str);		// move 2 pixels in fom extreme right side
+	lcd_lib_draw_string(startpos - strlen(str) * 6, y, str);		// move 2 pixels in fom extreme right side
 	}
 
 
@@ -536,6 +539,7 @@ void lcd_lib_clear_string_center_atP(uint8_t x, uint8_t y, const char* pstr)
 
 void lcd_lib_draw_hline(uint8_t x0, uint8_t x1, uint8_t y)
 {
+	if (x1 < x0) XORSWAP(x0,x1);
     uint8_t* dst = lcd_buffer + x0 + (y / 8) * LCD_GFX_WIDTH;
     uint8_t mask = 0x01 << (y % 8);
     
@@ -546,8 +550,19 @@ void lcd_lib_draw_hline(uint8_t x0, uint8_t x1, uint8_t y)
     }
 }
 
+void lcd_lib_draw_dotted_hline(uint8_t x0, uint8_t x1, uint8_t y)
+	{
+	if (x1 < x0) XORSWAP(x0,x1);
+	byte a;
+	for (a=x0;a<x1;a+=2)
+		lcd_lib_draw_hline(a,a,y);
+
+	}
+
+
 void lcd_lib_draw_vline(uint8_t x, uint8_t y0, uint8_t y1)
 {
+	if (y1 < y0) XORSWAP(y0,y1);
     uint8_t* dst0 = lcd_buffer + x + (y0 / 8) * LCD_GFX_WIDTH;
     uint8_t* dst1 = lcd_buffer + x + (y1 / 8) * LCD_GFX_WIDTH;
     if (dst0 == dst1)
@@ -567,6 +582,7 @@ void lcd_lib_draw_vline(uint8_t x, uint8_t y0, uint8_t y1)
 
 void lcd_lib_draw_box(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
 {
+if (y1 < y0) XORSWAP(y0,y1);
     lcd_lib_draw_vline(x0, y0+1, y1-1);
     lcd_lib_draw_vline(x1, y0+1, y1-1);
     lcd_lib_draw_hline(x0+1, x1-1, y0);
@@ -697,6 +713,8 @@ void lcd_lib_set(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
             *dst++ |= mask;
     }
 }
+
+
 
 void lcd_lib_draw_gfx(uint8_t x, uint8_t y, const uint8_t* gfx)
 {
@@ -899,9 +917,16 @@ void lcd_lib_buttons_update()
 	lcd_lib_encoder_pos_interrupt = 0;
 }
 
-char* int_to_string(int i, char* temp_buffer, const char* p_postfix)
+char* int_to_string(int i, char* temp_buffer, const char* p_postfix, bool use_OFF)
 {
     char* c = temp_buffer;
+	if (use_OFF && i==0)
+		{
+		strcpy_P(c, PSTR ("OFF"));
+		c += 3;
+		return c;
+		}
+
     if (i < 0)
     {
         *c++ = '-'; 
@@ -1001,7 +1026,7 @@ char* float_to_string(float f, char* temp_buffer, const char* p_postfix)
         *c++ = ((i/1000)%10)+'0';
     *c++ = ((i/100)%10)+'0';
     *c++ = '.';
-    if (i >= 10)
+   // if (i >= 10)				ALWAYS PUT THE LEADING ZERO AFTER THE DECIMAL POINT!!!!
         *c++ = ((i/10)%10)+'0';
     *c++ = ((i)%10)+'0';
     *c = '\0';
@@ -1012,5 +1037,31 @@ char* float_to_string(float f, char* temp_buffer, const char* p_postfix)
     }
     return c;
 }
+
+
+char* float_to_string3(float f, char* temp_buffer, const char* p_postfix)
+	{
+	int32_t i = f * 1000.0 + 0.5;
+	char* c = temp_buffer;
+	if (i < 0)
+		{
+		*c++ = '-'; 
+		i = -i;
+		}
+	if (i >= 10000)
+		*c++ = ((i/10000)%10)+'0';
+	*c++ = ((i/1000)%10)+'0';
+	*c++ = '.';
+	*c++ = ((i/100)%10)+'0';
+	*c++ = ((i/10)%10)+'0';
+	*c++ = ((i)%10)+'0';
+	*c = '\0';
+	if (p_postfix)
+		{
+		strcpy_P(c, p_postfix);
+		c += strlen_P(p_postfix);
+		}
+	return c;
+	}
 
 #endif//ENABLE_ULTILCD2

@@ -207,6 +207,16 @@ extern int EtoPPressure;
 extern unsigned char fanSpeedSoftPwm;
 #endif
 
+
+
+extern byte  fanSpeedOverride;
+float readVoltage ();
+extern "C"{ int freeMemory() ;} 
+
+float readAVR_VCC(long voltage_reference = /*1125300L*/  1186680L);
+
+
+
 #ifdef FWRETRACT
 extern bool autoretract_enabled;
 extern bool retracted;

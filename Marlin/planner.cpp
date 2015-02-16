@@ -68,6 +68,8 @@ unsigned long minsegmenttime;
 float max_feedrate[4]; // set the max speeds
 float axis_steps_per_unit[4];
 float volume_to_filament_length[EXTRUDERS];
+float final_e_position=0;
+
 unsigned long max_acceleration_units_per_sq_second[4]; // Use M201 to override by software
 float minimumfeedrate;
 float acceleration;         // Normal acceleration mm/s^2  THIS IS THE DEFAULT ACCELERATION for all moves. M204 SXXXX
@@ -77,6 +79,9 @@ float max_z_jerk;
 float max_e_jerk;
 float mintravelfeedrate;
 unsigned long axis_steps_per_sqr_second[NUM_AXIS];
+
+// this is used to track the amount of filament used (e position) even across G92 resets of the postion
+float true_e_position=0;
 
 // The current position of the tool in absolute steps
 long position[4];   //rescaled from extern when axis_steps_per_unit are changed by gcode
@@ -437,13 +442,21 @@ void getHighESpeed()
 }
 #endif
 
+
+byte getFanSpeed () 
+	{
+	 if (fanSpeedOverride>=1) return fanSpeedOverride-1;
+	return fanSpeed;
+	}
+
+
 void check_axes_activity()
 {
   unsigned char x_active = 0;
   unsigned char y_active = 0;  
   unsigned char z_active = 0;
   unsigned char e_active = 0;
-  unsigned char tail_fan_speed = fanSpeed;
+  unsigned char tail_fan_speed = getFanSpeed();
   #ifdef BARICUDA
   unsigned char tail_valve_pressure = ValvePressure;
   unsigned char tail_e_to_p_pressure = EtoPPressure;
@@ -531,6 +544,7 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
     manage_inactivity(); 
     lcd_update();
     lifetime_stats_tick();
+	delay(10);
   }
 
   // The target position of the tool in absolute steps
@@ -594,7 +608,7 @@ block->steps_y = labs((target[X_AXIS]-position[X_AXIS]) - (target[Y_AXIS]-positi
     return; 
   }
 
-  block->fan_speed = fanSpeed;
+  block->fan_speed = getFanSpeed();
   #ifdef BARICUDA
   block->valve_pressure = ValvePressure;
   block->e_to_p_pressure = EtoPPressure;
@@ -931,6 +945,7 @@ block->steps_y = labs((target[X_AXIS]-position[X_AXIS]) - (target[Y_AXIS]-positi
 
 void plan_set_position(const float &x, const float &y, const float &z, const float &e)
 {
+  true_e_position += current_position[E_AXIS]-e;
   position[X_AXIS] = lround(x*axis_steps_per_unit[X_AXIS]);
   position[Y_AXIS] = lround(y*axis_steps_per_unit[Y_AXIS]);
   position[Z_AXIS] = lround(z*axis_steps_per_unit[Z_AXIS]);     
@@ -943,8 +958,10 @@ void plan_set_position(const float &x, const float &y, const float &z, const flo
   previous_speed[3] = 0.0;
 }
 
+
 void plan_set_e_position(const float &e)
 {
+  true_e_position += current_position[E_AXIS]-e;
   position[E_AXIS] = lround(e*axis_steps_per_unit[E_AXIS]*volume_to_filament_length[active_extruder]);  
   st_set_e_position(position[E_AXIS]);
 }

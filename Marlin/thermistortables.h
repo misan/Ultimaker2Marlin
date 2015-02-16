@@ -431,6 +431,10 @@ This does not match the normal thermistor behaviour so we need to set the follow
 # define HEATER_BED_RAW_HI_TEMP 16383
 # define HEATER_BED_RAW_LO_TEMP 0
 #endif
+
+
+#define TEMPCORRECTION 194.0/227.0 //  0.939759
+
 const short temptable_20[][2] PROGMEM = {
 {         0*OVERSAMPLENR ,       0     },
 {       227*OVERSAMPLENR ,       1     },

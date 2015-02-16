@@ -23,6 +23,8 @@ extern struct materialSettings material[EXTRUDERS];
 
 const byte MATERIAL_NAME_LENGTH = 12 ;		
 
+extern char material_name_buf[MATERIAL_NAME_LENGTH+1];
+extern char material_name[EXTRUDERS][MATERIAL_NAME_LENGTH+1];
 
 
 #define EEPROM_MATERIAL_SETTINGS_OFFSET 0x800

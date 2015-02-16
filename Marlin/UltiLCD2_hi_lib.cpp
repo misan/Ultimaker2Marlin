@@ -92,6 +92,64 @@ void lcd_tripple_menu(const char* left, const char* right, const char* bottom)
     }
 }
 
+
+
+void lcd_triple_menu_low(const char* left, const char* middle, const char* right)
+	{
+	if (lcd_lib_encoder_pos != ENCODER_NO_SELECTION)
+		{
+		if (lcd_lib_encoder_pos < 0)
+			lcd_lib_encoder_pos += 3*ENCODER_TICKS_PER_MAIN_MENU_ITEM;
+		if (lcd_lib_encoder_pos >= 3*ENCODER_TICKS_PER_MAIN_MENU_ITEM)
+			lcd_lib_encoder_pos -= 3*ENCODER_TICKS_PER_MAIN_MENU_ITEM;
+		}
+
+	lcd_check_menu_selected_change(SELECTED_MAIN_MENU_ITEM());
+
+#define box_width 40 
+#define box_gap 2 
+#define text_y_pos 64-8
+
+	lcd_lib_clear();
+	lcd_lib_draw_vline(box_width, text_y_pos-2, 63);
+	lcd_lib_draw_vline(2*box_width+box_gap, text_y_pos-2, 63);
+	lcd_lib_draw_hline(0, 127,text_y_pos-2);
+
+	if (IS_SELECTED_MAIN(0))
+		{
+//		lcd_lib_draw_box(2, text_y_pos, 64-3-2, 45-2);
+		lcd_lib_set(0, text_y_pos-2, box_width, 63);
+		lcd_lib_clear_string_center_atP(box_width/2, text_y_pos, left);
+		}else{
+			lcd_lib_draw_string_center_atP(box_width/2, text_y_pos, left);
+		}
+
+	if (middle != NULL)
+		{
+		if (IS_SELECTED_MAIN(1))
+			{
+	//		lcd_lib_draw_box(3+2, 49+2, 125-2, 63-2);
+			lcd_lib_set(box_width+box_gap, text_y_pos-2, 2*box_width+box_gap-1, 63);
+			lcd_lib_clear_string_center_atP(3*box_width/2+box_gap, text_y_pos, middle);
+			}else{
+				lcd_lib_draw_string_center_atP(3*box_width/2+box_gap, text_y_pos, middle);
+			}
+		}
+
+	if (IS_SELECTED_MAIN(2))
+		{
+	//	lcd_lib_draw_box(64+3+2, 5+2, 125-2, 45-2);
+		lcd_lib_set(2*(box_width+box_gap), text_y_pos-2, 127, 63);
+		
+		lcd_lib_clear_string_center_atP(5*box_width/2+box_gap*2,  text_y_pos, right);
+		}else{
+			lcd_lib_draw_string_center_atP(5*box_width/2+box_gap*2,  text_y_pos, right);
+		}
+
+	}
+
+
+
 void lcd_basic_screen()
 {
     lcd_lib_clear();
@@ -297,12 +355,16 @@ void lcd_menu_edit_setting()
     if (lcd_lib_encoder_pos > lcd_setting_max)
         lcd_lib_encoder_pos = lcd_setting_max;
 
+	// todo: make this a bleedin' switch statement for clarity!
+
     if (lcd_setting_type == 1)
         *(uint8_t*)lcd_setting_ptr = lcd_lib_encoder_pos;
     else if (lcd_setting_type == 2)
         *(uint16_t*)lcd_setting_ptr = lcd_lib_encoder_pos;
     else if (lcd_setting_type == 3)
         *(float*)lcd_setting_ptr = float(lcd_lib_encoder_pos) / 100.0;
+	else if (lcd_setting_type ==10)
+		*(float*)lcd_setting_ptr = float(lcd_lib_encoder_pos) / 10.0;
     else if (lcd_setting_type == 4)
         *(int32_t*)lcd_setting_ptr = lcd_lib_encoder_pos;
     else if (lcd_setting_type == 5)
@@ -313,6 +375,8 @@ void lcd_menu_edit_setting()
         *(float*)lcd_setting_ptr = float(lcd_lib_encoder_pos) * 100;
     else if (lcd_setting_type == 8)
         *(float*)lcd_setting_ptr = float(lcd_lib_encoder_pos);
+	else if (lcd_setting_type == 9)
+		*(uint8_t*)lcd_setting_ptr = lcd_lib_encoder_pos * 255 / 100;
 
     lcd_lib_clear();
     lcd_lib_draw_string_centerP(20, lcd_setting_name);
@@ -320,7 +384,12 @@ void lcd_menu_edit_setting()
     if (lcd_setting_type == 3)
         float_to_string(float(lcd_lib_encoder_pos) / 100.0, buffer, lcd_setting_postfix);
     else
-        int_to_string(lcd_lib_encoder_pos, buffer, lcd_setting_postfix);
+		if (lcd_setting_type == 10)
+			float_to_string(float(lcd_lib_encoder_pos) / 10.0, buffer, lcd_setting_postfix);
+		else
+	        int_to_string(lcd_lib_encoder_pos, buffer, lcd_setting_postfix);
+
+	 if (lcd_setting_type == 9 && lcd_lib_encoder_pos==0)  strcpy (buffer,"AUTO");
     lcd_lib_draw_string_center(30, buffer);
     lcd_lib_update_screen();
 

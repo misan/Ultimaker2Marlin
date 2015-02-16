@@ -96,7 +96,7 @@ extern float max_z_jerk;
 extern float max_e_jerk;
 extern float mintravelfeedrate;
 extern unsigned long axis_steps_per_sqr_second[NUM_AXIS];
-
+extern float true_e_position;
 #ifdef AUTOTEMP
     extern bool autotemp_enabled;
     extern float autotemp_max;
@@ -148,4 +148,6 @@ void set_extrude_min_temp(float temp);
 #endif
 
 void reset_acceleration_rates();
+byte getFanSpeed ();
+extern byte  fanSpeedOverride;
 #endif

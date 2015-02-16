@@ -3,7 +3,7 @@
 #include "Configuration.h"
 #ifdef ENABLE_ULTILCD2
 #include "Marlin.h"
-#include "cardreader.h"//This code uses the card.longFilename as buffer to store data, to save memory.
+#include "cardreader.h"//This code uses thestring_buffer as buffer to store data, to save memory.
 #include "temperature.h"
 #include "UltiLCD2.h"
 #include "UltiLCD2_hi_lib.h"
@@ -26,6 +26,9 @@ void inline eeprom_write_float(float* addr, float f)
 #endif
 
 const int MATERIAL_PRESETS=7;
+char string_buffer[30];
+char material_name_buf[MATERIAL_NAME_LENGTH+1];
+char material_name[EXTRUDERS][MATERIAL_NAME_LENGTH+1];
 
 struct material_preset
 	{
@@ -313,9 +316,9 @@ static void lcd_menu_change_material_insert()
 
 static char* lcd_menu_change_material_select_material_callback(uint8_t nr)
 {
-    eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr), MATERIAL_NAME_LENGTH);
-    card.longFilename[MATERIAL_NAME_LENGTH] = '\0';
-    return card.longFilename;
+    eeprom_read_block(material_name_buf, EEPROM_MATERIAL_NAME_OFFSET(nr), MATERIAL_NAME_LENGTH);
+   material_name_buf[MATERIAL_NAME_LENGTH] = '\0';
+    return material_name_buf;
 }
 
 static void lcd_menu_change_material_select_material_details_callback(uint8_t nr)
@@ -360,14 +363,15 @@ static char* lcd_material_select_callback(uint8_t nr)
 {
     uint8_t count = eeprom_read_byte(EEPROM_MATERIAL_COUNT_OFFSET());
     if (nr == 0)
-        strcpy_P(card.longFilename, PSTR("< RETURN"));
+        strcpy_P(string_buffer, PSTR("< RETURN"));
     else if (nr > count)
-        strcpy_P(card.longFilename, PSTR("Customize"));
+        strcpy_P(string_buffer, PSTR("Customize"));
     else{
-        eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr - 1), MATERIAL_NAME_LENGTH);
-        card.longFilename[MATERIAL_NAME_LENGTH] = '\0';
+        eeprom_read_block(material_name_buf, EEPROM_MATERIAL_NAME_OFFSET(nr - 1), MATERIAL_NAME_LENGTH);
+       material_name_buf[MATERIAL_NAME_LENGTH] = '\0';
+	   return material_name_buf;
     }
-    return card.longFilename;
+    return string_buffer;
 }
 
 static void lcd_material_select_details_callback(uint8_t nr)
@@ -428,7 +432,7 @@ static void lcd_menu_material_selected()
 {
     lcd_info_screen(lcd_menu_main, NULL, PSTR("OK"));
     lcd_lib_draw_string_centerP(20, PSTR("Selected material:"));
-    lcd_lib_draw_string_center(30, card.longFilename);
+    lcd_lib_draw_string_center(30,material_name[active_extruder]);
 #if EXTRUDERS > 1
     if (active_extruder == 0)
         lcd_lib_draw_string_centerP(40, PSTR("for primary nozzle"));
@@ -441,22 +445,22 @@ static void lcd_menu_material_selected()
 static char* lcd_material_settings_callback(uint8_t nr)
 {
     if (nr == 0)
-        strcpy_P(card.longFilename, PSTR("< RETURN"));
+        strcpy_P(string_buffer, PSTR("< RETURN"));
     else if (nr == 1)
-        strcpy_P(card.longFilename, PSTR("Temperature"));
+        strcpy_P(string_buffer, PSTR("Temperature"));
     else if (nr == 2)
-        strcpy_P(card.longFilename, PSTR("Heated buildplate"));
+        strcpy_P(string_buffer, PSTR("Heated buildplate"));
     else if (nr == 3)
-        strcpy_P(card.longFilename, PSTR("Diameter"));
+        strcpy_P(string_buffer, PSTR("Diameter"));
     else if (nr == 4)
-        strcpy_P(card.longFilename, PSTR("Fan"));
+        strcpy_P(string_buffer, PSTR("Fan"));
     else if (nr == 5)
-        strcpy_P(card.longFilename, PSTR("Flow %"));
+        strcpy_P(string_buffer, PSTR("Flow %"));
     else if (nr == 6)
-        strcpy_P(card.longFilename, PSTR("Store as preset"));
+        strcpy_P(string_buffer, PSTR("Store as preset"));
     else
-        strcpy_P(card.longFilename, PSTR("???"));
-    return card.longFilename;
+        strcpy_P(string_buffer, PSTR("???"));
+    return string_buffer;
 }
 
 static void lcd_material_settings_details_callback(uint8_t nr)
@@ -513,14 +517,15 @@ static char* lcd_menu_material_settings_store_callback(uint8_t nr)
 {
     uint8_t count = eeprom_read_byte(EEPROM_MATERIAL_COUNT_OFFSET());
     if (nr == 0)
-        strcpy_P(card.longFilename, PSTR("< RETURN"));
+        strcpy_P(string_buffer, PSTR("< RETURN"));
     else if (nr > count)
-        strcpy_P(card.longFilename, PSTR("New preset"));
+        strcpy_P(string_buffer, PSTR("New preset"));
     else{
-        eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr - 1), MATERIAL_NAME_LENGTH);
-        card.longFilename[MATERIAL_NAME_LENGTH] = '\0';
+        eeprom_read_block(material_name_buf, EEPROM_MATERIAL_NAME_OFFSET(nr - 1), MATERIAL_NAME_LENGTH);
+       material_name_buf[MATERIAL_NAME_LENGTH] = '\0';
+	   return material_name_buf;
     }
-    return card.longFilename;
+    return string_buffer;
 }
 
 static void lcd_menu_material_settings_store_details_callback(uint8_t nr)
@@ -586,8 +591,8 @@ void lcd_material_set_material(uint8_t nr, uint8_t e)
 
     material[e].fan_speed = eeprom_read_byte(EEPROM_MATERIAL_FAN_SPEED_OFFSET(nr));
     material[e].diameter = eeprom_read_float(EEPROM_MATERIAL_DIAMETER_OFFSET(nr));
-    eeprom_read_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr), MATERIAL_NAME_LENGTH);
-    card.longFilename[MATERIAL_NAME_LENGTH] = '\0';
+		eeprom_read_block(material_name[e], EEPROM_MATERIAL_NAME_OFFSET(nr), MATERIAL_NAME_LENGTH);
+		material_name[e][MATERIAL_NAME_LENGTH] = '\0';
     if (material[e].temperature > HEATER_0_MAXTEMP - 15)
         material[e].temperature = HEATER_0_MAXTEMP - 15;
     if (material[e].bed_temperature > BED_MAXTEMP - 15)
@@ -604,7 +609,7 @@ void lcd_material_store_material(uint8_t nr)
 
     eeprom_write_byte(EEPROM_MATERIAL_FAN_SPEED_OFFSET(nr), material[active_extruder].fan_speed);
     eeprom_write_float(EEPROM_MATERIAL_DIAMETER_OFFSET(nr), material[active_extruder].diameter);
-    //eeprom_write_block(card.longFilename, EEPROM_MATERIAL_NAME_OFFSET(nr), MATERIAL_NAME_LENGTH);
+    eeprom_write_block(material_name_buf, EEPROM_MATERIAL_NAME_OFFSET(nr), MATERIAL_NAME_LENGTH);
 }
 
 void lcd_material_read_current_material()
@@ -617,6 +622,10 @@ void lcd_material_read_current_material()
 
         material[e].fan_speed = eeprom_read_byte(EEPROM_MATERIAL_FAN_SPEED_OFFSET(EEPROM_MATERIAL_SETTINGS_MAX_COUNT+e));
         material[e].diameter = eeprom_read_float(EEPROM_MATERIAL_DIAMETER_OFFSET(EEPROM_MATERIAL_SETTINGS_MAX_COUNT+e));
+
+		eeprom_read_block(material_name[e], EEPROM_MATERIAL_NAME_OFFSET(EEPROM_MATERIAL_SETTINGS_MAX_COUNT+e), MATERIAL_NAME_LENGTH);
+		material_name[e][MATERIAL_NAME_LENGTH] = '\0';
+
     }
 }
 
@@ -629,20 +638,23 @@ void lcd_material_store_current_material()
         eeprom_write_byte(EEPROM_MATERIAL_FAN_SPEED_OFFSET(EEPROM_MATERIAL_SETTINGS_MAX_COUNT+e), material[e].fan_speed);
         eeprom_write_word(EEPROM_MATERIAL_FLOW_OFFSET(EEPROM_MATERIAL_SETTINGS_MAX_COUNT+e), material[e].flow);
         eeprom_write_float(EEPROM_MATERIAL_DIAMETER_OFFSET(EEPROM_MATERIAL_SETTINGS_MAX_COUNT+e), material[e].diameter);
+		eeprom_write_block(material_name[e], EEPROM_MATERIAL_NAME_OFFSET(EEPROM_MATERIAL_SETTINGS_MAX_COUNT+e), MATERIAL_NAME_LENGTH);
     }
 }
 
 bool lcd_material_verify_material_settings()
 {
 	SERIAL_ECHO_START;
-    uint8_t cnt = eeprom_read_byte(EEPROM_MATERIAL_COUNT_OFFSET());
-	SERIAL_ECHOPAIR("Found presets: ",(unsigned long) cnt);
-    SERIAL_ECHOLN("");
-	if (cnt < 2 || cnt > EEPROM_MATERIAL_SETTINGS_MAX_COUNT)
+    uint8_t max_mats = eeprom_read_byte(EEPROM_MATERIAL_COUNT_OFFSET());
+	SERIAL_ECHOPAIR("Checking ", (unsigned long) max_mats);
+	SERIAL_ECHOPAIR(" presets and ", (unsigned long)  EXTRUDERS);
+	SERIAL_ECHOLNPGM (" extruder settings:");
+    
+	if (max_mats < 2 || max_mats > EEPROM_MATERIAL_SETTINGS_MAX_COUNT)
         return false;
-    while(cnt > 0)
+	byte cnt =0;
+    while(cnt < max_mats+EXTRUDERS)
     {
-        cnt --;
 		SERIAL_ECHOPAIR("Checking preset # ",(unsigned long) cnt);
         if (eeprom_read_word(EEPROM_MATERIAL_TEMPERATURE_OFFSET(cnt)) > HEATER_0_MAXTEMP)
             return false;
@@ -656,8 +668,19 @@ bool lcd_material_verify_material_settings()
             return false;
         if (eeprom_read_float(EEPROM_MATERIAL_DIAMETER_OFFSET(cnt)) < 0.1)
             return false;
-		SERIAL_ECHOPAIR(".....OK with preset # ",(unsigned long) cnt);
+		eeprom_read_block(material_name_buf, EEPROM_MATERIAL_NAME_OFFSET(cnt), MATERIAL_NAME_LENGTH);
+		material_name_buf[MATERIAL_NAME_LENGTH] = '\0';
+
+		if (cnt >= max_mats ) 
+			{ SERIAL_ECHOPAIR(".....verified extruder setting # ",(unsigned long) cnt-max_mats);} 
+			else 
+				{ SERIAL_ECHOPAIR(".....verified preset # ",(unsigned long) cnt);}
+		SERIAL_ECHO(" (");
+		SERIAL_ECHO(material_name_buf);
+
+		SERIAL_ECHO(")");
 		SERIAL_ECHOLN("");
+		cnt++;
     }
     return true;
 }

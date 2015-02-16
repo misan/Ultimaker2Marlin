@@ -39,6 +39,20 @@ extern uint8_t led_mode;
 
 void lcd_menu_main();
 bool lcd_lib_show_message(int position, bool decrement = true);
+void forceMessage ();
+
+#define ROW_HEIGHT 9
+#define ROW1 1
+#define ROW2 ROW1+ROW_HEIGHT		// 9
+#define ROW3 ROW2+ROW_HEIGHT		// 18
+#define ROW4 ROW3+ROW_HEIGHT		//27
+#define ROW5 ROW4+ROW_HEIGHT		// 36
+#define ROW6 ROW5+ROW_HEIGHT		// 45
+#define ROW7 ROW6+ROW_HEIGHT		// 54
+#define DISPLAY_BOTTOM 63
+#define DISPLAY_RIGHT 127
+#define HALF_ROW(a) (a+ROW_HEIGHT/2)
+#define CHARS_PER_ROW (DISPLAY_RIGHT/6)
 #endif
 
 #endif//ULTI_LCD2_H

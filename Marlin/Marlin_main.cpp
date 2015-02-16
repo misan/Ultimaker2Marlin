@@ -51,6 +51,7 @@
 #endif
 #include "UltiLCD2_hi_lib.h"
 #include "UltiLCD2_menu_print.h"
+#include "UltiLCD2_menu_material.h"
 
 
 #define VERSION_STRING  "1.0.0"
@@ -182,6 +183,9 @@ float extruder_offset[2][EXTRUDERS] = {
 };
 #endif
 uint8_t active_extruder = 0;
+
+byte  fanSpeedOverride=0;
+
 uint8_t fanSpeed=0;
 uint8_t fanSpeedPercent=100;
 #ifdef SERVO_ENDSTOPS
@@ -256,16 +260,60 @@ uint8_t Stopped = false;
   Servo servos[NUM_SERVOS];
 #endif
 
+  float VCC=5.0;
 
   float readVoltage () 
 	  {
 
 	  float v = analogRead(MAIN_VOLTAGE_MEASURE_PIN);
 	  v = v  / 1024;
-	  v *= 5.0;		// todo: make this the VCC reading from chip.
+	  v *= VCC;		// todo: make this the VCC reading from chip.
 	  v /=0.045;					// divider network is 100K and 4.7K, so that's a 0.045 divisor
 	  return v;
 	  }
+  
+#define MIN_VOLTAGE 3.0
+#define MAX_VOLTAGE 6.5
+
+
+  // DONT call this when printing -- it stops interrupts and messes with the ADC
+  float readAVR_VCC(long voltage_reference)
+	  {
+	//  cli();
+	  // Read 1.1V reference against AVcc
+	  // set the reference to Vcc and the measurement to the internal 1.1V reference
+#if defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+	  ADMUX = _BV(REFS0) | _BV(MUX4) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+	  ADCSRB &= ~_BV(MUX5); // Without this the function always returns -1 on the ATmega2560
+
+#elif defined (__AVR_ATtiny24__) || defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny84__)
+	  ADMUX = _BV(MUX5) | _BV(MUX0);
+#elif defined (__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny85__)
+	  ADMUX = _BV(MUX3) | _BV(MUX2);
+#else
+	  ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+#endif
+
+//	  analogReference(INTERNAL2V56);
+	  ADCSRB = 0;
+	  delay(10); // Wait for Vref to settle
+	  ADCSRA |= _BV(ADSC); // Start conversion
+	  while (bit_is_set(ADCSRA,ADSC)); // measuring
+
+	  uint8_t low  = ADCL; // must read ADCL first - it then locks ADCH
+	  uint8_t high = ADCH; // unlocks both
+
+	  analogReference(DEFAULT);
+
+	  long result = (high<<8) | low;
+	  result = voltage_reference / result; // Calculate Vcc (in mV); 1125300 = 1.1*1023*1000
+	 // delay(5); // Wait for Vref to settle
+	 // sei();
+	  if (result / 1000.0 < MIN_VOLTAGE ||result / 1000.0 > MAX_VOLTAGE ) return VCC;
+	  VCC = result/1000.0;
+	  return VCC; // Vcc in millivolts
+	  }
+
 
 
 //===========================================================================
@@ -475,7 +523,8 @@ void setup()
   {
     fromsd[i] = false;
   }
-
+  material_name_buf[0]=0;
+  material_name[0][0]=0;
   lcd_init();
   // loads data from EEPROM if available else uses defaults (and resets step acceleration rate)
   Config_RetrieveSettings();
@@ -495,6 +544,7 @@ void setup()
   #if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
     SET_OUTPUT(CONTROLLERFAN_PIN); //Set pin used for driver cooling fan
   #endif 
+	SET_OUTPUT(HEAD_FAN_PIN);
 }
 
 
@@ -702,15 +752,25 @@ void get_command()
       if(card.eof() || n==-1){
         SERIAL_PROTOCOLLNPGM(MSG_FILE_PRINTED);
         stoptime=millis();
-        char time[30];
         unsigned long t=(stoptime-starttime)/1000;
-        int hours, minutes;
-        minutes=(t/60)%60;
-        hours=t/60/60;
-        sprintf_P(time, PSTR("%i hours %i minutes"),hours, minutes);
+		char buffer[40];
+		char * c= buffer;
+		strcpy_P(c,PSTR ("Done in ") );
+		c +=8 ;
+		c = EchoTimeSpan(t,c);
+// 		strcpy_P(c, PSTR(" Z="));
+// 		c += 3;
+// 		c = float_to_string(current_position[Z_AXIS],c,PSTR ("mm"));
+		*c++=0;
+// 
+// 
+//         int hours, minutes;
+//         minutes=(t/60)%60;
+//         hours=t/60/60;
+//         sprintf_P(time, PSTR("%i hours %i minutes"),hours, minutes);
         SERIAL_ECHO_START;
-        SERIAL_ECHOLN(time);
-        lcd_setstatus(time);
+        SERIAL_ECHOLN(buffer);
+        lcd_setstatus(buffer);
         card.printingHasFinished();
         card.checkautostart(true);
 
@@ -1199,6 +1259,9 @@ void process_commands()
         enable_e0();
         enable_e1();
         enable_e2();
+// 		if (MOTHERBOARD_FAN>-1) 
+// 			WRITE (MOTHERBOARD_FAN,1);
+
       break;
 
 #ifdef SDSUPPORT
@@ -1305,6 +1368,7 @@ void process_commands()
         int pin_number = LED_PIN;
         if (code_seen('P') && pin_status >= 0 && pin_status <= 255)
           pin_number = code_value();
+#if 0
         for(int8_t i = 0; i < (int8_t)sizeof(sensitive_pins); i++)
         {
           if (sensitive_pins[i] == pin_number)
@@ -1316,6 +1380,7 @@ void process_commands()
             break;
           }
         }
+#endif
       #if defined(FAN_PIN) && FAN_PIN > -1
         if (pin_number == FAN_PIN)
           fanSpeed = pin_status;
@@ -1323,7 +1388,7 @@ void process_commands()
         if (pin_number > -1)
         {
           pinMode(pin_number, OUTPUT);
-          digitalWrite(pin_number, pin_status);
+         digitalWrite(pin_number, pin_status);
           analogWrite(pin_number, pin_status);
 		  SERIAL_ECHO_START;
 		  SERIAL_ECHOPGM ("Set pin #");
@@ -1454,6 +1519,7 @@ void process_commands()
         }
         LCD_MESSAGEPGM(MSG_HEATING_COMPLETE);
         starttime=millis();
+		true_e_position=0;
         previous_millis_cmd = millis();
       }
       break;
@@ -1490,6 +1556,7 @@ void process_commands()
 
     #if defined(FAN_PIN) && FAN_PIN > -1
       case 106: //M106 Fan On
+
         if (code_seen('S')){
            fanSpeed=constrain(code_value() * fanSpeedPercent / 100,0,255);
         }
@@ -2641,7 +2708,9 @@ void controllerFan()
 void manage_inactivity()
 {
   if (millis() - last_user_interaction > LED_DIM_TIME )  
-		analogWrite(LED_PIN, 255 * int(DIM_LEVEL) / 100);
+		{
+			analogWrite(LED_PIN, 255 * int(DIM_LEVEL) / 100);
+	  }
 	else 
 		analogWrite(LED_PIN, 255 * int(led_brightness_level) / 100);
 
@@ -2660,6 +2729,9 @@ void manage_inactivity()
             disable_e1();
             disable_e2();
         }
+// 		if (MOTHERBOARD_FAN>-1) 
+// 			WRITE (MOTHERBOARD_FAN,0);
+
       }
     }
   }
@@ -2669,7 +2741,13 @@ void manage_inactivity()
   #endif
   #if defined(SAFETY_TRIGGERED_PIN) && SAFETY_TRIGGERED_PIN > -1
   if (READ(SAFETY_TRIGGERED_PIN))
-    Stop(STOP_REASON_SAFETY_TRIGGER);
+	{ 
+		SERIAL_ERROR_START;
+		SERIAL_ERRORLNPGM("Safety Stop");
+		LCD_ALERTMESSAGEPGM("Safety Stop");
+		forceMessage();
+		Stop(STOP_REASON_SAFETY_TRIGGER);
+	  }
   #endif
   #if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
     controllerFan(); //Check if fan should be turned on to cool stepper drivers down
@@ -2714,6 +2792,7 @@ void kill()
   SERIAL_ERROR_START;
   SERIAL_ERRORLNPGM(MSG_ERR_KILLED);
   LCD_ALERTMESSAGEPGM(MSG_KILLED);
+  forceMessage();
   suicide();
   while(1) { /* Intentionally left empty */ } // Wait for reset
 }
@@ -2726,7 +2805,9 @@ void Stop(uint8_t reasonNr)
     Stopped_gcode_LastN = gcode_LastN; // Save last g_code for restart
     SERIAL_ERROR_START;
     SERIAL_ERRORLNPGM(MSG_ERR_STOPPED);
+ //   SERIAL_ERRORLN(TOPPED);
     LCD_MESSAGEPGM(MSG_STOPPED);
+	forceMessage();
 	led_glow = 31;
   }
   LED_GLOW_ERROR();

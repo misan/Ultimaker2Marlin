@@ -12,8 +12,14 @@
 #include "temperature.h"
 #include "pins.h"
 #include "Marlin.h"
+#include "lifetime_stats.h"
+
+extern long position[4]; 
 
 #define SERIAL_CONTROL_TIMEOUT 5000
+
+#pragma GCC diagnostic ignored "-Wstrict-aliasing" // Code that causes warning goes here #pragma GCC diagnostic pop
+
 
 unsigned long lastSerialCommandTime;
 bool serialScreenShown;
@@ -30,6 +36,7 @@ static void lcd_menu_special_startup();
 #endif//SPECIAL_STARTUP
 
 static void lcd_menu_breakout();
+byte history_position =0;
 
 void lcd_init()
 {
@@ -46,9 +53,22 @@ void lcd_init()
     currentMenu = lcd_menu_startup;
     analogWrite(LED_PIN, 0);
     lastSerialCommandTime = millis() - SERIAL_CONTROL_TIMEOUT;
+// 	memset (bed_history,0,HISTORY_SIZE);
+// 	memset (temp_history,0,HISTORY_SIZE);
+	history_position=0;
+ 	byte a;
+ 	for (a=0;a<HISTORY_SIZE;a++)
+ 		{
+ 			bed_history[a] =-127; 
+ 			temp_history[a] =-127; 
+ 		}
 }
+
+
+
 //-----------------------------------------------------------------------------------------------------------------
 void lcd_lib_show_message();
+
 void lcd_update()
 {
     if (!lcd_lib_update_ready()) return;
@@ -61,7 +81,15 @@ void lcd_update()
         if (led_glow == 0) led_glow_dir = 0;
     }else{
         led_glow+=2;
-        if (led_glow == 126) led_glow_dir = 1;
+        if (led_glow == 126)
+			{ 
+			led_glow_dir = 1;
+			temp_history[history_position] = constrain((int) target_temperature[active_extruder]	- (int)  current_temperature[active_extruder], (int) -127,(int) 127);
+			bed_history[history_position]  = constrain((int) target_temperature_bed					- (int) current_temperature_bed				 , (int) -127,(int) 127);
+			history_position++;
+			if (history_position>= HISTORY_SIZE) history_position =0;
+
+			} 
     }
     
     if (IsStopped())
@@ -87,14 +115,14 @@ void lcd_update()
         lcd_lib_update_screen();
     }else if (millis() - lastSerialCommandTime < SERIAL_CONTROL_TIMEOUT)
     {
-        if (!serialScreenShown)
+      /*  if (!serialScreenShown)
         {
             lcd_lib_clear();
             lcd_lib_draw_string_centerP(20, PSTR("Printing with USB..."));
 			lcd_lib_show_message(40);
 
             serialScreenShown = true;
-        }
+        }*/
         if (printing_state == PRINT_STATE_HEATING || printing_state == PRINT_STATE_HEATING_BED || printing_state == PRINT_STATE_HOMING)
             lastSerialCommandTime = millis();
         lcd_lib_update_screen();
@@ -158,13 +186,13 @@ void lcd_menu_startup()
             currentMenu = lcd_menu_first_run_init;
         }else{
 			lcd_lib_clear();
-			lcd_lib_draw_string_center(10,"UM" SQUARED_SYMBOL " - Nerd fork");
-			lcd_lib_draw_string_center(30,STRING_CONFIG_H_AUTHOR);
-			lcd_lib_draw_string_center(40,STRING_VERSION_CONFIG_H);
+// 			lcd_lib_draw_string_center(10,"UM" SQUARED_SYMBOL " - Nerd fork");
+// 			lcd_lib_draw_string_center(30,STRING_CONFIG_H_AUTHOR);
+// 			lcd_lib_draw_string_center(40,STRING_VERSION_CONFIG_H);
 			lcd_lib_led_color(255,255,255,false);
 			lcd_lib_update_screen();
 
-			delay (2500);
+//			delay (2500);
             currentMenu = lcd_menu_main;
 			LED_GLOW();
         }
@@ -206,9 +234,15 @@ void doCooldown()
     //quickStop();         //Abort all moves already in the planner
 }
 
+
+
+extern unsigned long estimatedTime;
+extern float final_e_position;
+
 void lcd_menu_main()
 {
-    lcd_tripple_menu(PSTR("PRINT"), PSTR("MATERIAL"), PSTR("MAINTENANCE"));
+	lcd_lib_clear();
+    lcd_triple_menu_low(PSTR("PRINT"), PSTR("FILA"), PSTR("SYSTEM"));
 		LED_GLOW();
     if (lcd_lib_button_pressed)
     {
@@ -231,8 +265,166 @@ void lcd_menu_main()
     }else{
         led_glow = led_glow_dir = 0;
     }
+		
+	char buffer[24];
+	memset (buffer,0,24);
+	char* c;
+	// Show the extruder temperature and target temperature:
+	c = buffer;
+	c = int_to_string(current_temperature[0], c, PSTR(TEMPERATURE_SEPARATOR_S));
+	c = int_to_string(target_temperature[0], c, PSTR( DEGREE_C_SYMBOL "  "),true);
+	lcd_lib_draw_string(5,ROW1, buffer);
+	c = buffer;
+	c = int_to_string(current_temperature_bed, c, PSTR(TEMPERATURE_SEPARATOR_S));
+	c = int_to_string(target_temperature_bed, c, PSTR( DEGREE_C_SYMBOL "  "),true);
+	lcd_lib_draw_string(64+12,ROW1, buffer);
+	c = buffer;
+	lcd_lib_draw_hline(0,127,ROW2-2);
 
-    lcd_lib_update_screen();
+	// we haven't printed anythig, so cycle through a set of information screens
+	bool did_print =! (starttime ==0 || stoptime ==0 ) ;
+
+	if (!lcd_lib_show_message (ROW3))
+		{
+		delay (50);
+		bool recently_printed = did_print && (last_user_interaction <= stoptime+2000);
+
+		if (time_phase_a && !recently_printed)	// SHOW CURRENTLY LOADED MATERIAL SETTINGS (EXTR 0) 
+			{
+				c = buffer;
+				c = float_to_string(material[0].diameter, c, PSTR("mm   "));
+				*c++=0;
+				strcpy (buffer+8, material_name[0]);
+				lcd_lib_draw_string(5,ROW2, buffer);
+
+				c = buffer+6;
+				strcpy_P(buffer, PSTR("Temp: "));
+				c = int_to_string(material[0].temperature, c, PSTR( DEGREE_C_SYMBOL));
+				*c++=0;
+				lcd_lib_draw_string_center(ROW3, buffer);
+				c = buffer+5;
+				strcpy_P(buffer, PSTR("Bed: "));
+				c = int_to_string(material[0].bed_temperature, c, PSTR( DEGREE_C_SYMBOL));
+				*c++=0;
+				lcd_lib_draw_string_center(ROW4, buffer);
+
+
+				c = buffer+6;
+				strcpy_P(buffer, PSTR("Flow: "));
+				c = int_to_string(material[0].flow, c, PSTR( "%"));
+				*c++=0;
+				lcd_lib_draw_string(5,ROW5, buffer);
+
+				c = buffer+5;
+				strcpy_P(buffer, PSTR("Fan: "));
+				c = int_to_string(material[0].fan_speed, c, PSTR( "%"));
+				*c++=0;
+				lcd_lib_draw_string_right(ROW5, buffer);
+			}
+
+			if (time_phase_b && !recently_printed)		// SHOW SYSTEM INFO (volts, uptime) 
+				{
+				c = buffer+8;
+				strcpy_P(buffer, PSTR("UPTIME: "));
+				c =EchoTimeSpan(millis() / 1000L,c);
+				*c++=0;
+				lcd_lib_draw_string_center(ROW2,buffer);
+				static float last_voltage = readVoltage();
+				static float last_voltage2 = readAVR_VCC(); 
+				static int last_memory = freeMemory();
+				static byte counter = 00;
+				c = buffer+5;
+				strcpy_P(buffer, PSTR("VCC: "));
+				c = float_to_string(last_voltage2, c, PSTR(" volts"));
+				*c++=0;
+				lcd_lib_draw_string_center(ROW3, buffer);
+
+				c = buffer+5;
+				strcpy_P(buffer, PSTR("PSU: "));
+				c = float_to_string(last_voltage, c, PSTR(" volts"));
+				*c++=0;
+				lcd_lib_draw_string_center(ROW4, buffer);
+				c = buffer+10;
+				strcpy_P(buffer, PSTR("Free Mem: "));
+				c = int_to_string(last_memory, c, PSTR(" bytes"));
+				*c++=0;
+				lcd_lib_draw_string_center(ROW5, buffer);
+
+				counter ++;
+				if (counter > 10) 
+					{ 
+					counter =0;
+					last_voltage = readVoltage();
+					last_voltage2 = readAVR_VCC();
+					last_memory = freeMemory();
+					}
+				}
+
+			if (time_phase_c || recently_printed)		// SHOWLAST PRINT INFO, OR SYSTEM VERSION INFO
+				{
+				if (did_print) 
+					{
+					lcd_lib_draw_string_center(ROW2, card.longFilename);
+					unsigned long printTimeSec = (stoptime-starttime)/1000;
+
+					strcpy_P(buffer, PSTR("Time: "));
+					c =EchoTimeSpan(printTimeSec,buffer+6);
+					*c++=0;
+					lcd_lib_draw_string_center(ROW3, buffer);
+					strcpy_P(buffer, PSTR("Est:  "));
+					c =EchoTimeSpan(estimatedTime,buffer+6);
+					*c++=0;
+					lcd_lib_draw_string_center(ROW4, buffer);
+					c = buffer;
+					strcpy_P(buffer, PSTR("Net speed:  "));
+					c = float_to_string(( estimatedTime)/(float) printTimeSec, c, PSTR(" x"));
+					*c++=0;
+					lcd_lib_draw_string_center(ROW5, buffer);
+
+					c =float_to_string((final_e_position*volume_to_filament_length[0])/1000.0,buffer,PSTR("m"));
+					strcpy_P(c, PSTR("m of "));
+					c+=5;
+					strcpy(c, material_name[0]);
+					lcd_lib_draw_string_center(ROW6, buffer);
+					}
+				else 
+					{ 
+					lcd_lib_draw_string_centerP(ROW2,PSTR ("UM" SQUARED_SYMBOL " - Nerd fork"));
+					if (time_phase0) 
+						lcd_lib_draw_string_centerP((ROW3),PSTR (STRING_CONFIG_H_AUTHOR));
+					else 
+						lcd_lib_draw_string_centerP((ROW4),PSTR (STRING_VERSION_CONFIG_H));	
+					if (time_phase0) 
+						lcd_lib_draw_string_centerP(HALF_ROW(ROW5),PSTR ("USE_AT_YOUR_OWN_RISK!"));	
+					}
+				}
+			if (time_phase_d && !recently_printed)			// SHOW LIFETIME STATS
+				{
+				strcpy_P(buffer, PSTR("Filament:  "));
+				c =float_to_string(lifetime_print_centimeters/100.0,buffer+10,PSTR("m"));
+				*c++=0;
+				lcd_lib_draw_string_center(ROW2, buffer);
+
+				strcpy_P(buffer, PSTR("Total On:  "));
+				c =EchoTimeSpan(lifetime_minutes*60L,buffer+9, false);
+				*c++=0;
+				lcd_lib_draw_string_center(ROW3, buffer);
+				c = buffer;
+
+				strcpy_P(buffer, PSTR("Printing:  "));
+				c =EchoTimeSpan(lifetime_print_minutes*60L,buffer+10, false);
+				*c++=0;
+				lcd_lib_draw_string_center(ROW4, buffer);
+
+				c = buffer;
+				c = float_to_string(100.0 * lifetime_print_minutes/lifetime_minutes, c, PSTR(" %"));
+				strcpy_P(c , PSTR(" active"));
+				lcd_lib_draw_string_center(ROW5, buffer);
+
+				
+				}
+		}
+		lcd_lib_update_screen();
 }
 
 
@@ -357,8 +549,24 @@ void lcd_setstatusP( ppstr message )
 	serialScreenShown=false;  
 	message_counter = DEFAULT_MESSAGE_DURATION; 
 	strncpy_P (message_string, message,MAX_MESSAGE_LEN);
-	SERIAL_ECHO_START; 
-	SERIAL_ECHOPGM("LCD: " );
-	SERIAL_ECHOLN(message_string);
+// 	SERIAL_ECHO_START; 
+// 	SERIAL_ECHOPGM("LCD: " );
+// 	SERIAL_ECHOLNPGM(message_string);
 	}
+
+
+// forces drawing of the status string, advancing to the next line each time
+// and clearing the screen at 0  -- simple "log view" 
+void forceMessage () 
+	{
+	static int position =0;
+	if (position == 0 ) 
+		lcd_lib_clear();
+	lcd_lib_draw_string_center(position*10, message_string);
+	position++;
+		if (position>=6) position = 0;
+	lcd_lib_update_screen(); 
+	}
+
+
 #endif//ENABLE_ULTILCD2

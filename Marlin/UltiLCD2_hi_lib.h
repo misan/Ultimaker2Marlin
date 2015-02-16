@@ -33,6 +33,7 @@ void lcd_progressbar(uint8_t progress);
 void lcd_menu_edit_setting();
 extern bool allow_encoder_acceleration;
 FORCE_INLINE void lcd_lib_enable_encoder_acceleration( bool enabled ) 	{ allow_encoder_acceleration = enabled; }
+void lcd_triple_menu_low(const char* left, const char* middle, const char* right);
 extern const char* lcd_setting_name;
 extern const char* lcd_setting_postfix;
 extern void* lcd_setting_ptr;
@@ -55,7 +56,7 @@ extern uint8_t minProgress;
             lcd_lib_encoder_pos = _setting; \
             lcd_setting_min = _min; \
             lcd_setting_max = _max; \
-        } while(0)
+	} while(0)
 #define LCD_EDIT_SETTING_BYTE_PERCENT(_setting, _name, _postfix, _min, _max) do { \
             lcd_change_to_menu(lcd_menu_edit_setting); \
             lcd_setting_name = PSTR(_name); \
@@ -65,7 +66,27 @@ extern uint8_t minProgress;
             lcd_lib_encoder_pos = int(_setting) * 100 / 255; \
             lcd_setting_min = _min; \
             lcd_setting_max = _max; \
-        } while(0)
+	} while(0)
+#define LCD_EDIT_SETTING_FAN_OVERRIDE(_setting, _name, _postfix, _min, _max) do { \
+	lcd_change_to_menu(lcd_menu_edit_setting); \
+	lcd_setting_name = PSTR(_name); \
+	lcd_setting_postfix = PSTR(_postfix); \
+	lcd_setting_ptr = &_setting; \
+	lcd_setting_type = 9; \
+	lcd_lib_encoder_pos = int(_setting) * 100 / 255; \
+	lcd_setting_min = _min; \
+     lcd_setting_max = _max; \
+	} while(0)
+#define LCD_EDIT_SETTING_FLOAT01(_setting, _name, _postfix, _min, _max) do { \
+	lcd_change_to_menu(lcd_menu_edit_setting); \
+	lcd_setting_name = PSTR(_name); \
+	lcd_setting_postfix = PSTR(_postfix); \
+	lcd_setting_ptr = &_setting; \
+	lcd_setting_type = 10; \
+	lcd_lib_encoder_pos = (_setting) * 10.0 + 0.5; \
+	lcd_setting_min = (_min) * 10; \
+	lcd_setting_max = (_max) * 10; \
+	} while(0)
 #define LCD_EDIT_SETTING_FLOAT001(_setting, _name, _postfix, _min, _max) do { \
             lcd_change_to_menu(lcd_menu_edit_setting); \
             lcd_setting_name = PSTR(_name); \

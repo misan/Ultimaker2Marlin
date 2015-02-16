@@ -6,11 +6,13 @@
 #include "UltiLCD2_menu_maintenance.h"
 #include "UltiLCD2_menu_first_run.h"
 #include "UltiLCD2_menu_material.h"
+#include "Marlin.h"
 #include "cardreader.h"
 #include "lifetime_stats.h"
 #include "ConfigurationStore.h"
 #include "temperature.h"
 #include "pins.h"
+#include "UltiLCD2_menu_print.h"
 
 
 static void lcd_menu_maintenance_advanced();
@@ -184,12 +186,13 @@ static void lcd_menu_maintenance_advanced_heatup()
     lcd_lib_enable_encoder_acceleration(true);
 	LED_HEAT();
     lcd_lib_clear();
-    lcd_lib_draw_string_centerP(20, PSTR("Nozzle temperature:"));
-    lcd_lib_draw_string_centerP(53, PSTR("Click to return"));
+    lcd_lib_draw_string_centerP(ROW2, PSTR("Nozzle temperature:"));
+    lcd_lib_draw_string_centerP(ROW7, PSTR("Click to return"));
     char buffer[16];
     int_to_string(int(current_temperature[active_extruder]), buffer, PSTR( TEMPERATURE_SEPARATOR_S));
     int_to_string(int(target_temperature[active_extruder]), buffer+strlen(buffer), PSTR( DEGREE_C_SYMBOL ));
-    lcd_lib_draw_string_center(30, buffer);
+    lcd_lib_draw_string_center(ROW3, buffer);
+    drawTempHistory (3+DISPLAY_RIGHT/4,ROW4+2,3*DISPLAY_RIGHT/4,ROW7-3,temp_history);
     lcd_lib_update_screen();
 }
 
@@ -200,6 +203,7 @@ void lcd_menu_maintenance_extrude()
         if (printing_state == PRINT_STATE_NORMAL && movesplanned() < 3)
         {
             current_position[E_AXIS] += lcd_lib_encoder_pos * 0.1;
+
             plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 10, active_extruder);
             lcd_lib_encoder_pos = 0;
         }
@@ -213,13 +217,18 @@ void lcd_menu_maintenance_extrude()
     lcd_lib_enable_encoder_acceleration(false);
     lcd_lib_clear();
 	LED_GLOW();
-    lcd_lib_draw_string_centerP(20, PSTR("Nozzle temperature:"));
-    lcd_lib_draw_string_centerP(40, PSTR("Rotate to extrude"));
-    lcd_lib_draw_string_centerP(53, PSTR("Click to return"));
+
+
+    lcd_lib_draw_string_centerP(ROW2, PSTR("Nozzle temperature:"));
+    lcd_lib_draw_string_centerP(ROW3, PSTR("Rotate to extrude"));		// TODO:  Make this string swap out with actual amounyt extruded when it's been moved
+    lcd_lib_draw_string_centerP(ROW7, PSTR("Click to return"));
     char buffer[16];
     int_to_string(int(current_temperature[active_extruder]), buffer, PSTR( TEMPERATURE_SEPARATOR_S));
     int_to_string(int(target_temperature[active_extruder]), buffer+strlen(buffer), PSTR( DEGREE_C_SYMBOL ));
-    lcd_lib_draw_string_center(30, buffer);
+    lcd_lib_draw_string_center(ROW4, buffer);
+
+	    drawTempHistory (3+DISPLAY_RIGHT/4,ROW4+2,3*DISPLAY_RIGHT/4,ROW7-3,temp_history);
+
     lcd_lib_update_screen();
 }
 
@@ -239,12 +248,15 @@ void lcd_menu_maintenance_advanced_bed_heatup()
         lcd_change_to_menu(previousMenu, previousEncoderPos);
     lcd_lib_enable_encoder_acceleration(true);
     lcd_lib_clear();
-    lcd_lib_draw_string_centerP(20, PSTR("Buildplate temp.:"));
-    lcd_lib_draw_string_centerP(53, PSTR("Click to return"));
+    lcd_lib_draw_string_centerP(ROW2, PSTR("Buildplate temp.:"));
+    lcd_lib_draw_string_centerP(ROW7, PSTR("Click to return"));
     char buffer[16];
     int_to_string(int(current_temperature_bed), buffer, PSTR( TEMPERATURE_SEPARATOR_S));
     int_to_string(int(target_temperature_bed), buffer+strlen(buffer), PSTR( DEGREE_C_SYMBOL ));
-    lcd_lib_draw_string_center(30, buffer);
+    lcd_lib_draw_string_center(ROW3, buffer);
+	drawTempHistory (3+DISPLAY_RIGHT/4,ROW4+2,3*DISPLAY_RIGHT/4,ROW7-3,temp_history);
+
+
     lcd_lib_update_screen();
 }
 

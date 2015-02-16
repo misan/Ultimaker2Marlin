@@ -63,7 +63,7 @@
 //This is for controlling a fan to cool down the stepper drivers
 //it will turn on when any driver is enabled
 //and turn off after the set amount of seconds from last driver being disabled again
-#define CONTROLLERFAN_PIN -1 //Pin used for the fan to cool controller (-1 to disable)
+#define CONTROLLERFAN_PIN MOTHERBOARD_FAN //Pin used for the fan to cool controller (-1 to disable)
 #define CONTROLLERFAN_SECS 60 //How many seconds, after all motors were disabled, the fan should run
 #define CONTROLLERFAN_SPEED 255  // == full speed
 
@@ -77,10 +77,10 @@
 // extruder temperature is above/below EXTRUDER_AUTO_FAN_TEMPERATURE.
 // Multiple extruders can be assigned to the same pin in which case 
 // the fan will turn on when any selected extruder is above the threshold.
-#define EXTRUDER_0_AUTO_FAN_PIN   -1
+#define EXTRUDER_0_AUTO_FAN_PIN   HEAD_FAN_PIN
 #define EXTRUDER_1_AUTO_FAN_PIN   -1
 #define EXTRUDER_2_AUTO_FAN_PIN   -1
-#define EXTRUDER_AUTO_FAN_TEMPERATURE 40
+#define EXTRUDER_AUTO_FAN_TEMPERATURE 53
 #define EXTRUDER_AUTO_FAN_SPEED   255  // == full speed
 
 
@@ -297,7 +297,7 @@ const unsigned int dropsegments=5; //everything with less than this number of st
 
 //The ASCII buffer for recieving from the serial:
 #define MAX_CMD_SIZE 64
-#define BUFSIZE 5		// reduced since we aren't officially supporting USB printing....we need the RAM elsewhere
+#define BUFSIZE 3		// reduced since we aren't officially supporting USB printing....we need the RAM elsewhere
 
 
 // Firmware based and LCD controled retract
@@ -309,18 +309,18 @@ const unsigned int dropsegments=5; //everything with less than this number of st
 #define FWRETRACT  //ONLY PARTIALLY TESTED
 #define MIN_RETRACT 0.1 //minimum extruded mm to accept a automatic gcode retraction attempt
 
-
+//#define FILAMENTCHANGEENABLE
 //adds support for experimental filament exchange support M600; requires display
 #ifdef ULTIPANEL
   //#define FILAMENTCHANGEENABLE
   #ifdef FILAMENTCHANGEENABLE
-    #define FILAMENTCHANGE_XPOS 3
-    #define FILAMENTCHANGE_YPOS 3
+    #define FILAMENTCHANGE_XPOS 100
+    #define FILAMENTCHANGE_YPOS 30
     #define FILAMENTCHANGE_ZADD 10
     #define FILAMENTCHANGE_FIRSTRETRACT -2
     #define FILAMENTCHANGE_FINALRETRACT -100
   #endif
-#endif
+ #endif
  
 //===========================================================================
 //=============================  Define Defines  ============================

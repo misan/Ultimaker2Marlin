@@ -368,8 +368,11 @@ void checkExtruderAutoFans()
 
     // which fan pins need to be turned on?
 #if defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1
-    if (current_temperature[0] > EXTRUDER_AUTO_FAN_TEMPERATURE)
+    if (current_temperature[0] > EXTRUDER_AUTO_FAN_TEMPERATURE+2)			// add a little hysteresis to prevent frequent toggling at the threshold
         fanState |= 1;
+	else if (current_temperature[0] < EXTRUDER_AUTO_FAN_TEMPERATURE-2)
+		fanState =0;
+			else return;
 #endif
 #if defined(EXTRUDER_1_AUTO_FAN_PIN) && EXTRUDER_1_AUTO_FAN_PIN > -1 && EXTRUDERS > 1
     if (current_temperature[1] > EXTRUDER_AUTO_FAN_TEMPERATURE)
@@ -536,9 +539,13 @@ void manage_heater()
         }
 #endif
 
-    {
+    
         //For the UM2 the head fan is connected to PJ6, which does not have an Arduino PIN definition. So use direct register access.
-        DDRJ |= _BV(6);
+	
+	// ???  No....according to the schemtatics, Pj6 is not connected to anything....
+/* 
+#if HEAD_FAN_PIN > -1
+    //    DDRJ |= _BV(6);
         if (current_temperature[0] > EXTRUDER_AUTO_FAN_TEMPERATURE
 #if EXTRUDERS > 1
                 || current_temperature[1] > EXTRUDER_AUTO_FAN_TEMPERATURE
@@ -548,13 +555,19 @@ void manage_heater()
 #endif
            )
             {
-                PORTJ |= _BV(6);
+     //           PORTJ |= _BV(6);
+			WRITE (HEAD_FAN_PIN,1);
+			if (MOTHERBOARD_FAN>-1) 
+				WRITE (MOTHERBOARD_FAN,1);
             }
         else
             {
-                PORTJ &=~_BV(6);
+       //         PORTJ &=~_BV(6);
+			WRITE (HEAD_FAN_PIN,0);
             }
     }
+#endif 
+	*/ 
 
 #ifndef PIDTEMPBED
     if(millis() - previous_millis_bed_heater < BED_CHECK_INTERVAL)
@@ -605,6 +618,9 @@ void manage_heater()
             else
                 {
                     soft_pwm_bed = MAX_BED_POWER>>1;
+					if (MOTHERBOARD_FAN>-1) 
+						WRITE (MOTHERBOARD_FAN,1);
+
                 }
         }
     else
@@ -649,6 +665,8 @@ static float analog2temp(int raw, uint8_t e)
             SERIAL_ERROR_START;
             SERIAL_ERROR((int)e);
             SERIAL_ERRORLNPGM(" - Invalid extruder number !");
+            LCD_ALERTMESSAGEPGM("Invalid extruder!");
+			forceMessage();
             kill();
         }
 #ifdef HEATER_0_USES_MAX6675
@@ -679,7 +697,7 @@ static float analog2temp(int raw, uint8_t e)
             // Overflow: Set to last value in the table
             if (i == heater_ttbllen_map[e]) celsius = PGM_RD_W((*tt)[i-1][1]);
 
-            return celsius;
+            return celsius * TEMPCORRECTION;
         }
     return ((raw * ((5.0 * 100.0) / 1024.0) / OVERSAMPLENR) * TEMP_SENSOR_AD595_GAIN) + TEMP_SENSOR_AD595_OFFSET;
 }
@@ -995,6 +1013,7 @@ void max_temp_error(uint8_t e)
             SERIAL_ERRORLNPGM(": Extruder switched off. MAXTEMP triggered !");
 			SERIAL_ECHOLN(current_temperature_raw[e]);
             LCD_ALERTMESSAGEPGM("Err: MAXTEMP");
+			forceMessage();
         }
 #ifndef BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE
     Stop(STOP_REASON_MAXTEMP);
@@ -1011,6 +1030,7 @@ void min_temp_error(uint8_t e)
             SERIAL_ERRORLNPGM(": Extruder switched off. MINTEMP triggered !");
 			SERIAL_ECHOLN(current_temperature_raw[e]);
             LCD_ALERTMESSAGEPGM("Err: MINTEMP");
+			forceMessage();
         }
 #ifndef BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE
     Stop(STOP_REASON_MINTEMP);
@@ -1028,6 +1048,7 @@ void bed_max_temp_error(void)
             SERIAL_ERRORLNPGM("Temperature heated bed switched off. MAXTEMP triggered !!");
 			SERIAL_ECHOLN(current_temperature_bed_raw);
             LCD_ALERTMESSAGEPGM("Err: MAXTEMP BED");
+			forceMessage();
         }
 #ifndef BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE
     Stop(STOP_REASON_MAXTEMP_BED);
