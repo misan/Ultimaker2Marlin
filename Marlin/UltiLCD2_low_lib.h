@@ -4,10 +4,15 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define LCD_GFX_WIDTH 128
+#define LCD_GFX_HEIGHT 64
+
+
 // these are in OCTAL, for your convenience.
-#define DEGREE_C_SYMBOL "\037"
-#define SQUARED_SYMBOL "\035"
-#define CUBED_SYMBOL "\034"
+#define DEGREE_C_SYMBOL "\036"
+#define ELIPSIS_SYMBOL "\037"
+#define SQUARED_SYMBOL "\034"
+#define CUBED_SYMBOL "\033"
 #define PER_SECOND_SYMBOL "/s"
 
 // this is what appears between two temperature values (ie: current and target temperatures) 
@@ -51,13 +56,13 @@ extern int8_t lcd_lib_encoder_pos_interrupt;
 extern bool lcd_lib_button_pressed;
 extern bool lcd_lib_button_down;
 
-char* int_to_string(int i, char* temp_buffer, const char* p_postfix = NULL, bool use_OFF = false);
-char* int_to_time_string(unsigned long i, char* temp_buffer);
-char* float_to_string(float f, char* temp_buffer, const char* p_postfix = NULL);
 
 void lcd_lib_beep_ext( unsigned int freq, unsigned int dur );
 void lcd_lib_tick();
 void lcd_lib_draw_string_right(uint8_t y, const char* str, byte startpos = 126);
-char* float_to_string3(float f, char* temp_buffer, const char* p_postfix);
 void lcd_lib_draw_dotted_hline(uint8_t x0, uint8_t x1, uint8_t y);
+
+//-----------------------------------------------------------------------------------------------------------------
+
+void lcd_lib_update_RGB_LED();
 #endif//ULTI_LCD2_LOW_LIB_H

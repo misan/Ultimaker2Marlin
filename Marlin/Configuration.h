@@ -9,7 +9,7 @@
 // startup. Implementation of an idea by Prof Braino to inform user that any changes made to this
 // build by the user have been successfully uploaded into firmware.
 #define STRING_VERSION_CONFIG_H __DATE__ " " __TIME__ // build date and time
-#define STRING_CONFIG_H_AUTHOR "Version 14.06.4_xE" // Who made the changes.
+#define STRING_CONFIG_H_AUTHOR "Version 14.06.5_xK" // Who made the changes.
 // _E version added by Lars Norpchen
 
 
@@ -19,8 +19,8 @@
 #define SERIAL_PORT 0
 
 // This determines the communication speed of the printer
-// #define BAUDRATE 250000
-#define BAUDRATE 115200
+ #define BAUDRATE 250000
+//#define BAUDRATE 115200
 
 //// The following define selects which electronics board you have. Please choose the one that matches your setup
 // 10 = Gen7 custom (Alfons3 Version) "https://github.com/Alfons3/Generation_7_Electronics"
@@ -136,7 +136,7 @@
 // 52 is 200k thermistor - ATC Semitec 204GT-2 (1k pullup)
 // 55 is 100k thermistor - ATC Semitec 104GT-2 (Used in ParCan) (1k pullup)
 
-#define TEMP_SENSOR_0 20 //99
+#define TEMP_SENSOR_0 99// 20   // 99
 
 #define TEMP_SENSOR_1 20
 #define TEMP_SENSOR_2 0
@@ -159,13 +159,25 @@
 #define HEATER_2_MINTEMP 5
 #define BED_MINTEMP 5
 
+#define E3D_HEAD
+
+
 // When temperature exceeds max temp, your heater will be switched off.
 // This feature exists to protect your hotend from overheating accidentally, but *NOT* from thermistor short/failure!
 // You should use MINTEMP for thermistor short/failure protection.
-#define HEATER_0_MAXTEMP 325 //275
+#ifdef E3D_HEAD
+#define HEATER_0_MAXTEMP 350
+#endif 
+#ifdef STOCK_UM2_HEAD
+#define HEATER_0_MAXTEMP 275
+#endif 
+
+// uncomment this to have the raw thermistor / temp sensor readings periodically sent to the serial port for calibrating the temp sensor
+// #define REPORT_TEMPS 
+
 #define HEATER_1_MAXTEMP 275
 #define HEATER_2_MAXTEMP 275
-#define BED_MAXTEMP 200
+#define BED_MAXTEMP 140
 
 // If your bed has low resistance e.g. .6 ohm and throws the fuse you can duty cycle it to reduce the
 // average current. The value should be an integer and the heat bed will be turned on for 1 interval of
@@ -194,15 +206,20 @@
 
 // Ultimaker2
 
-//#define  DEFAULT_Kp 12.15
- //  #define  DEFAULT_Ki 1.0
-  //#define  DEFAULT_Kd 37.02
+#ifdef STOCK_UM2_HEAD
+
+#define  DEFAULT_Kp 12.15
+#define  DEFAULT_Ki 1.0
+#define  DEFAULT_Kd 37.02
+#endif 
+
+#ifdef E3D_HEAD
 
 // 40W heatter with custom  heater block in e3D head
-#define  DEFAULT_Kp 2.5
-#define  DEFAULT_Ki 0.25
-#define  DEFAULT_Kd 100
-
+ #define  DEFAULT_Kp 10
+ #define  DEFAULT_Ki 0.37
+ #define  DEFAULT_Kd 70
+#endif
 
 //#define  DEFAULT_Kp 17.28
 //#define  DEFAULT_Ki 0.86 
@@ -259,6 +276,9 @@
 
 // FIND YOUR OWN: "M303 E-1 C8 S90" to run autotune on the bed at 90 degreesC for 8 cycles.
 #endif // PIDTEMPBED
+
+
+#define DHT_ENVIRONMENTAL_SENSOR
 
 
 
@@ -340,15 +360,19 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define min_software_endstops true // If true, axis won't move to coordinates less than HOME_POS.
 #define max_software_endstops true  // If true, axis won't move to coordinates greater than the defined lengths below.
 // Travel limits after homing
-#define X_MAX_POS 200			// reduced from 230
+// #define X_MAX_POS 200			// reduced from 230  // commented out to force use of max_pos dynamic setting
 #define X_MIN_POS 0
-#define Y_MAX_POS 200		// reduced from 230
+// #define Y_MAX_POS 200		// reduced from 230	// commented out to force use of max_pos dynamic setting
 #define Y_MIN_POS 0
 #define Z_MAX_POS 230
 #define Z_MIN_POS 0
 
-#define X_MAX_LENGTH (X_MAX_POS - X_MIN_POS)
-#define Y_MAX_LENGTH (Y_MAX_POS - Y_MIN_POS)
+#define MAX_ADJ_OFFSET 10		// when adjusting XY limits, how far to bring in head from limit before adjustment
+#define BASELINE_XLIMIT 150
+#define BASELINE_YLIMIT 150
+
+// #define X_MAX_LENGTH (X_MAX_POS - X_MIN_POS)
+// #define Y_MAX_LENGTH (Y_MAX_POS - Y_MIN_POS)
 #define Z_MAX_LENGTH (Z_MAX_POS - Z_MIN_POS)
 
 // The position of the homing switches
@@ -372,7 +396,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define DEFAULT_MAX_FEEDRATE          {280, 280, 40, 80}    // (mm/sec)
 #define DEFAULT_MAX_ACCELERATION      {9000,9000,100,10000}    // X, Y, Z, E maximum start speed for accelerated moves. E default values are good for skeinforge 40+, for older versions raise them a lot.
 
-#define DEFAULT_ACCELERATION          1500    // X, Y, Z and E max acceleration in mm/s^2 for printing moves
+#define DEFAULT_ACCELERATION          2200    // X, Y, Z and E max acceleration in mm/s^2 for printing moves
 #define DEFAULT_RETRACT_ACCELERATION  3000   // X, Y, Z and E max acceleration in mm/s^2 for retracts
 
 // Offset of the extruders (uncomment if using more than one and relying on firmware to position when changing).
@@ -599,23 +623,25 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define EXTENDED_BEEP 1					// enables extened audio feedback
 #define MOODLIGHT 1						// enables M420 and M421 lighting control G-codes
 #define MAX_ENCODER_ACCELERATION 4		// set this to 1 for no acceleration
-#define NOWRAP_MENUS 					// menus don't wrap around if defined
 #define SKIP_FAST_SIZE 3				// let the menu skip when it gets behind on long lists --  set to huge number to disable
 #define SINGLE_STEP_MENU 				//  if defined, this will force scroll menus to step in single steps, which is less disorienting  (esp when WRAP is enabled)
 #define SCROLL_MENU_FAR_DISTANCE 15		// distance which the scrolling menu will do a jump instead of a scroll -- to prevent lag when the selected item is far far away
 
-#define START_FEED_RATE 5				// was 25 -- how fast to extrude when priming the nozzle at the start
-// #define RAISE_BED_ON_START				// define this to have the bed raise up just before the initial extrude
+#define START_FEED_RATE 8				// was 25 -- how fast to extrude when priming the nozzle at the start
+//  #define RAISE_BED_ON_START				// define this to have the bed raise up just before the initial extrude
 #define PRIMING_AMOUNT 25				// how much to extrude when priming at start
 #define PRINT_END_RETRACTION 30			// in mm
 
 #define MILLISECONDS_PER_SECOND 1000UL
 #define MILLISECONDS_PER_MINUTE (MILLISECONDS_PER_SECOND*60UL)
 
-#define LED_DIM_TIME (MILLISECONDS_PER_MINUTE*30UL)		// 30 min
+
+// level of LED brightness when idle
 #define DIM_LEVEL 5
 
+// set to 0 to use 24 hour clock / military time
 
+#define USE_12_HOUR_CLOCK_FORMAT  1
 
 
 #endif //__CONFIGURATION_H

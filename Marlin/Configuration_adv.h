@@ -80,8 +80,8 @@
 #define EXTRUDER_0_AUTO_FAN_PIN   HEAD_FAN_PIN
 #define EXTRUDER_1_AUTO_FAN_PIN   -1
 #define EXTRUDER_2_AUTO_FAN_PIN   -1
-#define EXTRUDER_AUTO_FAN_TEMPERATURE 53
-#define EXTRUDER_AUTO_FAN_SPEED   255  // == full speed
+#define EXTRUDER_AUTO_FAN_TEMPERATURE 50
+#define EXTRUDER_AUTO_FAN_SPEED  255 //  255  // == full speed
 
 
 //===========================================================================
@@ -90,7 +90,7 @@
 
 #define ENDSTOPS_ONLY_FOR_HOMING // If defined the endstops will only be used for homing
 
-
+#if 0 
 //// AUTOSET LOCATIONS OF LIMIT SWITCHES
 //// Added by ZetaPhoenix 09-15-2012
 #ifdef MANUAL_HOME_POSITIONS  // Use manual limit switch locations
@@ -137,6 +137,7 @@
 #endif //End auto min/max positions
 //END AUTOSET LOCATIONS OF LIMIT SWITCHES -ZP
 
+#endif // 0 
 
 //#define Z_LATE_ENABLE // Enable Z the last moment. Needed if your Z driver overheats.
 
@@ -204,7 +205,7 @@
 #define DIGIPOT_MOTOR_CURRENT {135,135,135,135,135} // Values 0-255 (RAMBO 135 = ~0.75A, 185 = ~1A)
 
 // Default motor current for XY,Z,E in mA
-#define DEFAULT_PWM_MOTOR_CURRENT {1300, 1300, 1600}
+#define DEFAULT_PWM_MOTOR_CURRENT {1300, 1300, 1800}
 //#define DEFAULT_PWM_MOTOR_CURRENT {1300, 1300, 1250}
 
 //===========================================================================
@@ -294,10 +295,14 @@ const unsigned int dropsegments=5; //everything with less than this number of st
 #endif
 #endif
 
+// when pausing, how far to lower the build plate.       WIll not lower past ZMax in any case
+#define PAUSE_HEIGHT_DROP 60
+#define PAUSE_X_POS 100	
+#define PAUSE_Y_POS 50	
 
 //The ASCII buffer for recieving from the serial:
-#define MAX_CMD_SIZE 64
-#define BUFSIZE 3		// reduced since we aren't officially supporting USB printing....we need the RAM elsewhere
+#define MAX_CMD_SIZE 60
+#define BUFSIZE 7		// reduced since we aren't officially supporting USB printing....we need the RAM elsewhere
 
 
 // Firmware based and LCD controled retract

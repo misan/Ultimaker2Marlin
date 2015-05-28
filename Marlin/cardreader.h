@@ -62,19 +62,7 @@ public:
   FORCE_INLINE bool isOk() { return cardOK && card.errorCode() == 0; }
   FORCE_INLINE int errorCode() { return card.errorCode(); }
   FORCE_INLINE void clearError() { card.error(0); }
-  FORCE_INLINE void updateSDInserted()
-  {
-    bool newInserted = IS_SD_INSERTED;
-    if (sdInserted != newInserted)
-    {
-      if (insertChangeDelay)
-        insertChangeDelay--;
-      else
-        sdInserted = newInserted;
-    }else{
-      insertChangeDelay = 1000 / 25;
-    }
-  }
+   void updateSDInserted();
 
 public:
   bool saving;
@@ -85,6 +73,10 @@ public:
   char filename[13];
   char longFilename[LONG_FILENAME_LENGTH];
   bool filenameIsDir;
+//   unsigned long filesize ;
+	  unsigned int timestamp;
+	  unsigned int datestamp;
+	  uint32_t filesize;
   int lastnr; //last number of the autostart;
 private:
   bool cardOK;
@@ -94,7 +86,7 @@ private:
   Sd2Card card;
   SdVolume volume;
   SdFile file;
-  uint32_t filesize;
+  
   //int16_t n;
   unsigned long autostart_atmillis;
   uint32_t sdpos ;

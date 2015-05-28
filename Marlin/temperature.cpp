@@ -36,6 +36,8 @@
 #include "UltiLCD2.h"
 #include "temperature.h"
 #include "watchdog.h"
+#include "UltiLCD2_hi_lib.h"
+#include "MenuUseful.h"
 
 //===========================================================================
 //=============================public variables============================
@@ -154,7 +156,7 @@ void PID_autotune(float temp, int extruder, int ncycles)
     float input = 0.0;
     int cycles=0;
     bool heating = true;
-
+	int glitch_count =0 ;
     unsigned long temp_millis = millis();
     unsigned long t1=temp_millis;
     unsigned long t2=temp_millis;
@@ -279,8 +281,12 @@ void PID_autotune(float temp, int extruder, int ncycles)
                 }
             if(input > (temp + 20))
                 {
-                    SERIAL_PROTOCOLLNPGM("PID Autotune failed! Temperature too high");
-                    return;
+                    glitch_count++;
+                    if (glitch_count > 10)
+                        {
+                            SERIAL_PROTOCOLLNPGM("PID Autotune failed! Temperature too high");
+                            return;
+                        }
                 }
             if(millis() - temp_millis > 2000)
                 {
@@ -370,9 +376,10 @@ void checkExtruderAutoFans()
 #if defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1
     if (current_temperature[0] > EXTRUDER_AUTO_FAN_TEMPERATURE+2)			// add a little hysteresis to prevent frequent toggling at the threshold
         fanState |= 1;
-	else if (current_temperature[0] < EXTRUDER_AUTO_FAN_TEMPERATURE-2)
-		fanState =0;
-			else return;
+    else
+        if (current_temperature[0] < EXTRUDER_AUTO_FAN_TEMPERATURE-2)
+            fanState =0;
+        else return;
 #endif
 #if defined(EXTRUDER_1_AUTO_FAN_PIN) && EXTRUDER_1_AUTO_FAN_PIN > -1 && EXTRUDERS > 1
     if (current_temperature[1] > EXTRUDER_AUTO_FAN_TEMPERATURE)
@@ -532,42 +539,42 @@ void manage_heater()
 #if (defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1) || \
       (defined(EXTRUDER_1_AUTO_FAN_PIN) && EXTRUDER_1_AUTO_FAN_PIN > -1) || \
       (defined(EXTRUDER_2_AUTO_FAN_PIN) && EXTRUDER_2_AUTO_FAN_PIN > -1)
-    if(millis() - extruder_autofan_last_check > 2500)  // only need to check fan state very infrequently
+    if(millis() - extruder_autofan_last_check > 10000)  // only need to check fan state very infrequently
         {
             checkExtruderAutoFans();
             extruder_autofan_last_check = millis();
         }
 #endif
 
-    
-        //For the UM2 the head fan is connected to PJ6, which does not have an Arduino PIN definition. So use direct register access.
-	
-	// ???  No....according to the schemtatics, Pj6 is not connected to anything....
-/* 
-#if HEAD_FAN_PIN > -1
-    //    DDRJ |= _BV(6);
-        if (current_temperature[0] > EXTRUDER_AUTO_FAN_TEMPERATURE
-#if EXTRUDERS > 1
-                || current_temperature[1] > EXTRUDER_AUTO_FAN_TEMPERATURE
-#endif
-#if EXTRUDERS > 2
-                || current_temperature[2] > EXTRUDER_AUTO_FAN_TEMPERATURE
-#endif
-           )
-            {
-     //           PORTJ |= _BV(6);
-			WRITE (HEAD_FAN_PIN,1);
-			if (MOTHERBOARD_FAN>-1) 
-				WRITE (MOTHERBOARD_FAN,1);
-            }
-        else
-            {
-       //         PORTJ &=~_BV(6);
-			WRITE (HEAD_FAN_PIN,0);
-            }
-    }
-#endif 
-	*/ 
+
+    //For the UM2 the head fan is connected to PJ6, which does not have an Arduino PIN definition. So use direct register access.
+
+    // ???  No....according to the schemtatics, Pj6 is not connected to anything....
+    /*
+    #if HEAD_FAN_PIN > -1
+        //    DDRJ |= _BV(6);
+            if (current_temperature[0] > EXTRUDER_AUTO_FAN_TEMPERATURE
+    #if EXTRUDERS > 1
+                    || current_temperature[1] > EXTRUDER_AUTO_FAN_TEMPERATURE
+    #endif
+    #if EXTRUDERS > 2
+                    || current_temperature[2] > EXTRUDER_AUTO_FAN_TEMPERATURE
+    #endif
+               )
+                {
+         //           PORTJ |= _BV(6);
+    			WRITE (HEAD_FAN_PIN,1);
+    			if (MOTHERBOARD_FAN>-1)
+    				WRITE (MOTHERBOARD_FAN,1);
+                }
+            else
+                {
+           //         PORTJ &=~_BV(6);
+    			WRITE (HEAD_FAN_PIN,0);
+                }
+        }
+    #endif
+    	*/
 
 #ifndef PIDTEMPBED
     if(millis() - previous_millis_bed_heater < BED_CHECK_INTERVAL)
@@ -618,8 +625,8 @@ void manage_heater()
             else
                 {
                     soft_pwm_bed = MAX_BED_POWER>>1;
-					if (MOTHERBOARD_FAN>-1) 
-						WRITE (MOTHERBOARD_FAN,1);
+                    if (MOTHERBOARD_FAN>-1)
+                        WRITE (MOTHERBOARD_FAN,1);
 
                 }
         }
@@ -651,6 +658,8 @@ void manage_heater()
 #endif
 }
 
+extern float VCC;
+
 #define PGM_RD_W(x)   (short)pgm_read_word(&x)
 // Derived from RepRap FiveD extruder::getTemperature()
 // For hot end temperature measurement.
@@ -666,7 +675,9 @@ static float analog2temp(int raw, uint8_t e)
             SERIAL_ERROR((int)e);
             SERIAL_ERRORLNPGM(" - Invalid extruder number !");
             LCD_ALERTMESSAGEPGM("Invalid extruder!");
-			forceMessage();
+            LED_GLOW_ERROR();
+
+            forceMessage();
             kill();
         }
 #ifdef HEATER_0_USES_MAX6675
@@ -678,6 +689,7 @@ static float analog2temp(int raw, uint8_t e)
 
     if(heater_ttbl_map[e] != NULL)
         {
+            raw = (int) (round ((float) raw * VCC / 4.9f));
             float celsius = 0;
             uint8_t i;
             short (*tt)[][2] = (short (*)[][2])(heater_ttbl_map[e]);
@@ -697,7 +709,7 @@ static float analog2temp(int raw, uint8_t e)
             // Overflow: Set to last value in the table
             if (i == heater_ttbllen_map[e]) celsius = PGM_RD_W((*tt)[i-1][1]);
 
-            return celsius * TEMPCORRECTION;
+            return celsius/* * TEMPCORRECTION*/;
         }
     return ((raw * ((5.0 * 100.0) / 1024.0) / OVERSAMPLENR) * TEMP_SENSOR_AD595_GAIN) + TEMP_SENSOR_AD595_OFFSET;
 }
@@ -709,6 +721,7 @@ static float analog2tempBed(int raw)
 #ifdef BED_USES_THERMISTOR
     float celsius = 0;
     byte i;
+    raw = (int) (round ((float) raw * VCC / 4.9f));
 
     for (i=1; i<BEDTEMPTABLE_LEN; i++)
         {
@@ -1011,9 +1024,12 @@ void max_temp_error(uint8_t e)
             SERIAL_ERROR_START;
             SERIAL_ERRORLN((int)e);
             SERIAL_ERRORLNPGM(": Extruder switched off. MAXTEMP triggered !");
-			SERIAL_ECHOLN(current_temperature_raw[e]);
+            SERIAL_ECHOLN(current_temperature_raw[e]);
+            SERIAL_ECHOLN(analog2temp (current_temperature_raw[e],e));
             LCD_ALERTMESSAGEPGM("Err: MAXTEMP");
-			forceMessage();
+            LED_GLOW_ERROR();
+
+            forceMessage();
         }
 #ifndef BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE
     Stop(STOP_REASON_MAXTEMP);
@@ -1028,9 +1044,12 @@ void min_temp_error(uint8_t e)
             SERIAL_ERROR_START;
             SERIAL_ERROR((int)e);
             SERIAL_ERRORLNPGM(": Extruder switched off. MINTEMP triggered !");
-			SERIAL_ECHOLN(current_temperature_raw[e]);
+            SERIAL_ECHOLN(current_temperature_raw[e]);
+            SERIAL_ECHOLN(analog2temp (current_temperature_raw[e],e));
             LCD_ALERTMESSAGEPGM("Err: MINTEMP");
-			forceMessage();
+            LED_GLOW_ERROR();
+
+            forceMessage();
         }
 #ifndef BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE
     Stop(STOP_REASON_MINTEMP);
@@ -1046,9 +1065,12 @@ void bed_max_temp_error(void)
         {
             SERIAL_ERROR_START;
             SERIAL_ERRORLNPGM("Temperature heated bed switched off. MAXTEMP triggered !!");
-			SERIAL_ECHOLN(current_temperature_bed_raw);
+            SERIAL_ECHOLN(current_temperature_bed_raw);
+            SERIAL_ECHOLN(analog2tempBed(current_temperature_bed_raw));
             LCD_ALERTMESSAGEPGM("Err: MAXTEMP BED");
-			forceMessage();
+            LED_GLOW_ERROR();
+
+            forceMessage();
         }
 #ifndef BOGUS_TEMPERATURE_FAILSAFE_OVERRIDE
     Stop(STOP_REASON_MAXTEMP_BED);
@@ -1293,105 +1315,121 @@ ISR(TIMER0_COMPB_vect)
 
             raw_temp_bed_value = 0;
 
+            static char  max_temp_error_count = 0;
 #if HEATER_0_RAW_LO_TEMP > HEATER_0_RAW_HI_TEMP
             if(current_temperature_raw[0] <= maxttemp_raw[0])
                 {
 #else
             if(current_temperature_raw[0] >= maxttemp_raw[0])
+                max_temp_error_count++;
+            if (max_temp_error_count> 50)
                 {
-#endif
                     max_temp_error(0);
+					return;
                 }
-#if HEATER_0_RAW_LO_TEMP > HEATER_0_RAW_HI_TEMP
-            if(current_temperature_raw[0] >= minttemp_raw[0])
-                {
-#else
-            if(current_temperature_raw[0] <= minttemp_raw[0])
-                {
+            if (max_temp_error_count > 0) max_temp_error_count --;
+
 #endif
-                    min_temp_error(0);
-                }
+#if HEATER_0_RAW_LO_TEMP > HEATER_0_RAW_HI_TEMP
+                    if(current_temperature_raw[0] >= minttemp_raw[0])
+                        {
+#else
+                    if(current_temperature_raw[0] <= minttemp_raw[0])
+                        {
+#endif
+                            min_temp_error(0);
+							return;
+                        }
 #if EXTRUDERS > 1
 #if HEATER_1_RAW_LO_TEMP > HEATER_1_RAW_HI_TEMP
-            if(current_temperature_raw[1] <= maxttemp_raw[1])
-                {
+                    if(current_temperature_raw[1] <= maxttemp_raw[1])
+                        {
 #else
-            if(current_temperature_raw[1] >= maxttemp_raw[1])
-                {
+                    if(current_temperature_raw[1] >= maxttemp_raw[1])
+                        {
 #endif
-                    max_temp_error(1);
-                }
+                            max_temp_error(1);
+                        }
 #if HEATER_1_RAW_LO_TEMP > HEATER_1_RAW_HI_TEMP
-            if(current_temperature_raw[1] >= minttemp_raw[1])
-                {
+                    if(current_temperature_raw[1] >= minttemp_raw[1])
+                        {
 #else
-            if(current_temperature_raw[1] <= minttemp_raw[1])
-                {
+                    if(current_temperature_raw[1] <= minttemp_raw[1])
+                        {
 #endif
-                    min_temp_error(1);
-                }
+                            min_temp_error(1);
+                        }
 #endif
 #if EXTRUDERS > 2
 #if HEATER_2_RAW_LO_TEMP > HEATER_2_RAW_HI_TEMP
-            if(current_temperature_raw[2] <= maxttemp_raw[2])
-                {
+                    if(current_temperature_raw[2] <= maxttemp_raw[2])
+                        {
 #else
-            if(current_temperature_raw[2] >= maxttemp_raw[2])
-                {
+                    if(current_temperature_raw[2] >= maxttemp_raw[2])
+                        {
 #endif
-                    max_temp_error(2);
-                }
+                            max_temp_error(2);
+                        }
 #if HEATER_2_RAW_LO_TEMP > HEATER_2_RAW_HI_TEMP
-            if(current_temperature_raw[2] >= minttemp_raw[2])
-                {
+                    if(current_temperature_raw[2] >= minttemp_raw[2])
+                        {
 #else
-            if(current_temperature_raw[2] <= minttemp_raw[2])
-                {
+                    if(current_temperature_raw[2] <= minttemp_raw[2])
+                        {
 #endif
-                    min_temp_error(2);
-                }
+                            min_temp_error(2);
+                        }
 #endif
 
-            /* No bed MINTEMP error? */
+                    /* No bed MINTEMP error? */
 #if defined(BED_MAXTEMP) && (TEMP_SENSOR_BED != 0)
 # if HEATER_BED_RAW_LO_TEMP > HEATER_BED_RAW_HI_TEMP
-            if(current_temperature_bed_raw <= bed_maxttemp_raw)
-                {
+                    if(current_temperature_bed_raw <= bed_maxttemp_raw)
+                        {
 #else
-            if(current_temperature_bed_raw >= bed_maxttemp_raw)
-                {
+                    if(current_temperature_bed_raw >= bed_maxttemp_raw)
+                        {
 #endif
-                    target_temperature_bed = 0;
-                    bed_max_temp_error();
+                            target_temperature_bed = 0;
+                            bed_max_temp_error();
+                        }
+#endif
                 }
-#endif
         }
-}
 
 #ifdef PIDTEMP
 // Apply the scale factors to the PID values
 
 
-float scalePID_i(float i)
-{
-    return i*PID_dT;
-}
+    float scalePID_i(float i)
+    {
+        return i*PID_dT;
+    }
 
-float unscalePID_i(float i)
-{
-    return i/PID_dT;
-}
+    float unscalePID_i(float i)
+    {
+        return i/PID_dT;
+    }
 
-float scalePID_d(float d)
-{
-    return d/PID_dT;
-}
+    float scalePID_d(float d)
+    {
+        return d/PID_dT;
+    }
 
-float unscalePID_d(float d)
-{
-    return d*PID_dT;
-}
+    float unscalePID_d(float d)
+    {
+        return d*PID_dT;
+    }
 
 #endif //PIDTEMP
+//-----------------------------------------------------------------------------------------------------------------
+// diagnostic, useful for creating thermistor tables via console and extrernal temp probe..
+    void report_temps()
+    {
+        SERIAL_ECHO_START;
+        SERIAL_ECHOPAIR ("RAW READING: ",(unsigned long) current_temperature_raw[0]);
+        SERIAL_ECHOPAIR ("         CALCULATED: ", analog2temp (current_temperature_raw[0],0));
+        SERIAL_ECHOLN  ("' C");
+    }
 
 

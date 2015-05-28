@@ -41,6 +41,13 @@ static void lcd_menu_first_run_print_1();
 static void lcd_menu_first_run_print_card_detect();
 
 #define DRAW_PROGRESS_NR(nr) do { if (!IS_FIRST_RUN_DONE()) { lcd_lib_draw_stringP((nr < 10) ? 100 : 94, 0, PSTR( #nr "/21")); } } while(0)
+#ifdef STOCK_UM2_HEAD
+#define Z_HEIGHT_LEVEL 35
+#endif
+#ifdef E3D_HEAD
+#define Z_HEIGHT_LEVEL 60
+#endif
+
 
 //Run the first time you start-up the machine or after a factory reset.
 void lcd_menu_first_run_init()
@@ -53,6 +60,7 @@ void lcd_menu_first_run_init()
     lcd_lib_draw_string_centerP(30, PSTR("Ultimaker! Press the"));
     lcd_lib_draw_string_centerP(40, PSTR("button to continue"));
     lcd_lib_update_screen();
+	while (!lcd_lib_update_ready()) delay(20);
 }
 
 static void homeAndParkHeadForCenterAdjustment2()
@@ -60,7 +68,7 @@ static void homeAndParkHeadForCenterAdjustment2()
     add_homeing[Z_AXIS] = 0;
     enquecommand_P(PSTR("G28 Z0 X0 Y0"));
     char buffer[32];
-    sprintf_P(buffer, PSTR("G1 F%i Z%i X%i Y%i"), int(homing_feedrate[0]), 35, X_MAX_LENGTH/2, Y_MAX_LENGTH - 10);
+    sprintf_P(buffer, PSTR("G1 F%i Z%i X%i Y%i"), int(homing_feedrate[0]), Z_HEIGHT_LEVEL, int(X_MAX_LENGTH/2),int( Y_MAX_LENGTH ) - 10);
     enquecommand(buffer);
 }
 //Started bed leveling from the calibration menu
@@ -71,14 +79,16 @@ void lcd_menu_first_run_start_bed_leveling()
     lcd_lib_draw_string_centerP(20, PSTR("through the process"));
     lcd_lib_draw_string_centerP(30, PSTR("of adjusting your"));
     lcd_lib_draw_string_centerP(40, PSTR("buildplate."));
+
     lcd_lib_update_screen();
+	while (!lcd_lib_update_ready()) delay(20);
 }
 
 static void homeAndRaiseBed()
 {
     enquecommand_P(PSTR("G28 Z0"));
     char buffer[32];
-    sprintf_P(buffer, PSTR("G1 F%i Z%i"), int(homing_feedrate[0]), 35);
+    sprintf_P(buffer, PSTR("G1 F%i Z%i"), int(homing_feedrate[0]), Z_HEIGHT_LEVEL);
     enquecommand(buffer);
 }
 
@@ -98,7 +108,7 @@ static void homeAndParkHeadForCenterAdjustment()
 {
     enquecommand_P(PSTR("G28 X0 Y0"));
     char buffer[32];
-    sprintf_P(buffer, PSTR("G1 F%i Z%i X%i Y%i"), int(homing_feedrate[0]), 35, X_MAX_LENGTH/2, Y_MAX_LENGTH - 10);
+    sprintf_P(buffer, PSTR("G1 F%i Z%i X%i Y%i"), int(homing_feedrate[0]), Z_HEIGHT_LEVEL, int(X_MAX_LENGTH/2), int(Y_MAX_LENGTH) - 10);
     enquecommand(buffer);
 }
 
@@ -112,6 +122,7 @@ static void lcd_menu_first_run_init_3()
     lcd_lib_draw_string_centerP(30, PSTR("adjustments, we are"));
     lcd_lib_draw_string_centerP(40, PSTR("going to do that now."));
     lcd_lib_update_screen();
+		while (!lcd_lib_update_ready()) delay(20);
 }
 
 static void storeHomingZ_parkHeadForLeftAdjustment()
@@ -161,7 +172,7 @@ static void parkHeadForRightAdjustment()
     char buffer[32];
     sprintf_P(buffer, PSTR("G1 F%i Z5"), int(homing_feedrate[Z_AXIS]));
     enquecommand(buffer);
-    sprintf_P(buffer, PSTR("G1 F%i X%i Y%i"), int(homing_feedrate[X_AXIS]), X_MAX_POS - 10, 20);
+    sprintf_P(buffer, PSTR("G1 F%i X%i Y%i"), int(homing_feedrate[X_AXIS]), int(max_pos[X_AXIS]) - 10, 20);
     enquecommand(buffer);
     sprintf_P(buffer, PSTR("G1 F%i Z0"), int(homing_feedrate[Z_AXIS]));
     enquecommand(buffer);
@@ -201,7 +212,7 @@ static void parkHeadForCenterAdjustment()
     char buffer[32];
     sprintf_P(buffer, PSTR("G1 F%i Z5"), int(homing_feedrate[Z_AXIS]));
     enquecommand(buffer);
-    sprintf_P(buffer, PSTR("G1 F%i X%i Y%i"), int(homing_feedrate[X_AXIS]), X_MAX_LENGTH / 2, Y_MAX_LENGTH - 10);
+    sprintf_P(buffer, PSTR("G1 F%i X%i Y%i"), int(homing_feedrate[X_AXIS]),int (X_MAX_LENGTH / 2), int(Y_MAX_LENGTH )- 10);
     enquecommand(buffer);
     sprintf_P(buffer, PSTR("G1 F%i Z0"), int(homing_feedrate[Z_AXIS]));
     enquecommand(buffer);
@@ -524,7 +535,7 @@ static void lcd_menu_first_run_print_card_detect()
     }
     
     SELECT_MAIN_MENU_ITEM(0);
-    lcd_info_screen(lcd_menu_print_select, setFirstRunDone, PSTR("LET'S PRINT"));
+    lcd_info_screen(lcd_sd_filemenu_doAction, setFirstRunDone, PSTR("LET'S PRINT"));
     DRAW_PROGRESS_NR(21);
     lcd_lib_draw_string_centerP(10, PSTR("Select a print file"));
     lcd_lib_draw_string_centerP(20, PSTR("on the SD-card"));

@@ -2,13 +2,12 @@
 #include "pins.h"
 #include "UltiLCD2_low_lib.h"
 #include "UltiLCD2_hi_lib.h"
+#include "stringHelpers.h"
 
 #ifdef ENABLE_ULTILCD2
 /**
  * Implementation of the LCD display routines for a SSD1309 OLED graphical display connected with i2c.
  **/
-#define LCD_GFX_WIDTH 128
-#define LCD_GFX_HEIGHT 64
 
 #define LCD_RESET_PIN 5
 #define LCD_CS_PIN    6
@@ -44,10 +43,9 @@
 #define LCD_COMMAND_SET_ADDRESSING_MODE     0x20
 
 /** Backbuffer for LCD */
-uint8_t lcd_buffer[LCD_GFX_WIDTH * LCD_GFX_HEIGHT / 8];
+uint8_t lcd_buffer[LCD_GFX_WIDTH * (LCD_GFX_HEIGHT+1) / 8];		// add one row of guard buffer... should never hit it, but....just in case...
 uint8_t led_r, led_g, led_b;
 
-#define XORSWAP(a, b)	((a)^=(b),(b)^=(a),(a)^=(b))
 
 
 /**
@@ -96,7 +94,7 @@ void lcd_lib_init()
 
     //Set the beeper as output.
     SET_OUTPUT(BEEPER);
-    
+
     //Set the encoder bits and encoder button as inputs with pullup
     SET_INPUT(BTN_EN1);
     SET_INPUT(BTN_EN2);
@@ -116,7 +114,7 @@ void lcd_lib_init()
     _delay_ms(1);
     WRITE(LCD_RESET_PIN, 1);
     _delay_ms(1);
-    
+
     //ClockFreq = (F_CPU) / (16 + 2*TWBR * 4^TWPS)
     //TWBR = ((F_CPU / ClockFreq) - 16)/2*4^TWPS
     TWBR = ((F_CPU / I2C_FREQ) - 16)/2*1;
@@ -135,10 +133,10 @@ void lcd_lib_init()
     i2c_start();
     i2c_send_raw(I2C_LCD_ADDRESS << 1 | I2C_WRITE);
     i2c_send_raw(I2C_LCD_SEND_COMMAND);
-    
+
     i2c_send_raw(LCD_COMMAND_LOCK_COMMANDS);
     i2c_send_raw(0x12);
-    
+
     i2c_send_raw(LCD_COMMAND_DISPLAY_OFF);
 
     i2c_send_raw(0xD5);//Display clock divider/freq
@@ -160,7 +158,7 @@ void lcd_lib_init()
 
     i2c_send_raw(LCD_COMMAND_CONTRAST);
     i2c_send_raw(0xDF);
-    
+
     i2c_send_raw(0xD9);//Pre charge period
     i2c_send_raw(0x82);
 
@@ -170,7 +168,7 @@ void lcd_lib_init()
     i2c_send_raw(LCD_COMMAND_SET_ADDRESSING_MODE);
 
     i2c_send_raw(LCD_COMMAND_FULL_DISPLAY_ON_DISABLE);
-    
+
     i2c_send_raw(LCD_COMMAND_DISPLAY_ON);
     i2c_end();
 
@@ -185,21 +183,24 @@ uint16_t lcd_update_pos = 0;
 ISR(TWI_vect)
 {
     if (lcd_update_pos == LCD_GFX_WIDTH*LCD_GFX_HEIGHT/8)
-    {
-        i2c_end();
-    }else{
-        i2c_send_raw(lcd_buffer[lcd_update_pos]);
-        TWCR |= _BV(TWIE);
-        lcd_update_pos++;
-    }
+        {
+            i2c_end();
+        }
+    else
+        {
+            i2c_send_raw(lcd_buffer[lcd_update_pos]);
+            TWCR |= _BV(TWIE);
+            lcd_update_pos++;
+        }
 }
 #endif
 
+
+//////////////////////////////////////////////////////////////////////////////////////////
 void lcd_lib_update_screen()
 {
-    i2c_led_write(2, led_r);//PWM0
-    i2c_led_write(3, led_g);//PWM1
-    i2c_led_write(4, led_b);//PWM2
+    lcd_lib_update_RGB_LED();
+
     i2c_start();
     i2c_send_raw(I2C_LCD_ADDRESS << 1 | I2C_WRITE);
     //Set the drawin position to 0,0
@@ -207,18 +208,18 @@ void lcd_lib_update_screen()
     i2c_send_raw(0x00 | (0 & 0x0F));
     i2c_send_raw(0x10 | (0 >> 4));
     i2c_send_raw(0xB0 | 0);
-    
-    i2c_restart();    
+
+    i2c_restart();
     i2c_send_raw(I2C_LCD_ADDRESS << 1 | I2C_WRITE);
     i2c_send_raw(I2C_LCD_SEND_DATA);
 #if USE_TWI_INTERRUPT
     lcd_update_pos = 0;
     TWCR |= _BV(TWIE);
 #else
-    for(uint16_t n=0;n<LCD_GFX_WIDTH*LCD_GFX_HEIGHT/8;n++)
-    {
-        i2c_send_raw(lcd_buffer[n]);
-    }
+    for(uint16_t n=0; n<LCD_GFX_WIDTH*LCD_GFX_HEIGHT/8; n++)
+        {
+            i2c_send_raw(lcd_buffer[n]);
+        }
     i2c_end();
 #endif
 }
@@ -235,14 +236,14 @@ bool lcd_lib_update_ready()
 bool led_forced=false;
 // if forced, then subsequent color requests will be ignored unless also forced.
 // setting a forced 0,0,0 will clear the forced state and go back to normal operation
-// this is to support user/ gcode setting of the rgb as an override and not 
+// this is to support user/ gcode setting of the rgb as an override and not
 // letting the normal colors show.
 void lcd_lib_led_color(uint8_t r, uint8_t g, uint8_t b, bool forced)
 {
-	led_forced = forced;
-	if (led_forced) 
-		if (r==0 && g==0 && b==0) led_forced = false;
-	if (led_forced && !forced) return;
+    led_forced = forced;
+    if (led_forced)
+        if (r==0 && g==0 && b==0) led_forced = false;
+    if (led_forced && !forced) return;
     led_r = r;
     led_g = g;
     led_b = b;
@@ -250,110 +251,113 @@ void lcd_lib_led_color(uint8_t r, uint8_t g, uint8_t b, bool forced)
 
 // the baseline ASCII->font table offset.  Was 32 (space) but shifted down by four as I added four custom characters to the font
 // had to add them to the start of the table, because we're using char, which are signed and top out at 128, which is already the max table value.
-#define FONT_BASE_CHAR 28
+#define FONT_BASE_CHAR 27
 
-static const uint8_t lcd_font_7x5[] PROGMEM = {
-	0x11, 0x15, 0x0A, 0x00, 0x00,       // ^3 " CUBED_SYMBOL "  (alt+28)
-	0x19, 0x15, 0x12, 0x00, 0x00,        // ^2 " SQUARED_SYMBOL " 29
-	0x30, 0x0C, 0x43, 0xA8, 0x90,		//s " PER_SECOND_SYMBOL "   -- fugly, dont use
-	0x02,0x05,0x72,0x88,0x88,    		// deg C  " DEGREE_C_SYMBOL " 
+static const uint8_t lcd_font_7x5[] PROGMEM =
+{
+    0x11, 0x15, 0x0A, 0x00, 0x00,       // ^3 " CUBED_SYMBOL "  (alt+28)
+    0x19, 0x15, 0x12, 0x00, 0x00,        // ^2 " SQUARED_SYMBOL " 29
+    0x30, 0x0C, 0x43, 0xA8, 0x90,		//s " PER_SECOND_SYMBOL "   -- fugly, dont use
+    0x02,0x05,0x72,0x88,0x88,    		// deg C  " DEGREE_C_SYMBOL "
+
+    0x60, 0x00,  0x60, 0x00, 0x60   , 		// elipsis
 
     0x00, 0x00, 0x00, 0x00, 0x00,// (space)
-	0x00, 0x00, 0x5F, 0x00, 0x00,// !
-	0x00, 0x07, 0x00, 0x07, 0x00,// "
-	0x14, 0x7F, 0x14, 0x7F, 0x14,// #
-	0x24, 0x2A, 0x7F, 0x2A, 0x12,// $
-	0x23, 0x13, 0x08, 0x64, 0x62,// %
-	0x36, 0x49, 0x55, 0x22, 0x50,// &
-	0x00, 0x05, 0x03, 0x00, 0x00,// '
-	0x00, 0x1C, 0x22, 0x41, 0x00,// (
-	0x00, 0x41, 0x22, 0x1C, 0x00,// )
-	0x08, 0x2A, 0x1C, 0x2A, 0x08,// *
-	0x08, 0x08, 0x3E, 0x08, 0x08,// +
-	0x00, 0x50, 0x30, 0x00, 0x00,// ,
-	0x08, 0x08, 0x08, 0x08, 0x08,// -
-	0x00, 0x60, 0x60, 0x00, 0x00,// .
-	0x20, 0x10, 0x08, 0x04, 0x02,// /
-	0x3E, 0x51, 0x49, 0x45, 0x3E,// 0
-	0x00, 0x42, 0x7F, 0x40, 0x00,// 1
-	0x42, 0x61, 0x51, 0x49, 0x46,// 2
-	0x21, 0x41, 0x45, 0x4B, 0x31,// 3
-	0x18, 0x14, 0x12, 0x7F, 0x10,// 4
-	0x27, 0x45, 0x45, 0x45, 0x39,// 5
-	0x3C, 0x4A, 0x49, 0x49, 0x30,// 6
-	0x01, 0x71, 0x09, 0x05, 0x03,// 7
-	0x36, 0x49, 0x49, 0x49, 0x36,// 8
-	0x06, 0x49, 0x49, 0x29, 0x1E,// 9
-	0x00, 0x36, 0x36, 0x00, 0x00,// :
-	0x00, 0x56, 0x36, 0x00, 0x00,// ;
-	0x00, 0x08, 0x14, 0x22, 0x41,// <
-	0x14, 0x14, 0x14, 0x14, 0x14,// =
-	0x41, 0x22, 0x14, 0x08, 0x00,// >
-	0x02, 0x01, 0x51, 0x09, 0x06,// ?
-	0x32, 0x49, 0x79, 0x41, 0x3E,// @
-	0x7E, 0x11, 0x11, 0x11, 0x7E,// A
-	0x7F, 0x49, 0x49, 0x49, 0x36,// B
-	0x3E, 0x41, 0x41, 0x41, 0x22,// C
-	0x7F, 0x41, 0x41, 0x22, 0x1C,// D
-	0x7F, 0x49, 0x49, 0x49, 0x41,// E
-	0x7F, 0x09, 0x09, 0x01, 0x01,// F
-	0x3E, 0x41, 0x41, 0x51, 0x32,// G
-	0x7F, 0x08, 0x08, 0x08, 0x7F,// H
-	0x00, 0x41, 0x7F, 0x41, 0x00,// I
-	0x20, 0x40, 0x41, 0x3F, 0x01,// J
-	0x7F, 0x08, 0x14, 0x22, 0x41,// K
-	0x7F, 0x40, 0x40, 0x40, 0x40,// L
-	0x7F, 0x02, 0x04, 0x02, 0x7F,// M
-	0x7F, 0x04, 0x08, 0x10, 0x7F,// N
-	0x3E, 0x41, 0x41, 0x41, 0x3E,// O
-	0x7F, 0x09, 0x09, 0x09, 0x06,// P
-	0x3E, 0x41, 0x51, 0x21, 0x5E,// Q
-	0x7F, 0x09, 0x19, 0x29, 0x46,// R
-	0x46, 0x49, 0x49, 0x49, 0x31,// S
-	0x01, 0x01, 0x7F, 0x01, 0x01,// T
-	0x3F, 0x40, 0x40, 0x40, 0x3F,// U
-	0x1F, 0x20, 0x40, 0x20, 0x1F,// V
-	0x7F, 0x20, 0x18, 0x20, 0x7F,// W
-	0x63, 0x14, 0x08, 0x14, 0x63,// X
-	0x03, 0x04, 0x78, 0x04, 0x03,// Y
-	0x61, 0x51, 0x49, 0x45, 0x43,// Z
-	0x00, 0x00, 0x7F, 0x41, 0x41,// [
-	0x02, 0x04, 0x08, 0x10, 0x20,// "\"
-	0x41, 0x41, 0x7F, 0x00, 0x00,// ]
-	0x04, 0x02, 0x01, 0x02, 0x04,// ^
-	0x40, 0x40, 0x40, 0x40, 0x40,// _
-	0x00, 0x01, 0x02, 0x04, 0x00,// `
-	0x20, 0x54, 0x54, 0x54, 0x78,// a
-	0x7F, 0x48, 0x44, 0x44, 0x38,// b
-	0x38, 0x44, 0x44, 0x44, 0x20,// c
-	0x38, 0x44, 0x44, 0x48, 0x7F,// d
-	0x38, 0x54, 0x54, 0x54, 0x18,// e
-	0x08, 0x7E, 0x09, 0x01, 0x02,// f
-	0x08, 0x14, 0x54, 0x54, 0x3C,// g
-	0x7F, 0x08, 0x04, 0x04, 0x78,// h
-	0x00, 0x44, 0x7D, 0x40, 0x00,// i
-	0x20, 0x40, 0x44, 0x3D, 0x00,// j
-	0x00, 0x7F, 0x10, 0x28, 0x44,// k
-	0x00, 0x41, 0x7F, 0x40, 0x00,// l
-	0x7C, 0x04, 0x18, 0x04, 0x78,// m
-	0x7C, 0x08, 0x04, 0x04, 0x78,// n
-	0x38, 0x44, 0x44, 0x44, 0x38,// o
-	0x7C, 0x14, 0x14, 0x14, 0x08,// p
-	0x08, 0x14, 0x14, 0x18, 0x7C,// q
-	0x7C, 0x08, 0x04, 0x04, 0x08,// r
-	0x48, 0x54, 0x54, 0x54, 0x20,// s
-	0x04, 0x3F, 0x44, 0x40, 0x20,// t
-	0x3C, 0x40, 0x40, 0x20, 0x7C,// u
-	0x1C, 0x20, 0x40, 0x20, 0x1C,// v
-	0x3C, 0x40, 0x30, 0x40, 0x3C,// w
-	0x44, 0x28, 0x10, 0x28, 0x44,// x
-	0x0C, 0x50, 0x50, 0x50, 0x3C,// y
-	0x44, 0x64, 0x54, 0x4C, 0x44,// z
-	0x00, 0x08, 0x36, 0x41, 0x00,// {
-	0x00, 0x00, 0x7F, 0x00, 0x00,// |
-	0x00, 0x41, 0x36, 0x08, 0x00,// }
-	0x08, 0x08, 0x2A, 0x1C, 0x08,// ->
-	0x08, 0x1C, 0x2A, 0x08, 0x08 // <-,
+    0x00, 0x00, 0x5F, 0x00, 0x00,// !
+    0x00, 0x07, 0x00, 0x07, 0x00,// "
+    0x14, 0x7F, 0x14, 0x7F, 0x14,// #
+    0x24, 0x2A, 0x7F, 0x2A, 0x12,// $
+    0x23, 0x13, 0x08, 0x64, 0x62,// %
+    0x36, 0x49, 0x55, 0x22, 0x50,// &
+    0x00, 0x05, 0x03, 0x00, 0x00,// '
+    0x00, 0x1C, 0x22, 0x41, 0x00,// (
+    0x00, 0x41, 0x22, 0x1C, 0x00,// )
+    0x08, 0x2A, 0x1C, 0x2A, 0x08,// *
+    0x08, 0x08, 0x3E, 0x08, 0x08,// +
+    0x00, 0x50, 0x30, 0x00, 0x00,// ,
+    0x08, 0x08, 0x08, 0x08, 0x08,// -
+    0x00, 0x60, 0x60, 0x00, 0x00,// .
+    0x20, 0x10, 0x08, 0x04, 0x02,// /
+    0x3E, 0x51, 0x49, 0x45, 0x3E,// 0
+    0x00, 0x42, 0x7F, 0x40, 0x00,// 1
+    0x42, 0x61, 0x51, 0x49, 0x46,// 2
+    0x21, 0x41, 0x45, 0x4B, 0x31,// 3
+    0x18, 0x14, 0x12, 0x7F, 0x10,// 4
+    0x27, 0x45, 0x45, 0x45, 0x39,// 5
+    0x3C, 0x4A, 0x49, 0x49, 0x30,// 6
+    0x01, 0x71, 0x09, 0x05, 0x03,// 7
+    0x36, 0x49, 0x49, 0x49, 0x36,// 8
+    0x06, 0x49, 0x49, 0x29, 0x1E,// 9
+    0x00, 0x36, 0x36, 0x00, 0x00,// :
+    0x00, 0x56, 0x36, 0x00, 0x00,// ;
+    0x00, 0x08, 0x14, 0x22, 0x41,// <
+    0x14, 0x14, 0x14, 0x14, 0x14,// =
+    0x41, 0x22, 0x14, 0x08, 0x00,// >
+    0x02, 0x01, 0x51, 0x09, 0x06,// ?
+    0x32, 0x49, 0x79, 0x41, 0x3E,// @
+    0x7E, 0x11, 0x11, 0x11, 0x7E,// A
+    0x7F, 0x49, 0x49, 0x49, 0x36,// B
+    0x3E, 0x41, 0x41, 0x41, 0x22,// C
+    0x7F, 0x41, 0x41, 0x22, 0x1C,// D
+    0x7F, 0x49, 0x49, 0x49, 0x41,// E
+    0x7F, 0x09, 0x09, 0x01, 0x01,// F
+    0x3E, 0x41, 0x41, 0x51, 0x32,// G
+    0x7F, 0x08, 0x08, 0x08, 0x7F,// H
+    0x00, 0x41, 0x7F, 0x41, 0x00,// I
+    0x20, 0x40, 0x41, 0x3F, 0x01,// J
+    0x7F, 0x08, 0x14, 0x22, 0x41,// K
+    0x7F, 0x40, 0x40, 0x40, 0x40,// L
+    0x7F, 0x02, 0x04, 0x02, 0x7F,// M
+    0x7F, 0x04, 0x08, 0x10, 0x7F,// N
+    0x3E, 0x41, 0x41, 0x41, 0x3E,// O
+    0x7F, 0x09, 0x09, 0x09, 0x06,// P
+    0x3E, 0x41, 0x51, 0x21, 0x5E,// Q
+    0x7F, 0x09, 0x19, 0x29, 0x46,// R
+    0x46, 0x49, 0x49, 0x49, 0x31,// S
+    0x01, 0x01, 0x7F, 0x01, 0x01,// T
+    0x3F, 0x40, 0x40, 0x40, 0x3F,// U
+    0x1F, 0x20, 0x40, 0x20, 0x1F,// V
+    0x7F, 0x20, 0x18, 0x20, 0x7F,// W
+    0x63, 0x14, 0x08, 0x14, 0x63,// X
+    0x03, 0x04, 0x78, 0x04, 0x03,// Y
+    0x61, 0x51, 0x49, 0x45, 0x43,// Z
+    0x00, 0x00, 0x7F, 0x41, 0x41,// [
+    0x02, 0x04, 0x08, 0x10, 0x20,// "\"
+    0x41, 0x41, 0x7F, 0x00, 0x00,// ]
+    0x04, 0x02, 0x01, 0x02, 0x04,// ^
+    0x40, 0x40, 0x40, 0x40, 0x40,// _
+    0x00, 0x01, 0x02, 0x04, 0x00,// `
+    0x20, 0x54, 0x54, 0x54, 0x78,// a
+    0x7F, 0x48, 0x44, 0x44, 0x38,// b
+    0x38, 0x44, 0x44, 0x44, 0x20,// c
+    0x38, 0x44, 0x44, 0x48, 0x7F,// d
+    0x38, 0x54, 0x54, 0x54, 0x18,// e
+    0x08, 0x7E, 0x09, 0x01, 0x02,// f
+    0x08, 0x14, 0x54, 0x54, 0x3C,// g
+    0x7F, 0x08, 0x04, 0x04, 0x78,// h
+    0x00, 0x44, 0x7D, 0x40, 0x00,// i
+    0x20, 0x40, 0x44, 0x3D, 0x00,// j
+    0x00, 0x7F, 0x10, 0x28, 0x44,// k
+    0x00, 0x41, 0x7F, 0x40, 0x00,// l
+    0x7C, 0x04, 0x18, 0x04, 0x78,// m
+    0x7C, 0x08, 0x04, 0x04, 0x78,// n
+    0x38, 0x44, 0x44, 0x44, 0x38,// o
+    0x7C, 0x14, 0x14, 0x14, 0x08,// p
+    0x08, 0x14, 0x14, 0x18, 0x7C,// q
+    0x7C, 0x08, 0x04, 0x04, 0x08,// r
+    0x48, 0x54, 0x54, 0x54, 0x20,// s
+    0x04, 0x3F, 0x44, 0x40, 0x20,// t
+    0x3C, 0x40, 0x40, 0x20, 0x7C,// u
+    0x1C, 0x20, 0x40, 0x20, 0x1C,// v
+    0x3C, 0x40, 0x30, 0x40, 0x3C,// w
+    0x44, 0x28, 0x10, 0x28, 0x44,// x
+    0x0C, 0x50, 0x50, 0x50, 0x3C,// y
+    0x44, 0x64, 0x54, 0x4C, 0x44,// z
+    0x00, 0x08, 0x36, 0x41, 0x00,// {
+    0x00, 0x00, 0x7F, 0x00, 0x00,// |
+    0x00, 0x41, 0x36, 0x08, 0x00,// }
+    0x08, 0x08, 0x2A, 0x1C, 0x08,// ->
+    0x08, 0x1C, 0x2A, 0x08, 0x08 // <-,
 
 };
 
@@ -364,28 +368,29 @@ void lcd_lib_draw_string(uint8_t x, uint8_t y, const char* str)
     uint8_t yshift = y % 8;
     uint8_t yshift2 = 8 - yshift;
     while(*str)
-    {
-        const uint8_t* src = lcd_font_7x5 + (*str - FONT_BASE_CHAR) * 5;
-        
-        *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
-        *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
-        *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
-        *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
-        *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
-        dst++;
-
-        if (yshift != 0)
         {
-            src = lcd_font_7x5 + (*str - FONT_BASE_CHAR) * 5;
-            *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
-            *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
-            *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
-            *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
-            *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
-            dst2++;
+			char a = constrain (*str,FONT_BASE_CHAR,99+FONT_BASE_CHAR);
+            const uint8_t* src = lcd_font_7x5 + (a-FONT_BASE_CHAR) * 5;
+
+            *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
+            *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
+            *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
+            *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
+            *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
+            dst++;
+
+            if (yshift != 0)
+                {
+				    src = lcd_font_7x5 + (a - FONT_BASE_CHAR) * 5;
+                    *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
+                    *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
+                    *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
+                    *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
+                    *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
+                    dst2++;
+                }
+            str++;
         }
-        str++;
-    }
 }
 
 void lcd_lib_clear_string(uint8_t x, uint8_t y, const char* str)
@@ -395,34 +400,35 @@ void lcd_lib_clear_string(uint8_t x, uint8_t y, const char* str)
     uint8_t yshift = y % 8;
     uint8_t yshift2 = 8 - yshift;
     while(*str)
-    {
-        const uint8_t* src = lcd_font_7x5 + (*str - FONT_BASE_CHAR) * 5;
-        
-        *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
-        *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
-        *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
-        *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
-        *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
-        dst++;
-
-        if (yshift != 0)
         {
-            src = lcd_font_7x5 + (*str - FONT_BASE_CHAR) * 5;
-            *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
-            *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
-            *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
-            *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
-            *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
-            dst2++;
+		char a = constrain (*str,FONT_BASE_CHAR,99+FONT_BASE_CHAR);
+		const uint8_t* src = lcd_font_7x5 + (a-FONT_BASE_CHAR) * 5;
+
+            *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
+            *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
+            *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
+            *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
+            *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
+            dst++;
+
+            if (yshift != 0)
+                {
+                    src = lcd_font_7x5 + (*str - FONT_BASE_CHAR) * 5;
+                    *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
+                    *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
+                    *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
+                    *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
+                    *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
+                    dst2++;
+                }
+            str++;
         }
-        str++;
-    }
 }
 
 void lcd_lib_draw_string_right(uint8_t y, const char* str, byte startpos)
-	{
-	lcd_lib_draw_string(startpos - strlen(str) * 6, y, str);		// move 2 pixels in fom extreme right side
-	}
+{
+    lcd_lib_draw_string(startpos - strlen(str) * 6, y, str);		// move 2 pixels in fom extreme right side
+}
 
 
 void lcd_lib_draw_string_center(uint8_t y, const char* str)
@@ -441,29 +447,30 @@ void lcd_lib_draw_stringP(uint8_t x, uint8_t y, const char* pstr)
     uint8_t* dst2 = lcd_buffer + x + (y / 8) * LCD_GFX_WIDTH + LCD_GFX_WIDTH;
     uint8_t yshift = y % 8;
     uint8_t yshift2 = 8 - yshift;
-    
-    for(char c = pgm_read_byte(pstr); c; c = pgm_read_byte(++pstr))
-    {
-        const uint8_t* src = lcd_font_7x5 + (c - FONT_BASE_CHAR) * 5;
-        
-        *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
-        *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
-        *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
-        *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
-        *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
-        dst++;
 
-        if (yshift != 0)
+    for(char c = pgm_read_byte(pstr); c; c = pgm_read_byte(++pstr))
         {
-            src = lcd_font_7x5 + (c - FONT_BASE_CHAR) * 5;
-            *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
-            *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
-            *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
-            *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
-            *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
-            dst2++;
+		char a = constrain (c,FONT_BASE_CHAR,99+FONT_BASE_CHAR);
+            const uint8_t* src = lcd_font_7x5 + (a - FONT_BASE_CHAR) * 5;
+
+            *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
+            *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
+            *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
+            *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
+            *dst = (*dst) | pgm_read_byte(src++) << yshift; dst++;
+            dst++;
+
+            if (yshift != 0)
+                {
+                    src = lcd_font_7x5 + (a - FONT_BASE_CHAR) * 5;
+                    *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
+                    *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
+                    *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
+                    *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
+                    *dst2 = (*dst2) | pgm_read_byte(src++) >> yshift2; dst2++;
+                    dst2++;
+                }
         }
-    }
 }
 
 void lcd_lib_clear_stringP(uint8_t x, uint8_t y, const char* pstr)
@@ -474,27 +481,28 @@ void lcd_lib_clear_stringP(uint8_t x, uint8_t y, const char* pstr)
     uint8_t yshift2 = 8 - yshift;
 
     for(char c = pgm_read_byte(pstr); c; c = pgm_read_byte(++pstr))
-    {
-        const uint8_t* src = lcd_font_7x5 + (c - FONT_BASE_CHAR) * 5;
-        
-        *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
-        *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
-        *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
-        *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
-        *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
-        dst++;
-
-        if (yshift != 0)
         {
-            src = lcd_font_7x5 + (c - FONT_BASE_CHAR) * 5;
-            *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
-            *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
-            *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
-            *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
-            *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
-            dst2++;
+			char a = constrain (c,FONT_BASE_CHAR,99+FONT_BASE_CHAR);
+            const uint8_t* src = lcd_font_7x5 + (a - FONT_BASE_CHAR) * 5;
+
+            *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
+            *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
+            *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
+            *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
+            *dst = (*dst) &~(pgm_read_byte(src++) << yshift); dst++;
+            dst++;
+
+            if (yshift != 0)
+                {
+                    src = lcd_font_7x5 + (a - FONT_BASE_CHAR) * 5;
+                    *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
+                    *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
+                    *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
+                    *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
+                    *dst2 = (*dst2) &~(pgm_read_byte(src++) >> yshift2); dst2++;
+                    dst2++;
+                }
         }
-    }
 }
 
 void lcd_lib_draw_string_centerP(uint8_t y, const char* pstr)
@@ -511,78 +519,84 @@ void lcd_lib_draw_string_center_atP(uint8_t x, uint8_t y, const char* pstr)
 {
     const char* split = strchr_P(pstr, '|');
     if (split)
-    {
-        char buf[10];
-        strncpy_P(buf, pstr, split - pstr);
-        buf[split - pstr] = '\0';
-        lcd_lib_draw_string(x - strlen(buf) * 3, y - 5, buf);
-        lcd_lib_draw_stringP(x - strlen_P(split+1) * 3, y + 5, split+1);
-    }else{
-        lcd_lib_draw_stringP(x - strlen_P(pstr) * 3, y, pstr);
-    }
+        {
+            char buf[10];
+            strncpy_P(buf, pstr, split - pstr);
+            buf[split - pstr] = '\0';
+            lcd_lib_draw_string(x - strlen(buf) * 3, y - 5, buf);
+            lcd_lib_draw_stringP(x - strlen_P(split+1) * 3, y + 5, split+1);
+        }
+    else
+        {
+            lcd_lib_draw_stringP(x - strlen_P(pstr) * 3, y, pstr);
+        }
 }
 
 void lcd_lib_clear_string_center_atP(uint8_t x, uint8_t y, const char* pstr)
 {
     const char* split = strchr_P(pstr, '|');
     if (split)
-    {
-        char buf[10];
-        strncpy_P(buf, pstr, split - pstr);
-        buf[split - pstr] = '\0';
-        lcd_lib_clear_string(x - strlen(buf) * 3, y - 5, buf);
-        lcd_lib_clear_stringP(x - strlen_P(split+1) * 3, y + 5, split+1);
-    }else{
-        lcd_lib_clear_stringP(x - strlen_P(pstr) * 3, y, pstr);
-    }
+        {
+            char buf[10];
+            strncpy_P(buf, pstr, split - pstr);
+            buf[split - pstr] = '\0';
+            lcd_lib_clear_string(x - strlen(buf) * 3, y - 5, buf);
+            lcd_lib_clear_stringP(x - strlen_P(split+1) * 3, y + 5, split+1);
+        }
+    else
+        {
+            lcd_lib_clear_stringP(x - strlen_P(pstr) * 3, y, pstr);
+        }
 }
 
 void lcd_lib_draw_hline(uint8_t x0, uint8_t x1, uint8_t y)
 {
-	if (x1 < x0) XORSWAP(x0,x1);
+    if (x1 < x0) XORSWAP(x0,x1);
     uint8_t* dst = lcd_buffer + x0 + (y / 8) * LCD_GFX_WIDTH;
     uint8_t mask = 0x01 << (y % 8);
-    
+
     while(x0 <= x1)
-    {
-        *dst++ |= mask;
-        x0 ++;
-    }
+        {
+            *dst++ |= mask;
+            x0 ++;
+        }
 }
 
 void lcd_lib_draw_dotted_hline(uint8_t x0, uint8_t x1, uint8_t y)
-	{
-	if (x1 < x0) XORSWAP(x0,x1);
-	byte a;
-	for (a=x0;a<x1;a+=2)
-		lcd_lib_draw_hline(a,a,y);
+{
+    if (x1 < x0) XORSWAP(x0,x1);
+    byte a;
+    for (a=x0; a<x1; a+=2)
+        lcd_lib_draw_hline(a,a,y);
 
-	}
+}
 
 
 void lcd_lib_draw_vline(uint8_t x, uint8_t y0, uint8_t y1)
 {
-	if (y1 < y0) XORSWAP(y0,y1);
+    if (y1 < y0) XORSWAP(y0,y1);
     uint8_t* dst0 = lcd_buffer + x + (y0 / 8) * LCD_GFX_WIDTH;
     uint8_t* dst1 = lcd_buffer + x + (y1 / 8) * LCD_GFX_WIDTH;
     if (dst0 == dst1)
-    {
-        *dst0 |= (0xFF << (y0 % 8)) & (0xFF >> (7 - (y1 % 8)));
-    }else{
-        *dst0 |= 0xFF << (y0 % 8);
-        dst0 += LCD_GFX_WIDTH;
-        while(dst0 != dst1)
         {
-            *dst0 = 0xFF;
-            dst0 += LCD_GFX_WIDTH;
+            *dst0 |= (0xFF << (y0 % 8)) & (0xFF >> (7 - (y1 % 8)));
         }
-        *dst1 |= 0xFF >> (7 - (y1 % 8));
-    }
+    else
+        {
+            *dst0 |= 0xFF << (y0 % 8);
+            dst0 += LCD_GFX_WIDTH;
+            while(dst0 != dst1)
+                {
+                    *dst0 = 0xFF;
+                    dst0 += LCD_GFX_WIDTH;
+                }
+            *dst1 |= 0xFF >> (7 - (y1 % 8));
+        }
 }
 
 void lcd_lib_draw_box(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
 {
-if (y1 < y0) XORSWAP(y0,y1);
+    if (y1 < y0) XORSWAP(y0,y1);
     lcd_lib_draw_vline(x0, y0+1, y1-1);
     lcd_lib_draw_vline(x1, y0+1, y1-1);
     lcd_lib_draw_hline(x0+1, x1-1, y0);
@@ -594,32 +608,34 @@ void lcd_lib_draw_shade(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
     uint8_t* dst0 = lcd_buffer + x0 + (y0 / 8) * LCD_GFX_WIDTH;
     uint8_t* dst1 = lcd_buffer + x0 + (y1 / 8) * LCD_GFX_WIDTH;
     if (dst0 == dst1)
-    {
-        //uint8_t mask = (0xFF << (y0 % 8)) & (0xFF >> (7 - (y1 % 8)));
-        //*dstA0 |= (mask & 0xEE);
-    }else{
-        uint8_t mask = 0xFF << (y0 % 8);
-        uint8_t* dst = dst0;
-        for(uint8_t x=x0; x<=x1; x++)
-            *dst++ |= mask & ((x & 1) ? 0xAA : 0x55);
-        dst0 += LCD_GFX_WIDTH;
-        while(dst0 != dst1)
         {
-            dst = dst0;
-            for(uint8_t x=x0; x<=x1; x++)
-                *dst++ |= (x & 1) ? 0xAA : 0x55;
-            dst0 += LCD_GFX_WIDTH;
+            //uint8_t mask = (0xFF << (y0 % 8)) & (0xFF >> (7 - (y1 % 8)));
+            //*dstA0 |= (mask & 0xEE);
         }
-        dst = dst1;
-        mask = 0xFF >> (7 - (y1 % 8));
-        for(uint8_t x=x0; x<=x1; x++)
-            *dst++ |= mask & ((x & 1) ? 0xAA : 0x55);
-    }
+    else
+        {
+            uint8_t mask = 0xFF << (y0 % 8);
+            uint8_t* dst = dst0;
+            for(uint8_t x=x0; x<=x1; x++)
+                *dst++ |= mask & ((x & 1) ? 0xAA : 0x55);
+            dst0 += LCD_GFX_WIDTH;
+            while(dst0 != dst1)
+                {
+                    dst = dst0;
+                    for(uint8_t x=x0; x<=x1; x++)
+                        *dst++ |= (x & 1) ? 0xAA : 0x55;
+                    dst0 += LCD_GFX_WIDTH;
+                }
+            dst = dst1;
+            mask = 0xFF >> (7 - (y1 % 8));
+            for(uint8_t x=x0; x<=x1; x++)
+                *dst++ |= mask & ((x & 1) ? 0xAA : 0x55);
+        }
 }
 
 void lcd_lib_clear()
 {
-    memset(lcd_buffer, 0, sizeof(lcd_buffer));
+    memset( lcd_buffer, 0, sizeof(lcd_buffer));
 }
 
 void lcd_lib_set()
@@ -632,28 +648,30 @@ void lcd_lib_clear(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
     uint8_t* dst0 = lcd_buffer + x0 + (y0 / 8) * LCD_GFX_WIDTH;
     uint8_t* dst1 = lcd_buffer + x0 + (y1 / 8) * LCD_GFX_WIDTH;
     if (dst0 == dst1)
-    {
-        uint8_t mask = (0xFF << (y0 % 8)) & (0xFF >> (7 - (y1 % 8)));
-        for(uint8_t x=x0; x<=x1; x++)
-            *dst0++ &=~mask;
-    }else{
-        uint8_t mask = 0xFF << (y0 % 8);
-        uint8_t* dst = dst0;
-        for(uint8_t x=x0; x<=x1; x++)
-            *dst++ &=~mask;
-        dst0 += LCD_GFX_WIDTH;
-        while(dst0 != dst1)
         {
-            dst = dst0;
+            uint8_t mask = (0xFF << (y0 % 8)) & (0xFF >> (7 - (y1 % 8)));
             for(uint8_t x=x0; x<=x1; x++)
-                *dst++ = 0x00;
-            dst0 += LCD_GFX_WIDTH;
+                *dst0++ &=~mask;
         }
-        dst = dst1;
-        mask = 0xFF >> (7 - (y1 % 8));
-        for(uint8_t x=x0; x<=x1; x++)
-            *dst++ &=~mask;
-    }
+    else
+        {
+            uint8_t mask = 0xFF << (y0 % 8);
+            uint8_t* dst = dst0;
+            for(uint8_t x=x0; x<=x1; x++)
+                *dst++ &=~mask;
+            dst0 += LCD_GFX_WIDTH;
+            while(dst0 != dst1)
+                {
+                    dst = dst0;
+                    for(uint8_t x=x0; x<=x1; x++)
+                        *dst++ = 0x00;
+                    dst0 += LCD_GFX_WIDTH;
+                }
+            dst = dst1;
+            mask = 0xFF >> (7 - (y1 % 8));
+            for(uint8_t x=x0; x<=x1; x++)
+                *dst++ &=~mask;
+        }
 }
 
 void lcd_lib_invert(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
@@ -661,28 +679,30 @@ void lcd_lib_invert(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
     uint8_t* dst0 = lcd_buffer + x0 + (y0 / 8) * LCD_GFX_WIDTH;
     uint8_t* dst1 = lcd_buffer + x0 + (y1 / 8) * LCD_GFX_WIDTH;
     if (dst0 == dst1)
-    {
-        uint8_t mask = (0xFF << (y0 % 8)) & (0xFF >> (7 - (y1 % 8)));
-        for(uint8_t x=x0; x<=x1; x++)
-            *dst0++ ^= mask;
-    }else{
-        uint8_t mask = 0xFF << (y0 % 8);
-        uint8_t* dst = dst0;
-        for(uint8_t x=x0; x<=x1; x++)
-            *dst++ ^= mask;
-        dst0 += LCD_GFX_WIDTH;
-        while(dst0 != dst1)
         {
-            dst = dst0;
+            uint8_t mask = (0xFF << (y0 % 8)) & (0xFF >> (7 - (y1 % 8)));
             for(uint8_t x=x0; x<=x1; x++)
-                *dst++ ^= 0xFF;
-            dst0 += LCD_GFX_WIDTH;
+                *dst0++ ^= mask;
         }
-        dst = dst1;
-        mask = 0xFF >> (7 - (y1 % 8));
-        for(uint8_t x=x0; x<=x1; x++)
-            *dst++ ^= mask;
-    }
+    else
+        {
+            uint8_t mask = 0xFF << (y0 % 8);
+            uint8_t* dst = dst0;
+            for(uint8_t x=x0; x<=x1; x++)
+                *dst++ ^= mask;
+            dst0 += LCD_GFX_WIDTH;
+            while(dst0 != dst1)
+                {
+                    dst = dst0;
+                    for(uint8_t x=x0; x<=x1; x++)
+                        *dst++ ^= 0xFF;
+                    dst0 += LCD_GFX_WIDTH;
+                }
+            dst = dst1;
+            mask = 0xFF >> (7 - (y1 % 8));
+            for(uint8_t x=x0; x<=x1; x++)
+                *dst++ ^= mask;
+        }
 }
 
 void lcd_lib_set(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
@@ -690,28 +710,30 @@ void lcd_lib_set(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
     uint8_t* dst0 = lcd_buffer + x0 + (y0 / 8) * LCD_GFX_WIDTH;
     uint8_t* dst1 = lcd_buffer + x0 + (y1 / 8) * LCD_GFX_WIDTH;
     if (dst0 == dst1)
-    {
-        uint8_t mask = (0xFF << (y0 % 8)) & (0xFF >> (7 - (y1 % 8)));
-        for(uint8_t x=x0; x<=x1; x++)
-            *dst0++ |= mask;
-    }else{
-        uint8_t mask = 0xFF << (y0 % 8);
-        uint8_t* dst = dst0;
-        for(uint8_t x=x0; x<=x1; x++)
-            *dst++ |= mask;
-        dst0 += LCD_GFX_WIDTH;
-        while(dst0 != dst1)
         {
-            dst = dst0;
+            uint8_t mask = (0xFF << (y0 % 8)) & (0xFF >> (7 - (y1 % 8)));
             for(uint8_t x=x0; x<=x1; x++)
-                *dst++ = 0xFF;
-            dst0 += LCD_GFX_WIDTH;
+                *dst0++ |= mask;
         }
-        dst = dst1;
-        mask = 0xFF >> (7 - (y1 % 8));
-        for(uint8_t x=x0; x<=x1; x++)
-            *dst++ |= mask;
-    }
+    else
+        {
+            uint8_t mask = 0xFF << (y0 % 8);
+            uint8_t* dst = dst0;
+            for(uint8_t x=x0; x<=x1; x++)
+                *dst++ |= mask;
+            dst0 += LCD_GFX_WIDTH;
+            while(dst0 != dst1)
+                {
+                    dst = dst0;
+                    for(uint8_t x=x0; x<=x1; x++)
+                        *dst++ = 0xFF;
+                    dst0 += LCD_GFX_WIDTH;
+                }
+            dst = dst1;
+            mask = 0xFF >> (7 - (y1 % 8));
+            for(uint8_t x=x0; x<=x1; x++)
+                *dst++ |= mask;
+        }
 }
 
 
@@ -723,22 +745,22 @@ void lcd_lib_draw_gfx(uint8_t x, uint8_t y, const uint8_t* gfx)
     uint8_t shift = y % 8;
     uint8_t shift2 = 8 - shift;
     y /= 8;
-    
+
     for(; h; h--)
-    {
-        if (y >= LCD_GFX_HEIGHT / 8) break;
-        
-        uint8_t* dst0 = lcd_buffer + x + y * LCD_GFX_WIDTH;
-        uint8_t* dst1 = lcd_buffer + x + y * LCD_GFX_WIDTH + LCD_GFX_WIDTH;
-        for(uint8_t _w = w; _w; _w--)
         {
-            uint8_t c = pgm_read_byte(gfx++);
-            *dst0++ |= c << shift;
-            if (shift && y < 7)
-                *dst1++ |= c >> shift2;
+            if (y >= LCD_GFX_HEIGHT / 8) break;
+
+            uint8_t* dst0 = lcd_buffer + x + y * LCD_GFX_WIDTH;
+            uint8_t* dst1 = lcd_buffer + x + y * LCD_GFX_WIDTH + LCD_GFX_WIDTH;
+            for(uint8_t _w = w; _w; _w--)
+                {
+                    uint8_t c = pgm_read_byte(gfx++);
+                    *dst0++ |= c << shift;
+                    if (shift && y < 7)
+                        *dst1++ |= c >> shift2;
+                }
+            y++;
         }
-        y++;
-    }
 }
 
 void lcd_lib_clear_gfx(uint8_t x, uint8_t y, const uint8_t* gfx)
@@ -748,22 +770,22 @@ void lcd_lib_clear_gfx(uint8_t x, uint8_t y, const uint8_t* gfx)
     uint8_t shift = y % 8;
     uint8_t shift2 = 8 - shift;
     y /= 8;
-    
+
     for(; h; h--)
-    {
-        if (y >= LCD_GFX_HEIGHT / 8) break;
-        
-        uint8_t* dst0 = lcd_buffer + x + y * LCD_GFX_WIDTH;
-        uint8_t* dst1 = lcd_buffer + x + y * LCD_GFX_WIDTH + LCD_GFX_WIDTH;
-        for(uint8_t _w = w; _w; _w--)
         {
-            uint8_t c = pgm_read_byte(gfx++);
-            *dst0++ &=~(c << shift);
-            if (shift && y < 7)
-                *dst1++ &=~(c >> shift2);
+            if (y >= LCD_GFX_HEIGHT / 8) break;
+
+            uint8_t* dst0 = lcd_buffer + x + y * LCD_GFX_WIDTH;
+            uint8_t* dst1 = lcd_buffer + x + y * LCD_GFX_WIDTH + LCD_GFX_WIDTH;
+            for(uint8_t _w = w; _w; _w--)
+                {
+                    uint8_t c = pgm_read_byte(gfx++);
+                    *dst0++ &=~(c << shift);
+                    if (shift && y < 7)
+                        *dst1++ &=~(c >> shift2);
+                }
+            y++;
         }
-        y++;
-    }
 }
 
 void lcd_lib_beep()
@@ -778,45 +800,45 @@ void lcd_lib_beep()
 //-----------------------------------------------------------------------------------------------------------------
 // very short tick for UI feedback -- 1 millisecond  long
 void lcd_lib_tick( )
-	{
-		LED_WHITE() ;
+{
+    LED_WHITE() ;
 #if EXTENDED_BEEP
-	for (int a =0; a<10; a++)
-			{
-			WRITE(BEEPER,0);
-			_delay_us (50);
-			WRITE(BEEPER,1);
-			_delay_us(50);
-			}
-		WRITE(BEEPER,0);
-#endif 
-		LED_NORMAL();
+    for (int a =0; a<10; a++)
+        {
+            WRITE(BEEPER,0);
+            _delay_us (50);
+            WRITE(BEEPER,1);
+            _delay_us(50);
+        }
+    WRITE(BEEPER,0);
+#endif
+    LED_NORMAL();
 
 
-	}
+}
 //-----------------------------------------------------------------------------------------------------------------
-// freq in Hz, duration in milliseconds -- note that there will be a 
+// freq in Hz, duration in milliseconds -- note that there will be a
 // minimum time of one cycle.  ie: specifying a freq of 100Hz
-// would mean one cycle takes 10ms, and that is the 
+// would mean one cycle takes 10ms, and that is the
 // minimum time for the duration.
 //
 // and if it isn't obvious, THIS IS A BLOCKING CALL!
-// don't try to be playing fancy chip tunes when time is important!  ;) 
+// don't try to be playing fancy chip tunes when time is important!  ;)
 void lcd_lib_beep_ext( unsigned int freq, unsigned int dur )
-	{
+{
 #if EXTENDED_BEEP
-	freq = 500000UL/freq;
-	unsigned long start_time = millis();
-	while (millis() - start_time < dur)
-		{
-			WRITE(BEEPER,0);
-			_delay_us (freq);
-			WRITE(BEEPER,1);
-			_delay_us(freq);
-		}
-	WRITE(BEEPER,0);
-#endif 
-	}
+    freq = 500000UL/freq;
+    unsigned long start_time = millis();
+    while (millis() - start_time < dur)
+        {
+            WRITE(BEEPER,0);
+            _delay_us (freq);
+            WRITE(BEEPER,1);
+            _delay_us(freq);
+        }
+    WRITE(BEEPER,0);
+#endif
+}
 
 int8_t lcd_lib_encoder_pos_interrupt = 0;
 int16_t lcd_lib_encoder_pos = 0;
@@ -829,42 +851,46 @@ bool lcd_lib_button_down;
 void lcd_lib_buttons_update_interrupt()
 {
     static uint8_t lastEncBits = 0;
-    
+
     uint8_t encBits = 0;
     if(!READ(BTN_EN1)) encBits |= ENCODER_ROTARY_BIT_0;
     if(!READ(BTN_EN2)) encBits |= ENCODER_ROTARY_BIT_1;
-    
+
     if(encBits != lastEncBits)
-    {
-        switch(encBits)
         {
-        case encrot0:
-            if(lastEncBits==encrot3)
-                lcd_lib_encoder_pos_interrupt++;
-            else if(lastEncBits==encrot1)
-                lcd_lib_encoder_pos_interrupt--;
-            break;
-        case encrot1:
-            if(lastEncBits==encrot0)
-                lcd_lib_encoder_pos_interrupt++;
-            else if(lastEncBits==encrot2)
-                lcd_lib_encoder_pos_interrupt--;
-            break;
-        case encrot2:
-            if(lastEncBits==encrot1)
-                lcd_lib_encoder_pos_interrupt++;
-            else if(lastEncBits==encrot3)
-                lcd_lib_encoder_pos_interrupt--;
-            break;
-        case encrot3:
-            if(lastEncBits==encrot2)
-                lcd_lib_encoder_pos_interrupt++;
-            else if(lastEncBits==encrot0)
-                lcd_lib_encoder_pos_interrupt--;
-            break;
+            switch(encBits)
+                {
+                    case encrot0:
+                        if(lastEncBits==encrot3)
+                            lcd_lib_encoder_pos_interrupt++;
+                        else
+                            if(lastEncBits==encrot1)
+                                lcd_lib_encoder_pos_interrupt--;
+                        break;
+                    case encrot1:
+                        if(lastEncBits==encrot0)
+                            lcd_lib_encoder_pos_interrupt++;
+                        else
+                            if(lastEncBits==encrot2)
+                                lcd_lib_encoder_pos_interrupt--;
+                        break;
+                    case encrot2:
+                        if(lastEncBits==encrot1)
+                            lcd_lib_encoder_pos_interrupt++;
+                        else
+                            if(lastEncBits==encrot3)
+                                lcd_lib_encoder_pos_interrupt--;
+                        break;
+                    case encrot3:
+                        if(lastEncBits==encrot2)
+                            lcd_lib_encoder_pos_interrupt++;
+                        else
+                            if(lastEncBits==encrot0)
+                                lcd_lib_encoder_pos_interrupt--;
+                        break;
+                }
+            lastEncBits = encBits;
         }
-        lastEncBits = encBits;
-    }
 }
 
 // this is changed by the various menus to enable or disable encoder acceleration for that time.
@@ -876,192 +902,52 @@ void lcd_lib_buttons_update()
 // if we detect we're moving the encoder the same direction for repeated frames, we increase our step size (up to a maximum)
 // if we stop, or change direction, set the step size back to +/- 1
 // we only want this for SOME things, like changing a value, and not for other things, like a menu.
-// so we have an enable bit 
-	static char encoder_accel = 0;
-	if (lcd_lib_encoder_pos_interrupt > 0)		// positive -- were we already going positive last time?  If so, increase our accel
-		{ 
-		if (encoder_accel > 0 )
-			encoder_accel ++;
-		else
-			encoder_accel = 1;
+// so we have an enable bit
+    static char encoder_accel = 0;
+    if (lcd_lib_encoder_pos_interrupt > 0)		// positive -- were we already going positive last time?  If so, increase our accel
+        {
+            if (encoder_accel > 0 )
+                encoder_accel ++;
+            else
+                encoder_accel = 1;
 #if EXTENDED_BEEP
-		// if we're using acceleration, beep with a pitch changing tone based on the accel value
-		if (allow_encoder_acceleration) lcd_lib_beep_ext (500+encoder_accel*25,10);
-#endif	
-		}
-	if (lcd_lib_encoder_pos_interrupt <0)	// negative -- decrease our negative accel
-		{ 
-		if (encoder_accel < 0 )
-			encoder_accel --;
-		else
-			encoder_accel = -1;
+            // if we're using acceleration, beep with a pitch changing tone based on the accel value
+            if (allow_encoder_acceleration) lcd_lib_beep_ext (500+encoder_accel*25,10);
+#endif
+        }
+    if (lcd_lib_encoder_pos_interrupt <0)	// negative -- decrease our negative accel
+        {
+            if (encoder_accel < 0 )
+                encoder_accel --;
+            else
+                encoder_accel = -1;
 #if EXTENDED_BEEP
-		if (allow_encoder_acceleration) lcd_lib_beep_ext (400+encoder_accel*25,10);
-#endif	
-		}
-	 if (lcd_lib_encoder_pos_interrupt ==0)						// no movement --  back to 0 acceleration
-		{ 
-		encoder_accel=0;
-		}
-	if (encoder_accel <-MAX_ENCODER_ACCELERATION) encoder_accel = -MAX_ENCODER_ACCELERATION;
-	if (encoder_accel > MAX_ENCODER_ACCELERATION) encoder_accel = MAX_ENCODER_ACCELERATION;
-	if (!allow_encoder_acceleration) encoder_accel=1;
+            if (allow_encoder_acceleration) lcd_lib_beep_ext (400+encoder_accel*25,10);
+#endif
+        }
+    if (lcd_lib_encoder_pos_interrupt ==0)						// no movement --  back to 0 acceleration
+        {
+            encoder_accel=0;
+        }
+    if (encoder_accel <-MAX_ENCODER_ACCELERATION) encoder_accel = -MAX_ENCODER_ACCELERATION;
+    if (encoder_accel > MAX_ENCODER_ACCELERATION) encoder_accel = MAX_ENCODER_ACCELERATION;
+    if (!allow_encoder_acceleration) encoder_accel=1;
 
     lcd_lib_encoder_pos += abs(encoder_accel) * lcd_lib_encoder_pos_interrupt;
-	
+
     uint8_t buttonState = !READ(BTN_ENC);
     lcd_lib_button_pressed = (buttonState && !lcd_lib_button_down);
     lcd_lib_button_down = buttonState;
 
-	if  (lcd_lib_button_down || lcd_lib_encoder_pos_interrupt!=0 ) last_user_interaction=millis();
-	lcd_lib_encoder_pos_interrupt = 0;
+    if  (lcd_lib_button_down || lcd_lib_encoder_pos_interrupt!=0 ) last_user_interaction=millis();
+    lcd_lib_encoder_pos_interrupt = 0;
 }
 
-char* int_to_string(int i, char* temp_buffer, const char* p_postfix, bool use_OFF)
+//-----------------------------------------------------------------------------------------------------------------
+void lcd_lib_update_RGB_LED()
 {
-    char* c = temp_buffer;
-	if (use_OFF && i==0)
-		{
-		strcpy_P(c, PSTR ("OFF"));
-		c += 3;
-		return c;
-		}
-
-    if (i < 0)
-    {
-        *c++ = '-'; 
-        i = -i;
-    }
-    if (i >= 10000)
-        *c++ = ((i/10000)%10)+'0';
-    if (i >= 1000)
-        *c++ = ((i/1000)%10)+'0';
-    if (i >= 100)
-        *c++ = ((i/100)%10)+'0';
-    if (i >= 10)
-        *c++ = ((i/10)%10)+'0';
-    *c++ = ((i)%10)+'0';
-    *c = '\0';
-    if (p_postfix)
-    {
-        strcpy_P(c, p_postfix);
-        c += strlen_P(p_postfix);
-    }
-    return c;
+    i2c_led_write(2, led_r);//PWM0
+    i2c_led_write(3, led_g);//PWM1
+    i2c_led_write(4, led_b);//PWM2
 }
-
-char* int_to_time_string(unsigned long i, char* temp_buffer)
-{
-    char* c = temp_buffer;
-    uint8_t hours = (i / 60 / 60) % 60;
-    uint8_t mins = (i / 60) % 60;
-    uint8_t secs = i % 60;
-    
-    if (hours > 0)
-    {
-        if (hours > 99)
-            *c++ = '0' + hours / 100;
-        if (hours > 9)
-            *c++ = '0' + (hours / 10) % 10;
-        *c++ = '0' + hours % 10;
-// Lars changes -- let's add a decimal point for hours less than 10 -- so we can tell is that 1.8 or 1.1 hours remaining
-// comment: decimal hours is a little weird, as we're used to thinking in terms of hours and minutes, but we don't have much screen space
-// and we are using human-readable text ("hours") -- if we switched to a digital clock	 display HH:MM:SS we could be much
-// more detailed, although the accuracy of our time predictions isn't that great anyway, so it's probably a false precision.
-		if (hours < 10)
-			{
-			*c++ = '.';
-			*c++ = '0' + (10*mins/60) % 10;
-			}
-// end changes
-        if (hours > 1)
-        {
-            strcpy_P(c, PSTR(" hours"));
-            return c + 6;
-        }
-        strcpy_P(c, PSTR(" hour"));
-        return c + 5;
-    }
-    if (mins > 0)
-    {
-        if (mins > 9)
-            *c++ = '0' + (mins / 10) % 10;
-        *c++ = '0' + mins % 10;
-        strcpy_P(c, PSTR(" min"));
-        return c + 4;
-    }
-    if (secs > 9)
-        *c++ = '0' + secs / 10;
-    *c++ = '0' + secs % 10;
-    strcpy_P(c, PSTR(" sec"));
-    return c + 4;
-    /*
-    if (hours > 99)
-        *c++ = '0' + hours / 100;
-    *c++ = '0' + (hours / 10) % 10;
-    *c++ = '0' + hours % 10;
-    *c++ = ':';
-    *c++ = '0' + mins / 10;
-    *c++ = '0' + mins % 10;
-    *c++ = ':';
-    *c++ = '0' + secs / 10;
-    *c++ = '0' + secs % 10;
-    *c = '\0';
-    return c;
-    */
-}
-
-char* float_to_string(float f, char* temp_buffer, const char* p_postfix)
-{
-    int32_t i = f * 100.0 + 0.5;
-    char* c = temp_buffer;
-    if (i < 0)
-    {
-        *c++ = '-'; 
-        i = -i;
-    }
-    if (i >= 10000)
-        *c++ = ((i/10000)%10)+'0';
-    if (i >= 1000)
-        *c++ = ((i/1000)%10)+'0';
-    *c++ = ((i/100)%10)+'0';
-    *c++ = '.';
-   // if (i >= 10)				ALWAYS PUT THE LEADING ZERO AFTER THE DECIMAL POINT!!!!
-        *c++ = ((i/10)%10)+'0';
-    *c++ = ((i)%10)+'0';
-    *c = '\0';
-    if (p_postfix)
-    {
-        strcpy_P(c, p_postfix);
-        c += strlen_P(p_postfix);
-    }
-    return c;
-}
-
-
-char* float_to_string3(float f, char* temp_buffer, const char* p_postfix)
-	{
-	int32_t i = f * 1000.0 + 0.5;
-	char* c = temp_buffer;
-	if (i < 0)
-		{
-		*c++ = '-'; 
-		i = -i;
-		}
-	if (i >= 10000)
-		*c++ = ((i/10000)%10)+'0';
-	*c++ = ((i/1000)%10)+'0';
-	*c++ = '.';
-	*c++ = ((i/100)%10)+'0';
-	*c++ = ((i/10)%10)+'0';
-	*c++ = ((i)%10)+'0';
-	*c = '\0';
-	if (p_postfix)
-		{
-		strcpy_P(c, p_postfix);
-		c += strlen_P(p_postfix);
-		}
-	return c;
-	}
-
 #endif//ENABLE_ULTILCD2

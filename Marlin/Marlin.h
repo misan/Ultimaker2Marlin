@@ -22,6 +22,7 @@
 #include "Configuration.h"
 #include "pins.h"
 
+
 #ifndef AT90USB
 #define  HardwareSerial_h // trick to disable the standard HWserial
 #endif
@@ -34,7 +35,10 @@
 # define analogInputToDigitalPin(p) ((p) + A0)
 #endif
 
+#include "WString.h"
 #include "MarlinSerial.h"
+#include "CommandQ.h"
+
 
 #ifndef cbi
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
@@ -43,7 +47,12 @@
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 #endif
 
-#include "WString.h"
+
+#ifndef CRITICAL_SECTION_START
+#define CRITICAL_SECTION_START  unsigned char _sreg = SREG; cli();
+#define CRITICAL_SECTION_END    SREG = _sreg;
+#endif //CRITICAL_SECTION_START
+
 
 #ifdef AT90USB
   #define MYSERIAL Serial
@@ -51,50 +60,18 @@
   #define MYSERIAL MSerial
 #endif
 
-#define SERIAL_PROTOCOL(x) MYSERIAL.print(x);
-#define SERIAL_PROTOCOL_F(x,y) MYSERIAL.print(x,y);
-#define SERIAL_PROTOCOLPGM(x) serialprintPGM(PSTR(x));
-#define SERIAL_PROTOCOLLN(x) do {MYSERIAL.print(x);MYSERIAL.write('\n');} while(0)
-#define SERIAL_PROTOCOLLNPGM(x) do{serialprintPGM(PSTR(x));MYSERIAL.write('\n');} while(0)
+#include "SerialMacros.h"
+
+void FlushSerialRequestResend();
+void ClearToSend();
+
+// -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+const char axis_codes[NUM_AXIS] = {'X', 'Y', 'Z', 'E'};
+enum AxisEnum {X_AXIS=0, Y_AXIS=1, Z_AXIS=2, E_AXIS=3};
 
 
-const char errormagic[] PROGMEM ="Error:";
-const char echomagic[] PROGMEM ="echo:";
-#define SERIAL_ERROR_START serialprintPGM(errormagic);
-#define SERIAL_ERROR(x) SERIAL_PROTOCOL(x)
-#define SERIAL_ERRORPGM(x) SERIAL_PROTOCOLPGM(x)
-#define SERIAL_ERRORLN(x) SERIAL_PROTOCOLLN(x)
-#define SERIAL_ERRORLNPGM(x) SERIAL_PROTOCOLLNPGM(x)
+void clamp_to_software_endstops(float target[3]);
 
-#define SERIAL_ECHO_START serialprintPGM(echomagic);
-#define SERIAL_ECHO(x) SERIAL_PROTOCOL(x)
-#define SERIAL_ECHOPGM(x) SERIAL_PROTOCOLPGM(x)
-#define SERIAL_ECHOLN(x) SERIAL_PROTOCOLLN(x)
-#define SERIAL_ECHOLNPGM(x) SERIAL_PROTOCOLLNPGM(x)
-
-#define SERIAL_ECHOPAIR(name,value) (serial_echopair_P(PSTR(name),(value)))
-
-void serial_echopair_P(const char *s_P, float v);
-void serial_echopair_P(const char *s_P, double v);
-void serial_echopair_P(const char *s_P, unsigned long v);
-
-
-//things to write to serial from Programmemory. saves 400 to 2k of RAM.
-FORCE_INLINE void serialprintPGM(const char *str)
-{
-  char ch=pgm_read_byte(str);
-  while(ch)
-  {
-    MYSERIAL.write(ch);
-    ch=pgm_read_byte(++str);
-  }
-}
-
-
-void get_command();
-void process_commands();
-
-void manage_inactivity();
 
 #if defined(X_ENABLE_PIN) && X_ENABLE_PIN > -1
   #define  enable_x() WRITE(X_ENABLE_PIN, X_ENABLE_ON)
@@ -149,55 +126,48 @@ void manage_inactivity();
   #define disable_e2() /* nothing */
 #endif
 
-
-enum AxisEnum {X_AXIS=0, Y_AXIS=1, Z_AXIS=2, E_AXIS=3};
-
-
-void FlushSerialRequestResend();
-void ClearToSend();
-
-void get_coordinates();
+ 
 #ifdef DELTA
 void calculate_delta(float cartesian[3]);
 #endif
-void prepare_move();
+
+
 void kill();
 #define STOP_REASON_MAXTEMP        1
 #define STOP_REASON_MINTEMP        2
 #define STOP_REASON_MAXTEMP_BED    3
 #define STOP_REASON_SAFETY_TRIGGER 10
 void Stop(uint8_t reasonNr);
+extern uint8_t Stopped ;
+inline bool IsStopped() { return Stopped; };
+inline uint8_t StoppedReason() { return Stopped; };
 
-bool IsStopped();
-uint8_t StoppedReason();
+//-----------------------------------------------------------------------------------------------------------------
 
-void clear_command_queue();
-void enquecommand(const char *cmd); //put an ascii command at the end of the current buffer.
-void enquecommand_P(const char *cmd); //put an ascii command at the end of the current buffer, read from flash
-bool is_command_queued();
-uint8_t commands_queued();
-void prepare_arc_move(char isclockwise);
-void clamp_to_software_endstops(float target[3]);
-
-#ifdef FAST_PWM_FAN
-void setPwmFrequency(uint8_t pin, int val);
-#endif
-
-#ifndef CRITICAL_SECTION_START
-  #define CRITICAL_SECTION_START  unsigned char _sreg = SREG; cli();
-  #define CRITICAL_SECTION_END    SREG = _sreg;
-#endif //CRITICAL_SECTION_START
+// most of these don't live in Marlin.cpp -- messy!
 
 extern float homing_feedrate[];
 extern bool axis_relative_modes[];
-extern int feedmultiply;
+
 extern int extrudemultiply[EXTRUDERS]; // Sets extrude multiply factor (in percent)
 extern float current_position[NUM_AXIS] ;
 extern float add_homeing[3];
 extern float min_pos[3];
 extern float max_pos[3];
-extern uint8_t fanSpeed;
-extern uint8_t fanSpeedPercent;
+extern uint8_t tmp_extruder;
+
+
+
+//Inactivity shutdown variables
+extern unsigned long previous_millis_cmd ;
+extern unsigned long max_inactive_time ;
+extern unsigned long stepper_inactive_time;
+
+extern unsigned long starttime;
+extern unsigned long stoptime;
+
+
+
 #ifdef BARICUDA
 extern int ValvePressure;
 extern int EtoPPressure;
@@ -209,23 +179,22 @@ extern unsigned char fanSpeedSoftPwm;
 
 
 
-extern byte  fanSpeedOverride;
-float readVoltage ();
-extern "C"{ int freeMemory() ;} 
 
-float readAVR_VCC(long voltage_reference = /*1125300L*/  1186680L);
+inline void swap (float &a, float &b)
+	{
+	float c = a;
+	a  = b;
+	b = c;
+	}
+
+
+#define XORSWAP(a, b)	((a)^=(b),(b)^=(a),(a)^=(b))
 
 
 
-#ifdef FWRETRACT
-extern bool autoretract_enabled;
-extern bool retracted;
-extern float retract_length, retract_feedrate, retract_zlift;
-#if EXTRUDERS > 1
-extern float extruder_swap_retract_length;
-#endif
-extern float retract_recover_length, retract_recover_feedrate;
-#endif
+extern float  X_MAX_LENGTH;
+extern float Y_MAX_LENGTH;
+
 
 extern unsigned long starttime;
 extern unsigned long stoptime;
@@ -241,6 +210,9 @@ extern uint8_t printing_state;
 
 extern unsigned long last_user_interaction;
 
+
+extern unsigned char NOWRAP_MENUS;
+extern unsigned char LED_DIM_TIME;
 
 // Handling multiple extruders pins
 extern uint8_t active_extruder;

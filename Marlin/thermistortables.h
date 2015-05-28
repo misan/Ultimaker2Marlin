@@ -5,6 +5,142 @@
 
 #define OVERSAMPLENR 16
 
+
+
+#if (THERMISTORHEATER_0 == 99) || (THERMISTORHEATER_1 == 99) || (THERMISTORHEATER_2 == 99) || (THERMISTORBED == 99) // PT100 with INA826 amp on Ultimaker v2.0 electronics
+/* The PT100 in the Ultimaker v2.0 electronics has a high sample value for a high temperature.
+This does not match the normal thermistor behaviour so we need to set the following defines */
+#if (THERMISTORHEATER_0 == 99)
+# define HEATER_0_RAW_HI_TEMP 16383
+# define HEATER_0_RAW_LO_TEMP 0
+#endif
+#if (THERMISTORHEATER_1 == 99)
+# define HEATER_1_RAW_HI_TEMP 16383
+# define HEATER_1_RAW_LO_TEMP 0
+#endif
+#if (THERMISTORHEATER_2 == 99)
+# define HEATER_2_RAW_HI_TEMP 16383
+# define HEATER_2_RAW_LO_TEMP 0
+#endif
+#if (THERMISTORBED == 99)
+# define HEATER_BED_RAW_HI_TEMP 16383
+# define HEATER_BED_RAW_LO_TEMP 0
+#endif
+
+// fudge for non accurate P100 sensor, if needed
+#define TEMPCORRECTION 1.0 // 194.0/227.0 //  0.939759
+
+
+const short temptable_99[][2] PROGMEM = {
+	{0, 0 }, 
+
+	{ 3700, 10},
+	{ 4085, 35},
+	{ 5200, 126},
+	{ 5500, 150},
+	{ 6000, 200},
+	{ 6750, 265 } ,
+	{ 7500, 310}, 
+	{ 7700, 345 } ,
+	{10000,	500}
+	//	{19000,	500},
+
+
+
+
+	//	{       968*OVERSAMPLENR ,       1100     }
+	};
+
+#if 0
+
+ // official P100 UM2
+const short temptable_99[][2] PROGMEM = {
+	{0, 0 }, 
+
+	{ 3700, 10},
+	{ 4500, 65},
+	{ 5325, 110	},
+	{ 6050, 155	},
+	{ 6690, 200	},
+	{ 7050, 228	},
+	{ 7430, 250	},
+	{ 7550, 260 } , 
+	{ 7750, 270 } , 
+	{ 7975, 285} ,
+	{ 8500, 350 } ,
+	{10000,	500}
+	};
+
+const short E3DHEAD_temptable_99[][2] PROGMEM = {
+	{0, 0 }, 
+
+	{ 4300,  40},
+	{ 4600,  60},
+	{ 4900,  80},
+	{ 5200,  97},
+	{ 5600, 120},
+	{ 5950, 140},
+	{ 6300, 160},
+	{ 6750, 180},
+	{ 7300, 208	},
+	{ 7600, 220}, 
+	{ 8060, 240}, 
+	{ 8300, 251},
+	{ 8530, 260}, 
+	{ 8720, 270}, 
+
+
+
+
+	{12500,	400},
+	{16000,	500}
+//	{19000,	500},
+
+
+
+
+//	{       968*OVERSAMPLENR ,       1100     }
+	};
+
+	*/
+	/* 
+
+	{4717,20},
+	{		5070,	40},
+	{5400,	50},
+	{5719,	70},
+	{6110,	94},
+	{6350,	117},
+	{6702,	130},
+	{7150,	160},
+	{7400,	170},
+	{7600,	180},
+	{8000,	200},
+	{8227,	210},
+	{8440,	220},
+	{8520,	225},
+	{8820,	235},
+	{9041,	245},
+	{9230, 250}, 
+	{9520, 260}, 
+	{9680, 270}, 
+	{9815, 275}, 
+	{9973, 280}, 
+	{10050, 285}, 
+	{10200, 290}, 
+
+
+	{10415	,300},
+	{10700,	310},
+	{11000,	320},
+	{12000 ,350},
+
+	*/
+#endif
+	
+#endif
+
+
 #if (THERMISTORHEATER_0 == 1) || (THERMISTORHEATER_1 == 1)  || (THERMISTORHEATER_2 == 1) || (THERMISTORBED == 1) //100k bed thermistor
 
 const short temptable_1[][2] PROGMEM = {
@@ -432,8 +568,9 @@ This does not match the normal thermistor behaviour so we need to set the follow
 # define HEATER_BED_RAW_LO_TEMP 0
 #endif
 
+// fudge for non accurate P100 sensor, if needed
+// #define TEMPCORRECTION 194.0/227.0 //  0.939759
 
-#define TEMPCORRECTION 194.0/227.0 //  0.939759
 
 const short temptable_20[][2] PROGMEM = {
 {         0*OVERSAMPLENR ,       0     },

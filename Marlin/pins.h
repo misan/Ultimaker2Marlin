@@ -1204,9 +1204,12 @@
 #define     FAN_PIN                  7
 #define     PS_ON_PIN                12
 #define     KILL_PIN                 -1
-#define     SUICIDE_PIN              -1  //PIN that has to be turned on right after start, to keep power flowing.
-#define     SAFETY_TRIGGERED_PIN     28 //PIN to detect the safety circuit has triggered
-#define     MAIN_VOLTAGE_MEASURE_PIN 14 //Analogue PIN to measure the main voltage, with a 100k - 4k7 resitor divider.  Also known as digital pin 68
+#define     SUICIDE_PIN              -1  //PIN that has   to be turned on right after start, to keep power flowing.
+#define     SAFETY_TRIGGERED_PIN     28 //PIN to detect   the safety circuit has triggered
+#define     MAIN_VOLTAGE_MEASURE_PIN 14 //Analogue PIN    to measure the main voltage, with a 100k - 4k7 resitor divider.  Also known as digital pin 68
+
+#define     EXT_VOLTAGE_REF_PIN		 61		// a0
+#define     TEMP_SENSOR_PIN			 60			// a1
 
 #define		HEAD_FAN_PIN			 30
 #define		MOTHERBOARD_FAN			 38
@@ -1219,10 +1222,10 @@
 #define     MOTOR_CURRENT_PWM_Z_PIN  45
 #define     MOTOR_CURRENT_PWM_E_PIN  46
 
-//Motor     current                  PWM conversion, PWM value = MotorCurrentSetting * 255 / range
+//Motor     current                  PWM conversion, PWM  value = MotorCurrentSetting * 255 / range
 #define     MOTOR_CURRENT_PWM_RANGE  2000
 
-//arduino pin which                  triggers an piezzo beeper
+//arduino   pin which                  triggers an piezzo beeper
 #define     BEEPER					 18
 
 #define     LCD_PINS_RS              20
@@ -1232,7 +1235,7 @@
 #define     LCD_PINS_D6              5
 #define     LCD_PINS_D7              6
 
-//buttons are directly               attached
+//buttons   are directly               attached
 #define     BTN_EN1                  40
 #define     BTN_EN2                  41
 #define     BTN_ENC                  19  //the click
@@ -1243,7 +1246,7 @@
 
 #define     SDCARDDETECT             39
 
-//encoder rotation values
+//encoder   rotation values
 #define     encrot0					 0
 #define     encrot1					 1
 #define     encrot2					 3

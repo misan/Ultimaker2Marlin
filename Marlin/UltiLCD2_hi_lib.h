@@ -8,10 +8,12 @@ typedef void (*menuFunc_t)();
 typedef char* (*entryNameCallback_t)(uint8_t nr);
 typedef void (*entryDetailsCallback_t)(uint8_t nr);
 
+extern char main_menu_x_offset;
+
 #define ENCODER_TICKS_PER_MAIN_MENU_ITEM 8
 #define ENCODER_TICKS_PER_SCROLL_MENU_ITEM 4
 #define ENCODER_NO_SELECTION (ENCODER_TICKS_PER_MAIN_MENU_ITEM * -11)
-#define MAIN_MENU_ITEM_POS(n)  (ENCODER_TICKS_PER_MAIN_MENU_ITEM * (n) + ENCODER_TICKS_PER_MAIN_MENU_ITEM / 2)
+#define MAIN_MENU_ITEM_POS(n)  (main_menu_x_offset+(ENCODER_TICKS_PER_MAIN_MENU_ITEM * (n) + ENCODER_TICKS_PER_MAIN_MENU_ITEM / 2))
 #define SCROLL_MENU_ITEM_POS(n)  (ENCODER_TICKS_PER_SCROLL_MENU_ITEM * (n) + ENCODER_TICKS_PER_SCROLL_MENU_ITEM / 2)
 #define SELECT_MAIN_MENU_ITEM(n)  do { lcd_lib_encoder_pos = MAIN_MENU_ITEM_POS(n); } while(0)
 #define SELECT_SCROLL_MENU_ITEM(n)  do { lcd_lib_encoder_pos = SCROLL_MENU_ITEM_POS(n); } while(0)
@@ -29,11 +31,15 @@ void lcd_question_screen(menuFunc_t optionAMenu, menuFunc_t callbackOnA, const c
 void lcd_scroll_menu(const char* menuNameP, int8_t entryCount, entryNameCallback_t entryNameCallback, entryDetailsCallback_t entryDetailsCallback);
 
 void lcd_progressbar(uint8_t progress);
+//-----------------------------------------------------------------------------------------------------------------
+void lcd_low_triple_menu_draw( const char* left, const char* middle, const char* right, char offset=0 );
+void lcd_triple_X_menu_low(const char* const * items,byte item_count);
 
 void lcd_menu_edit_setting();
 extern bool allow_encoder_acceleration;
 FORCE_INLINE void lcd_lib_enable_encoder_acceleration( bool enabled ) 	{ allow_encoder_acceleration = enabled; }
 void lcd_triple_menu_low(const char* left, const char* middle, const char* right);
+void lcd_menu_go_back();
 extern const char* lcd_setting_name;
 extern const char* lcd_setting_postfix;
 extern void* lcd_setting_ptr;
@@ -136,6 +142,7 @@ extern uint8_t led_glow_dir;
 #define LED_HEAT() lcd_lib_led_color(192 + led_glow/4, 8 + led_glow/4, 0)
 #define LED_DONE() lcd_lib_led_color(0, 8 + led_glow, 8)
 #define LED_COOL() lcd_lib_led_color(0, 4,16 + led_glow)
-#define LED_GLOW_ERROR() lcd_lib_led_color(8+min(245,led_glow<<3),0,0);
+#define LED_GLOW_ERROR() lcd_lib_led_color(8+min(245,led_glow<<3),0,0,1);
+#define LED_CLEAR_ERROR() lcd_lib_led_color(0,0,0,1);
 #define LED_WHITE() lcd_lib_led_color(255,255,255,false);
 #endif//ULTI_LCD2_HI_LIB_H

@@ -34,6 +34,7 @@
 #if defined(DIGIPOTSS_PIN) && DIGIPOTSS_PIN > -1
 #include <SPI.h>
 #endif
+#include "MenuUseful.h"
 
 
 //===========================================================================

@@ -5,7 +5,7 @@
 #include "stepper.h"
 #include "temperature.h"
 #include "language.h"
-
+#include "MenuUseful.h"
 #ifdef SDSUPPORT
 
 
@@ -81,12 +81,13 @@ void  CardReader::lsDive(const char *prepend,SdFile parent)
       {
         if(lsAction==LS_SerialPrint)
         {
-          SERIAL_ECHO_START;
+          SERIAL_ERROR_START;
           SERIAL_ECHOLN(MSG_SD_CANT_OPEN_SUBDIR);
           SERIAL_ECHOLN(lfilename);
         }
       }
       lsDive(path,dir);
+//      lsDive(longFilename,dir);
       //close done automatically by destructor of SdFile
 
       
@@ -114,10 +115,23 @@ void  CardReader::lsDive(const char *prepend,SdFile parent)
       }
       //if(cnt++!=nr) continue;
       createFilename(filename,p);
+	  timestamp = p.lastWriteTime;
+	  datestamp = p.lastWriteDate;
+
       if(lsAction==LS_SerialPrint)
       {
+	  SERIAL_ECHO_START;
         SERIAL_PROTOCOL(prepend);
-        SERIAL_PROTOCOLLN(filename);
+        SERIAL_PROTOCOL(longFilename);
+		SERIAL_PROTOCOL(" ");
+		SERIAL_PROTOCOL(p.fileSize);
+		SERIAL_PROTOCOL(" DATE=");
+		SERIAL_PROTOCOL(p.lastWriteDate);		// use FAT_HOURS, etc here?  human readable form?
+		SERIAL_PROTOCOL(" TIME=");
+		SERIAL_PROTOCOLLN(p.lastWriteTime);
+
+
+//        SERIAL_PROTOCOLLN(filename);
       }
       else if(lsAction==LS_Count)
       {
@@ -197,6 +211,22 @@ void CardReader::setroot()
   
   curDir=&workDir;
 }
+
+//-----------------------------------------------------------------------------------------------------------------
+ void CardReader::updateSDInserted()
+	{
+	bool newInserted = IS_SD_INSERTED;
+	if (sdInserted != newInserted)
+		{
+		if (insertChangeDelay)
+			insertChangeDelay--;
+		else
+			sdInserted = newInserted;
+		}else{
+			insertChangeDelay = 1000 / 25;
+		}
+	}
+
 void CardReader::release()
 {
   sdprinting = false;
@@ -290,6 +320,7 @@ void CardReader::openFile(char* name,bool read)
     if (file.open(curDir, fname, O_READ)) 
     {
       filesize = file.fileSize();
+	  SERIAL_ECHO_START;
       SERIAL_PROTOCOLPGM(MSG_SD_FILE_OPENED);
       SERIAL_PROTOCOL(fname);
       SERIAL_PROTOCOLPGM(MSG_SD_SIZE);
@@ -298,9 +329,11 @@ void CardReader::openFile(char* name,bool read)
       
       SERIAL_PROTOCOLLNPGM(MSG_SD_FILE_SELECTED);
       lcd_setstatus(fname);
+	  lcd_update();
     }
     else
     {
+	SERIAL_ERROR_START;
       SERIAL_PROTOCOLPGM(MSG_SD_OPEN_FILE_FAIL);
       SERIAL_PROTOCOL(fname);
       SERIAL_PROTOCOLLNPGM(".");
@@ -310,6 +343,7 @@ void CardReader::openFile(char* name,bool read)
   { //write
     if (!file.open(curDir, fname, O_CREAT | O_APPEND | O_WRITE | O_TRUNC))
     {
+	SERIAL_ERROR_START;
       SERIAL_PROTOCOLPGM(MSG_SD_OPEN_FILE_FAIL);
       SERIAL_PROTOCOL(fname);
       SERIAL_PROTOCOLLNPGM(".");
@@ -317,9 +351,11 @@ void CardReader::openFile(char* name,bool read)
     else
     {
       saving = true;
+	  SERIAL_ECHO_START;
       SERIAL_PROTOCOLPGM(MSG_SD_WRITE_TO_FILE);
       SERIAL_PROTOCOLLN(name);
       lcd_setstatus(fname);
+	  lcd_update();
     }
   }
   
@@ -352,9 +388,11 @@ void CardReader::removeFile(char* name)
         char subdirname[13];
         strncpy(subdirname, dirname_start, dirname_end-dirname_start);
         subdirname[dirname_end-dirname_start]=0;
+		SERIAL_ECHO_START;
         SERIAL_ECHOLN(subdirname);
         if(!myDir.open(curDir,subdirname,O_READ))
         {
+		SERIAL_ERROR_START;
           SERIAL_PROTOCOLPGM("open failed, File: ");
           SERIAL_PROTOCOL(subdirname);
           SERIAL_PROTOCOLLNPGM(".");
@@ -383,13 +421,15 @@ void CardReader::removeFile(char* name)
     curDir=&workDir;
   }
     if (file.remove(curDir, fname)) 
-    {
+     {
+	SERIAL_ECHO_START;
       SERIAL_PROTOCOLPGM("File deleted:");
       SERIAL_PROTOCOL(fname);
       sdpos = 0;
     }
     else
     {
+	SERIAL_ERROR_START;
       SERIAL_PROTOCOLPGM("Deletion failed, File: ");
       SERIAL_PROTOCOL(fname);
       SERIAL_PROTOCOLLNPGM(".");
@@ -400,7 +440,8 @@ void CardReader::removeFile(char* name)
 void CardReader::getStatus()
 {
   if(cardOK){
-    SERIAL_PROTOCOLPGM(MSG_SD_PRINTING_BYTE);
+    SERIAL_ECHO_START;
+	SERIAL_PROTOCOLPGM(MSG_SD_PRINTING_BYTE);
     SERIAL_PROTOCOL(sdpos);
     SERIAL_PROTOCOLPGM("/");
     SERIAL_PROTOCOLLN(filesize);
@@ -410,6 +451,7 @@ void CardReader::getStatus()
   }
   if (card.errorCode())
   {
+    SERIAL_ERROR_START;
     SERIAL_PROTOCOLPGM("Card error:");
     SERIAL_PROTOCOLLN(card.errorCode());
   }
