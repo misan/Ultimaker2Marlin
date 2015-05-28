@@ -6,7 +6,7 @@ These are changes I've made for my own use and benefit,  Use at your own risk.  
 
 Change log: 
 ---------------------
-* May 28 2015* 
+*May 28 2015:*
 * TONS of stuff, including: 
 * show date, time and layer count of files in detail view
 * cleanup of menus, lcd cache, and marlin_main code
@@ -30,6 +30,7 @@ Change log:
 * memory usage report on start to serial port
 * z-lift setting saved to eeprom
 * there's more I can't remember at the moment...
+
 *Jun 13,2014:*
 * Added more material presets (nylon, PET, flex PLA) 
 * Made it easier to add presets in the source code
