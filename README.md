@@ -6,6 +6,30 @@ These are changes I've made for my own use and benefit,  Use at your own risk.  
 
 Change log: 
 ---------------------
+* May 28 2015* 
+* TONS of stuff, including: 
+* show date, time and layer count of files in detail view
+* cleanup of menus, lcd cache, and marlin_main code
+* split gcode, command processing, and menu help functions to separate files
+* support DHT ambient sensor
+* support for external voltage reference to check power supply 24V and VCC 5V levels
+* supoport for head fan and motherboard fan
+* moved bed height adjustments to system menu
+* idle screen shows last print info, material settings, system info, system history metrics, etc.
+* graphs for head and bed temperature when printing, heating or adjusting
+* added a quality Q value to motion / extrusion commands allowing the planner to control movement based on quality.  If Q code is not included, there is no effect on output
+* Added more options to print tune menu like nudge build platform height, rehome after pause, extrude during pause, adjust z lift, quick disable retraction or z lift, center head during pause, etc.
+* Added more options to system menu, like relax motors, center head, test cooling / head / motherboard fans, adjust X and Y max limits dynamically, adjust idle timeout (dims LEDs, shows screensaver), toggle long menu wrapping, etc
+* cooling fan speed override in print tune menu will ignore gcode fan commands.  can be turned off to release fan control back to gcode
+* extruder overheat error resistant to glitches -- requires multiple readings before error will trip.
+* printing screen shows z-height, heater power level, temperature graph, fan speed and override, buffer depth, extrusion rate in mm^3, head speed in mm/s, bed temp, head temp, currently printing filename, length of material printed and remaining, time so far and estimnated remaining time, flow and speed settings, progress bar, messages from GCode, the Tune/Abort menu -- ALL ON TTHE SAME SCREEN!  WHEW!
+* functionality to spew raw temperature readings to the serial port for calibration of temp sensor
+* a cute screensaver
+* filenames longer than 20 chars will show a ... and the last 4 characters at the end
+* pulled in various fixes and changes as appropriate from main Ultimaker line (done manually -- I've gone way too far to do an automatic merge anymore)
+* memory usage report on start to serial port
+* z-lift setting saved to eeprom
+* there's more I can't remember at the moment...
 *Jun 13,2014:*
 * Added more material presets (nylon, PET, flex PLA) 
 * Made it easier to add presets in the source code
