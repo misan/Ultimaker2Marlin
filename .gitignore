@@ -4,7 +4,6 @@ applet/
 *.orig
 *.rej
 Marlin/Marlin.vcxproj
-*.h
 Marlin/Marlin.vcxproj.filters
 Marlin/Visual Micro/Compile.vmps.xml
 Marlin/Visual Micro/Configuration.Debug.vmps.xml
