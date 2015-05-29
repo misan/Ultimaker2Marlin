@@ -95,6 +95,8 @@ extern "C" void __cxa_pure_virtual() {;}
 #include <MarlinSerial.h>
 #include <MenuUseful.cpp>
 #include <MenuUseful.h>
+#include <ScreenSaver.cpp>
+#include <ScreenSaver.h>
 #include <Sd2Card.cpp>
 #include <Sd2Card.h>
 #include <Sd2PinMap.h>

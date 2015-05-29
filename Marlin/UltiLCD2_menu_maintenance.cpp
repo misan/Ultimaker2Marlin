@@ -18,7 +18,7 @@
 #include "stringHelpers.h"
 
 
-void lcd_menu_maintenance_doAction();
+
 //void lcd_menu_maintenance_advanced_heatup();
 void lcd_menu_maintenance_advanced_bed_heatup();
 void lcd_menu_maintenance_led();
@@ -32,32 +32,11 @@ void lcd_menu_advanced_materials_reset();
 void  doMaterialsReset();
 extern bool allow_encoder_acceleration;
 float extruded_amount=0;
-extern char *  menu_temporary_string_buffer;
 
 extern unsigned char  LED_DIM_TIME;
 byte adjust_axis = 0;
 
 
-void lcd_menu_maintenance()
-{
-    lcd_change_to_menu(lcd_menu_maintenance_doAction);
-//     lcd_tripple_menu(PSTR("BUILD-|PLATE"), PSTR("ADVANCED"), PSTR("RETURN"));
-//     LED_NORMAL();
-//
-//     if (lcd_lib_button_pressed)
-//         {
-//             if (IS_SELECTED_MAIN(0))
-//                 lcd_change_to_menu(lcd_menu_first_run_start_bed_leveling);
-//             else
-//                 if (IS_SELECTED_MAIN(1))
-//                     lcd_change_to_menu(lcd_menu_maintenance_advanced);
-//                 else
-//                     if (IS_SELECTED_MAIN(2))
-//                         lcd_change_to_menu(lcd_menu_main);
-//         }
-//
-//     lcd_lib_update_screen();
-}
 
 
 enum MAINTENANCE_MENU
@@ -474,7 +453,7 @@ void lcd_menu_maintenance_adjust_max_Y()
             //	base_home_pos[1] = max_pos[1];
             Config_StoreSettings();
             enquecommand_P(PSTR("G28 X0 Y0"));
-            lcd_change_to_menu(previousMenu, previousEncoderPos);
+			lcd_menu_go_back();
         }
     lcd_lib_enable_encoder_acceleration(false);
     lcd_lib_clear();
@@ -507,7 +486,7 @@ void lcd_menu_maintenance_adjust_max_X()
             X_MAX_LENGTH = max_pos[0] - X_MIN_POS;
             Config_StoreSettings();
             enquecommand_P(PSTR("G28 X0 Y0"));
-            lcd_change_to_menu(previousMenu, previousEncoderPos);
+           lcd_menu_go_back();
         }
     lcd_lib_enable_encoder_acceleration(false);
     lcd_lib_clear();
@@ -544,7 +523,7 @@ void lcd_menu_maintenance_extrude()
         {
             set_extrude_min_temp(EXTRUDE_MINTEMP);
             target_temperature[active_extruder] = 0;
-            lcd_change_to_menu(previousMenu, previousEncoderPos);
+            lcd_menu_go_back();
         }
     lcd_lib_enable_encoder_acceleration(false);
     lcd_lib_clear();
@@ -579,7 +558,7 @@ void lcd_menu_maintenance_advanced_bed_heatup()
         }
     LED_HEAT();
     if (lcd_lib_button_pressed)
-        lcd_change_to_menu(previousMenu, previousEncoderPos);
+        lcd_menu_go_back();
     lcd_lib_enable_encoder_acceleration(true);
     lcd_lib_clear();
     lcd_lib_draw_string_centerP(ROW2, PSTR("Bed temperature"));
@@ -599,7 +578,7 @@ void lcd_menu_maintenance_advanced_bed_heatup()
 
 void lcd_menu_advanced_version()
 {
-    lcd_info_screen(previousMenu, NULL, PSTR("Return"));
+    lcd_info_screen(NULL, NULL, PSTR("Return"));
     lcd_lib_draw_string_centerP(10, PSTR(STRING_VERSION_CONFIG_H));
     lcd_lib_draw_string_centerP(30, PSTR(STRING_CONFIG_H_AUTHOR));
     lcd_lib_update_screen();
@@ -609,7 +588,7 @@ void lcd_menu_advanced_version()
 
 void lcd_menu_advanced_stats()
 {
-    lcd_info_screen(previousMenu, NULL, PSTR("Return"));
+    lcd_info_screen(NULL, NULL, PSTR("Return"));
     lcd_lib_draw_string_centerP(10, PSTR("Machine on for:"));
     char buffer[20];
     memset (buffer,0,sizeof(buffer));
@@ -669,7 +648,7 @@ void doFactoryReset()
 
 void lcd_menu_advanced_factory_reset()
 {
-    lcd_question_screen(NULL, doFactoryReset, PSTR("YES"), previousMenu, NULL, PSTR("NO"));
+    lcd_question_screen(NULL, doFactoryReset, PSTR("YES"), NULL, NULL, PSTR("NO"));
     lcd_lib_beep_ext(110,500);
     lcd_lib_beep_ext(50,500);
     lcd_lib_draw_string_centerP(10, PSTR("Reset everything"));
@@ -679,7 +658,7 @@ void lcd_menu_advanced_factory_reset()
 
 void lcd_menu_advanced_materials_reset()
 {
-    lcd_question_screen(NULL, doMaterialsReset, PSTR("YES"), previousMenu, NULL, PSTR("NO"));
+    lcd_question_screen(NULL, doMaterialsReset, PSTR("YES"), NULL, NULL, PSTR("NO"));
     lcd_lib_draw_string_centerP(10, PSTR("Reset materials"));
     lcd_lib_draw_string_centerP(20, PSTR("to default?"));
     lcd_lib_update_screen();

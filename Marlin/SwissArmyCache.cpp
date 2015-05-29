@@ -1,6 +1,10 @@
 #include "SwissArmyCache.h"
 #include "Marlin.h"
 
+#define DEBUG_INFO
+
+#pragma GCC diagnostic ignored "-Wswitch" // Code that causes warning goes here #pragma GCC diagnostic pop
+
 
 //-----------------------------------------------------------------------------------------------------------------
 

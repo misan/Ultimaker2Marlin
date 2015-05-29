@@ -82,6 +82,12 @@ float max_pos[3] = { BASELINE_XLIMIT, BASELINE_YLIMIT, Z_MAX_POS };
 float Y_MAX_LENGTH = BASELINE_YLIMIT - Y_MIN_POS;
 float X_MAX_LENGTH = BASELINE_XLIMIT - X_MIN_POS;
 
+
+
+static unsigned long lastMotor = 0; //Save the time for when a motor was turned on last
+static unsigned long lastMotorCheck = 0;
+
+
 #ifdef DHT_ENVIRONMENTAL_SENSOR
 
 #endif
@@ -340,6 +346,7 @@ void setup()
     lcd_lib_beep_ext(1320,100);
 #endif
 		SERIAL_ECHOLNPGM(STRING_BIG_LINE);
+		lastMotorCheck=previous_millis_cmd=last_user_interaction = millis();
 }
 
 
@@ -430,12 +437,16 @@ void report_temps();
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void controllerFan()
 {
-
-    static unsigned long lastMotor = 0; //Save the time for when a motor was turned on last
-    static unsigned long lastMotorCheck = 0;
-    if ((millis() - lastMotorCheck) >=10000) //Not a time critical function, so we only check every 2500ms
+    if ((millis() - lastMotorCheck) >=FAN_CHECK_INTERVAL) //Not a time critical function, so we only check every 2500ms
         {
             lastMotorCheck = millis();
+			if (last_temp > CASE_FAN_ON_THRESHOLD) 
+				{ 
+				// allows digital or PWM fan output to be used (see M42 handling)
+				digitalWrite(CONTROLLERFAN_PIN, CONTROLLERFAN_SPEED);
+				analogWrite(CONTROLLERFAN_PIN, CONTROLLERFAN_SPEED);
+				return;
+				}
 
             if(!READ(X_ENABLE_PIN) || !READ(Y_ENABLE_PIN) || !READ(Z_ENABLE_PIN)
 #if EXTRUDERS > 2
@@ -472,12 +483,17 @@ void controllerFan()
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void manage_inactivity()
 {
+	static byte dimmer  = 0;
+
     if (LED_DIM_TIME>0 && (millis() - last_user_interaction > LED_DIM_TIME*MILLISECONDS_PER_MINUTE ))
         {
-            analogWrite(LED_PIN, 255 * int(DIM_LEVEL) / 100);
+			if (dimmer > DIM_LEVEL) dimmer--;
         }
     else
-        analogWrite(LED_PIN, 255 * int(led_brightness_level) / 100);
+       { 
+	   	if (dimmer <  led_brightness_level-2) dimmer+=2;
+		}
+	analogWrite(LED_PIN, 255 * int(dimmer) / 100);
 
     if(max_inactive_time)
         if( (millis() - previous_millis_cmd) >  max_inactive_time )

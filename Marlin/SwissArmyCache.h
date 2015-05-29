@@ -8,6 +8,7 @@
 # define analogInputToDigitalPin(p) ((p) + A0)
 #endif
 #include "Configuration.h"
+#include "ScreenSaver.h"
 
 
 #ifdef  __AVR_ATmega2560__
@@ -57,6 +58,13 @@ struct LCDCACHE_BREAKOUT
 	};
 
 
+
+
+struct LCDCACHE_SCREENSAVER
+	{
+		ball balls[SCREENSAVER_BALLS];
+	};
+
 #define HISTORY_SIZE (64)
 
 
@@ -74,6 +82,7 @@ union LCD_CACHE_SHARED_DATA
 	LCDCACHE_FILELIST filelist;
 	LCDCACHE_BREAKOUT breakout;
 	LCD_CACHE_TEMP_HISTORY temphist;
+	LCDCACHE_SCREENSAVER ss;
 	};
 
 
@@ -92,6 +101,7 @@ class LCD_CACHE
 			RAWSTRING,
 			RAWDATA,
 			TEMPERATURE_HISTORY,
+			SCREENSAVER,
 			MAX_ACCESS_MODE
 			};
 

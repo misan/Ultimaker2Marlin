@@ -643,5 +643,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 
 #define USE_12_HOUR_CLOCK_FORMAT  1
 
+#define CASE_FAN_ON_THRESHOLD 35		// temperature at which the case fan will turn on, regardless of motor activity
+#define FAN_CHECK_INTERVAL 1000 // how often to check the case and head fan (not the part cooling fan) -- in milliseconds
 
 #endif //__CONFIGURATION_H

@@ -156,7 +156,7 @@ FORCE_INLINE bool blocks_queued()
 inline float extruderPositionInMM (float pos)
 	{
 
-	return ( pos *  axis_steps_per_unit[E_AXIS] / 1000.0);//  * volume_to_filament_length[active_extruder];
+	return ( pos * volume_to_filament_length[active_extruder]);
 	}
 
 

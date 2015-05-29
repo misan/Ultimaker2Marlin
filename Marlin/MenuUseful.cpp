@@ -90,8 +90,8 @@ void forceMessage ()
 //-----------------------------------------------------------------------------------------------------------------
 void drawTempHistory( byte x1, byte y1, byte x2, byte y2, char *data )
 {
-    int height = y2 - y1;
-    int width  = x2 - x1;
+//     int height = y2 - y1;
+//     int width  = x2 - x1;
     int mid_point = (y2+y1)>>1;
     lcd_lib_draw_box(x1,y1,x2,y2);
     lcd_lib_draw_dotted_hline (x1,x2,mid_point);
@@ -374,4 +374,43 @@ void drawMiniBargraph( int x1,int y1,int x2,int y2,double value )
     int val = value * abs(x2-x1-4);
 
     lcd_lib_set (x1+2,y1+2,x1+2+val,y2-2);
+}
+
+//-----------------------------------------------------------------------------------------------------------------
+void processLongFilename()
+{
+    if (! card.longFilename[0])		// is it non zerto length? copy iy to our buffer
+        strcpy (card.longFilename,card.filename);
+    if (!card.filenameIsDir)				// end the filename at the FIRST period -- should be the LAST period.
+        {
+            if (strrchr(card.longFilename, '.')) strrchr(card.longFilename, '.')[0] = '\0';
+        }
+
+    // for names longer than 20 chars, put an elipsis and show the last 4 characters because often it's important to see the END of the filename to differentiate them
+    // for example:  THISISAVERYLONGFILENAME_VER1.GCO and THISISAVERYLONGFILENAME_VER2.GCO
+    // we need to see the VER1 and VER2 part of the name
+
+    /*
+    SERIAL_ECHO_START;
+    SERIAL_ECHOPGM ("FILE_ENTRY: ")
+    SERIAL_ECHO(card.longFilename);
+    SERIAL_ECHOPGM (" 8.3: ");
+    SERIAL_ECHO(card.filename);
+    SERIAL_ECHOLNPGM (" ");*/
+
+    byte x = strlen(card.longFilename);
+    if (x > 20)
+        {
+            card.longFilename[16] = card.longFilename[x-4];
+            card.longFilename[17] = card.longFilename[x-3];
+            card.longFilename[18] = card.longFilename[x-2];
+            card.longFilename[19] = card.longFilename[x-1];
+            card.longFilename[15] = 31;// ELIPSIS_SYMBOL;
+        }
+    card.longFilename[20] = '\0';
+
+    /*SERIAL_ECHOPGM ("TRIMMED NAME: ")
+    SERIAL_ECHO(card.longFilename);
+    SERIAL_ECHOLNPGM (" ");
+    */
 }

@@ -596,7 +596,7 @@ static char* lcd_menu_material_settings_store_callback(uint8_t nr)
             {
                 eeprom_read_block(material_name_buf, EEPROM_MATERIAL_NAME_OFFSET(nr - 1), MATERIAL_NAME_LENGTH);
                 material_name_buf[MATERIAL_NAME_LENGTH] = '\0';
-                strncpy (c,material_name_buf,MATERIAL_NAME_LENGTH);
+                strncpy (c,material_name_buf,MATERIAL_NAME_LENGTH+1);
                 return c;
             }
     return c;
@@ -771,11 +771,8 @@ bool lcd_material_verify_material_settings()
 //-----------------------------------------------------------------------------------------------------------------
 void makeCustomName( uint8_t idx )
 {
-    char buffer[MATERIAL_NAME_LENGTH+1];
-    strcpy_P(buffer,PSTR ("CUSTOM_")) ;
-    char * c= int_to_string(idx - 1 - MATERIAL_PRESETS+2, buffer + 7);
-    *c++=0;
-
-    strcpy (material_name_buf,buffer);
+	String buf (PSTR ("CUSTOM_")) ;
+	buf+= idx - 1 - MATERIAL_PRESETS+2;
+    strcpy (material_name_buf,buf.c_str());
 }
 #endif//ENABLE_ULTILCD2

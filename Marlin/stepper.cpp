@@ -79,6 +79,8 @@ bool abort_on_endstop_hit = false;
   int motor_current_setting[3] = DEFAULT_PWM_MOTOR_CURRENT;
 #endif
 
+#pragma GCC diagnostic ignored "-Wunused-variable" // Code that causes warning goes here 
+
 static bool old_x_min_endstop=false;
 static bool old_x_max_endstop=false;
 static bool old_y_min_endstop=false;

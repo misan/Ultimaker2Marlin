@@ -6,10 +6,12 @@
 #include "UltiLCD2_hi_lib.h"
 #include "stringHelpers.h"
 
+
+byte menu_depth =0;
 menuFunc_t currentMenu;
-menuFunc_t previousMenu;
+menuFunc_t previousMenu[MENU_DEPTH];
 menuFunc_t postMenuCheck;
-int16_t previousEncoderPos;
+int16_t previousEncoderPos[MENU_DEPTH];
 uint8_t led_glow = 0;
 uint8_t led_glow_dir;
 uint8_t minProgress;
@@ -26,9 +28,23 @@ char main_menu_x_offset=0;
 
 unsigned char  NOWRAP_MENUS = 1;
 
+void lcd_menu_main();
+
 void lcd_menu_go_back()
+{
+    if (menu_depth <1) 
+		lcd_change_to_menu(lcd_menu_main);
+    else
+        {
+            menu_depth--;
+            lcd_change_to_menu(previousMenu[menu_depth], previousEncoderPos[menu_depth]);
+        }
+}
+
+menuFunc_t getPrevMenu ()
 	{
-	   lcd_change_to_menu(previousMenu, previousEncoderPos);
+	 
+
 	}
 
 void lcd_change_to_menu(menuFunc_t nextMenu, int16_t newEncoderPos)
@@ -37,8 +53,10 @@ void lcd_change_to_menu(menuFunc_t nextMenu, int16_t newEncoderPos)
     led_glow = led_glow_dir = 0;
     LED_WHITE() ;
     lcd_lib_beep();
-    previousMenu = currentMenu;
-    previousEncoderPos = lcd_lib_encoder_pos;
+    previousMenu[menu_depth] = currentMenu;
+    previousEncoderPos[menu_depth] = lcd_lib_encoder_pos;
+    if (menu_depth < MENU_DEPTH-1) menu_depth++;
+
     currentMenu = nextMenu;
     LED_NORMAL();
     lcd_lib_encoder_pos = newEncoderPos;
@@ -186,6 +204,8 @@ void lcd_info_screen(menuFunc_t cancelMenu, menuFunc_t callbackOnCancel, const c
         {
             if (callbackOnCancel) callbackOnCancel();
             if (cancelMenu) lcd_change_to_menu(cancelMenu);
+			else
+				lcd_menu_go_back();
         }
 
     lcd_basic_screen();
@@ -227,6 +247,7 @@ void lcd_question_screen(menuFunc_t optionAMenu, menuFunc_t callbackOnA, const c
                     {
                         if (callbackOnB) callbackOnB();
                         if (optionBMenu) lcd_change_to_menu(optionBMenu);
+						else lcd_menu_go_back();
                     }
         }
 
@@ -434,7 +455,7 @@ void lcd_menu_edit_setting()
     lcd_lib_update_screen();
 
     if (lcd_lib_button_pressed)
-        lcd_change_to_menu(previousMenu, previousEncoderPos);
+        lcd_menu_go_back();
 }
 //-----------------------------------------------------------------------------------------------------------------
 void lcd_low_triple_menu_draw( const char* left, const char* middle, const char* right , char offset)

@@ -539,7 +539,7 @@ void manage_heater()
 #if (defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1) || \
       (defined(EXTRUDER_1_AUTO_FAN_PIN) && EXTRUDER_1_AUTO_FAN_PIN > -1) || \
       (defined(EXTRUDER_2_AUTO_FAN_PIN) && EXTRUDER_2_AUTO_FAN_PIN > -1)
-    if(millis() - extruder_autofan_last_check > 10000)  // only need to check fan state very infrequently
+    if(millis() - extruder_autofan_last_check > FAN_CHECK_INTERVAL)  // only need to check fan state very infrequently
         {
             checkExtruderAutoFans();
             extruder_autofan_last_check = millis();

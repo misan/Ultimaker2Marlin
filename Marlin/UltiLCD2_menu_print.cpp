@@ -22,8 +22,12 @@
 #pragma GCC diagnostic ignored "-Wstrict-aliasing" // Code that causes warning goes here #pragma GCC diagnostic pop
 
 
+// how long the TUNE / ABORT stays on the bottom of the printing screen before showing the progress bar
+#define PRINT_TUNE_MENU_TIMEOUT 5000
 
 // #pragma GCC diagnostic pop
+
+// how long before the tune menu goes back to the printing screen
 const unsigned long PRINTMENU_TIMEOUT = 30000UL;
 
 void doCooldown();//TODO
@@ -509,6 +513,7 @@ void updateFileDetails( uint8_t nr,char * filename)
 
 void lcd_sd_filemenu_doAction()
 {
+	lcd_lib_wait_for_screen_ready();
     static bool beeped = false;
     if (!card.sdInserted)
         {
@@ -652,6 +657,7 @@ void lcd_sd_filemenu_doAction()
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void lcd_menu_print_heatup()
 {
+	lcd_lib_wait_for_screen_ready();
     bool draw_filename = true;
     if (millis() - last_user_interaction < 5000)
         {
@@ -783,9 +789,10 @@ void lcd_menu_print_heatup()
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void lcd_menu_print_printing()
 {
+	lcd_lib_wait_for_screen_ready();
     run_history = true;
     bool draw_filename = true;
-    if (millis() - last_user_interaction < 5000)
+    if (millis() - last_user_interaction < PRINT_TUNE_MENU_TIMEOUT) 
         {
             lcd_question_screen(lcd_menu_print_tune_doAction, NULL, PSTR("TUNE"), lcd_menu_print_abort, NULL, PSTR("ABORT"));
             draw_filename = false;
@@ -809,7 +816,6 @@ void lcd_menu_print_printing()
                     static float e_smoothed_speed = 0.0;
                     static float xy_speed = 0.0;
                     calculateSpeeds(xy_speed, e_smoothed_speed);
-
 
                     drawSpeedAndFlow(buffer, c,ROW5);
 
@@ -919,6 +925,7 @@ void lcd_menu_print_printing()
             lcd_lib_draw_vline(3,ROW7,DISPLAY_BOTTOM);
             lcd_lib_draw_vline(125,ROW7,DISPLAY_BOTTOM);
 
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // Code that causes warning goes here 
             float pos ;
             if (time_phase0)
                 EchoTimeSpan(round (printTimeMs / 1000),buffer);
@@ -936,9 +943,10 @@ void lcd_menu_print_printing()
                 EchoTimeSpan (timeLeftSec,buffer);
             else
                 {
-                    c = float_to_string3((estimated_filament_length_in_m) - pos,buffer,PSTR("m"));
+				c = float_to_string3((estimated_filament_length_in_m) - pos,buffer,PSTR("m"));
                     *c++=0;
                 }
+#pragma GCC diagnostic pop
 
             lcd_lib_draw_string_right(ROW6,buffer);
 
@@ -967,7 +975,7 @@ void lcd_menu_print_printing()
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void lcd_menu_print_error()
 {
-
+	lcd_lib_wait_for_screen_ready();
     LED_GLOW_ERROR();
     if (!did_beep) ERROR_BEEP();
     did_beep = true;
@@ -1008,8 +1016,9 @@ void lcd_menu_print_classic_warning()
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void lcd_menu_print_abort()
 {
+	lcd_lib_wait_for_screen_ready();
     LED_FLASH();
-    lcd_question_screen(lcd_menu_print_ready, abortPrint, PSTR("YES"), previousMenu, NULL, PSTR("NO"));
+    lcd_question_screen(lcd_menu_print_ready, abortPrint, PSTR("YES"), NULL, NULL, PSTR("NO"));
 
     lcd_lib_draw_string_centerP(20, PSTR("Abort the print?"));
 
@@ -1035,6 +1044,7 @@ void postPrintReady()
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void lcd_menu_print_ready()
 {
+	lcd_lib_wait_for_screen_ready();
     run_history = true;
     if (stoptime ==0) stoptime = millis();
     if (stoptime <starttime) starttime = stoptime;
@@ -1353,6 +1363,7 @@ void lcd_menu_print_tune_getDetails(uint8_t nr)
 // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void lcd_menu_print_tune_doAction()
 {
+	lcd_lib_wait_for_screen_ready();
     lcd_scroll_menu(PSTR("TUNE"),MENU_PRINT_TUNE_MAX, lcd_menu_print_tune_getString, lcd_menu_print_tune_getDetails);
 //    lcd_scroll_menu(PSTR("TUNE"), 8 + EXTRUDERS * 2, tune_item_callback, tune_item_details_callback);
 
@@ -1501,7 +1512,7 @@ void lcd_menu_print_tune_heatup_nozzle()
             lcd_lib_encoder_pos = 0;
         }
     if (lcd_lib_button_pressed)
-        lcd_change_to_menu(previousMenu, previousEncoderPos);
+        lcd_menu_go_back();
     lcd_menu_draw_temp_adj_screen();
 }
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1562,6 +1573,7 @@ void lcd_menu_retraction_getDetails(uint8_t nr)
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void lcd_menu_retraction_doAction()
 {
+	lcd_lib_wait_for_screen_ready();
     if (old_retraction!=0) swap (old_retraction,retract_length);
     old_retraction=0;
     lcd_scroll_menu(PSTR("RETRACTION"), 3 + (EXTRUDERS > 1 ? 1 : 0), lcd_menu_retraction_getString, lcd_menu_retraction_getDetails);
@@ -1619,44 +1631,7 @@ void prepareToPrintUltiGCode()
     enquecommand_P(PSTR("G28"));
     enquecommand_P(PSTR("G1 F12000 X100 Y50"));
 }
-//-----------------------------------------------------------------------------------------------------------------
-void processLongFilename()
-{
-    if (! card.longFilename[0])		// is it non zerto length? copy iy to our buffer
-        strcpy (card.longFilename,card.filename);
-    if (!card.filenameIsDir)				// end the filename at the FIRST period -- should be the LAST period.
-        {
-            if (strrchr(card.longFilename, '.')) strrchr(card.longFilename, '.')[0] = '\0';
-        }
 
-    // for names longer than 20 chars, put an elipsis and show the last 4 characters because often it's important to see the END of the filename to differentiate them
-    // for example:  THISISAVERYLONGFILENAME_VER1.GCO and THISISAVERYLONGFILENAME_VER2.GCO
-    // we need to see the VER1 and VER2 part of the name
-
-    /*
-    SERIAL_ECHO_START;
-    SERIAL_ECHOPGM ("FILE_ENTRY: ")
-    SERIAL_ECHO(card.longFilename);
-    SERIAL_ECHOPGM (" 8.3: ");
-    SERIAL_ECHO(card.filename);
-    SERIAL_ECHOLNPGM (" ");*/
-
-    byte x = strlen(card.longFilename);
-    if (x > 20)
-        {
-            card.longFilename[16] = card.longFilename[x-4];
-            card.longFilename[17] = card.longFilename[x-3];
-            card.longFilename[18] = card.longFilename[x-2];
-            card.longFilename[19] = card.longFilename[x-1];
-            card.longFilename[15] = 31;// ELIPSIS_SYMBOL;
-        }
-    card.longFilename[20] = '\0';
-
-    /*SERIAL_ECHOPGM ("TRIMMED NAME: ")
-    SERIAL_ECHO(card.longFilename);
-    SERIAL_ECHOLNPGM (" ");
-    */
-}
 #endif//ENABLE_ULTILCD2
 
 
