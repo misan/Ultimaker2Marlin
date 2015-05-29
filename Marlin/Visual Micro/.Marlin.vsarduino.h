@@ -112,6 +112,8 @@ extern "C" void __cxa_pure_virtual() {;}
 #include <SerialMacros.h>
 #include <Servo.cpp>
 #include <Servo.h>
+#include <SwissArmyCache.cpp>
+#include <SwissArmyCache.h>
 #include <UltiLCD2.cpp>
 #include <UltiLCD2.h>
 #include <UltiLCD2_gfx.cpp>

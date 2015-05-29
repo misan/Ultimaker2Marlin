@@ -15,25 +15,11 @@
 #include "stringHelpers.h"
 #include "UltiLCD2_menu_maintenance.h"
 
-#define DEBUG_INFO
+// #define DEBUG_INFO
 
 
 // #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing" // Code that causes warning goes here #pragma GCC diagnostic pop
-
-
-LCD_CACHE lcd_cache_new;
-
-#define LCD_CACHE_FI(n)  lcd_cache_new.getData(LCD_CACHE::FILELIST).filelist.fileinfo[n]
-#define LCD_CACHE_DETAIL lcd_cache_new.getData(LCD_CACHE::FILELIST).filelist.filedetail
-
-#define LCD_CACHE_NR_OF_FILES()		 lcd_cache_new.getData(LCD_CACHE::FILELIST).filelist.number_of_entries
-#define LCD_CACHE_ID(n)				 LCD_CACHE_FI(n).id
-#define LCD_CACHE_TYPE(n)			 LCD_CACHE_FI(n).is_folder
-#define LCD_CACHE_FILENAME(n)		 LCD_CACHE_FI(n).filename
-#define LCD_DETAIL_CACHE_MATERIAL(n) LCD_CACHE_DETAIL.material[n]
-#define LCD_DETAIL_CACHE_TIME()		 LCD_CACHE_DETAIL.estimated_print_time
-#define LCD_DETAIL_CACHE_ID()		 LCD_CACHE_DETAIL.id
 
 
 
@@ -61,101 +47,13 @@ float estimated_filament_length_in_m =0;
 
 char last_print_name[LONG_FILENAME_LENGTH];
 
-
+ extern unsigned char soft_pwm_bed;
 extern long position[4];
 
 // introduce a short delay before reading file details so director listings are more responsive...
 #define FILE_READ_DELAY 50
 int file_read_delay_counter = FILE_READ_DELAY;
 
-
-//-----------------------------------------------------------------------------------------------------------------
-LCD_CACHE_SHARED_DATA & LCD_CACHE::getData( ACCESS_MODE mode )
-{
-    if (mode ==  current_mode) return c_data;
-    if (current_mode!=MAX_ACCESS_MODE) verify();
-    clear();
-    current_mode = mode;
-
-#ifdef DEBUG_INFO
-    SERIAL_ECHO_START ;
-    SERIAL_ECHOPGM(("SWITCHING CACHE MODE TO "));
-    SERIAL_ECHOLN (mode);
-#endif
-    switch (current_mode)
-        {
-            case RAWSTRING: c_data.rawstring[0] = 0; break;
-        }
-    verify();
-
-    return c_data;
-}
-
-//-----------------------------------------------------------------------------------------------------------------
-void LCD_CACHE::clear (byte value)
-{
-//     for (int a=0; a<sizeof(c_data); a++)
-//         c_data.rawbytes[a] = value;
-
-    memset ((void *) &c_data.rawbytes[0], 0xff, sizeof (c_data));
-
-}
-
-
-
-//-----------------------------------------------------------------------------------------------------------------
-void LCD_CACHE::init()
-{
-    current_mode = NO_MODE;
-    overwrite_check2=MAGIC_TOKEN;
-    overwrite_check=MAGIC_TOKEN;
-    clear();
-}
-
-//-----------------------------------------------------------------------------------------------------------------
-// does some sanity checking in debug mode to make sure nothing was accidentallty overwritten
-bool LCD_CACHE::verify()
-{
-#ifndef DEBUG_INFO
-    return true;
-#endif
-    bool ok = true;
-    switch (current_mode)
-        {
-            case RAWSTRING:
-                if (strlen(c_data.rawstring) > sizeof (c_data) )
-                    {
-                        SERIAL_ECHO_START ;
-                        SERIAL_ECHOPGM(("String mode overrun: "));
-                        c_data.rawstring[20] = 0;
-                        SERIAL_ECHOLN((c_data.rawstring));
-                        ok = false;
-                    }
-                break;
-            case FILELIST:
-                for (int a=0; a<LCD_CACHE_MAX_FILES_CACHED; a++)
-                    if (LCD_CACHE_FILENAME(a)[MAX_DISPLAY_FILENAME_LEN+1]!=(char) 0xff)
-                        {
-                            SERIAL_ECHO_START ;
-                            SERIAL_ECHOPGM(("Filename overrun on "));
-                            SERIAL_ECHO(a);
-                            SERIAL_ECHO(" ");
-                            SERIAL_ECHO(LCD_CACHE_FILENAME(a));
-                            SERIAL_ECHO("=");
-                            SERIAL_ECHOLN(LCD_CACHE_FILENAME(a)[MAX_DISPLAY_FILENAME_LEN+1]);
-                            ok = false;
-                        }
-                break;
-        }
-    if ((overwrite_check==MAGIC_TOKEN) && (overwrite_check2==MAGIC_TOKEN)) return ok;
-    SERIAL_ECHO_START ;
-    SERIAL_ECHOPGM(("Overwrite! "));
-    SERIAL_ECHOLN ( sizeof (c_data));
-    delay(50);
-    overwrite_check=MAGIC_TOKEN;
-    overwrite_check2=MAGIC_TOKEN;
-    return false;
-}
 
 //-----------------------------------------------------------------------------------------------------------------//-----------------------------------------------------------------------------------------------------------------
 extern float final_e_position;
@@ -455,19 +353,19 @@ void lcd_sd_filemenu_getDetails(uint8_t nr)
                                     char buffer[32];
                                     memset (buffer,0,sizeof(buffer));
                                     char* c = buffer;
-                                    if (time_phase_a(5))
+                                    if (time_phase_a(4))
                                         {
                                             strcpy_P(c, PSTR("Time: "));
                                             c += 6;
                                             c = int_to_time_string(LCD_DETAIL_CACHE_TIME(), c);
                                         }
-                                    if (time_phase_c(5))
+                                    if (time_phase_c(4))
                                         {
                                             strcpy_P(c, PSTR("Total layers: "));
                                             c += 14;
                                             c = int_to_string(LCD_CACHE_DETAIL.total_layers , c);
                                         }
-                                    if (time_phase_d(5))
+                                    if (time_phase_d(4))
                                         {
 // 										strcpy_P(c, PSTR("Date:"));
 // 										c += 5;
@@ -499,7 +397,7 @@ void lcd_sd_filemenu_getDetails(uint8_t nr)
 
                                         }
 
-                                    if (time_phase_b(5))
+                                    if (time_phase_b(4))
                                         {
                                             strcpy_P(c, PSTR("Material: "));
                                             c += 10;
@@ -532,6 +430,7 @@ void lcd_sd_filemenu_getDetails(uint8_t nr)
 }
 //-----------------------------------------------------------------------------------------------------------------
 
+const byte LINES_IN_ULTICODE_HEADER=8;
 
 //-----------------------------------------------------------------------------------------------------------------
 void updateFileDetails( uint8_t nr,char * filename)
@@ -576,7 +475,7 @@ void updateFileDetails( uint8_t nr,char * filename)
             SERIAL_ECHOLN("");
 #endif
             // read tghe first 8 LINES
-            for(uint8_t n=0; n<8; n++)
+            for(uint8_t n=0; n< LINES_IN_ULTICODE_HEADER; n++)
                 {
                     card.fgets(buffer, sizeof(buffer));
                     buffer[sizeof(buffer)-1] = '\0';
@@ -918,14 +817,23 @@ void lcd_menu_print_printing()
                     c = buffer/* + 3*/;
                     c = drawCurrentTemp(c);
                     *c++=0;
-                    lcd_lib_draw_string(10,ROW3, buffer);
+                    lcd_lib_draw_string(3,ROW3, buffer);
 
-                    c = buffer /*+ 2*/;
+
+                    c = buffer;
+					if (soft_pwm_bed==0) *c++='x';
+					else 
+						{ 
+						if (time_phase0) *c++='o';
+						else *c++='O';
+						}
+					*c++=' ';
+
                     c = int_to_string(current_temperature_bed, c, PSTR( TEMPERATURE_SEPARATOR_S ));
                     c = int_to_string(target_temperature_bed, c, PSTR( DEGREE_C_SYMBOL ));
                     *c++=0;
 
-                    lcd_lib_draw_string_right(ROW1, buffer);
+                    lcd_lib_draw_string_right(ROW2, buffer);
 
                     // show the extrusion rate
                     c=buffer;
@@ -942,19 +850,19 @@ void lcd_menu_print_printing()
                     lcd_lib_draw_string_right(ROW4, buffer);
 
                     // fan speed
-                    drawMiniBargraph (DISPLAY_RIGHT-(3+2+32),ROW2+1,DISPLAY_RIGHT,ROW3-2,(float) getFanSpeed()/ 255.0);
+                    drawMiniBargraph (DISPLAY_RIGHT-(3+2+32),ROW1+1,DISPLAY_RIGHT,ROW2-2,(float) getFanSpeed()/ 255.0);
                     if (fanSpeedOverride>=1)
                         strcpy_P(buffer,PSTR ("OVR"));
                     else
                         strcpy_P(buffer,PSTR ("FAN"));
                     // HISTORY AND HEATER POWER GRAPHS
-                    lcd_lib_draw_string_right(ROW2+1,buffer,DISPLAY_RIGHT-(3+2+32));
+                    lcd_lib_draw_string_right(ROW1+1,buffer,DISPLAY_RIGHT-(3+2+32));
                     drawTempHistory (3,ROW1,DISPLAY_RIGHT/3+3,ROW3-2,lcd_cache_new.getData(LCD_CACHE::TEMPERATURE_HISTORY).temphist.temp_history);
-                    lcd_lib_draw_box(DISPLAY_RIGHT/2,ROW2,DISPLAY_RIGHT/2+6,ROW4-2);
+                    lcd_lib_draw_box(DISPLAY_RIGHT/2 - 10,ROW1,DISPLAY_RIGHT/2+6-10,ROW3-2);
                     int g =  getHeaterPower(active_extruder);
                     g *= (ROW_HEIGHT * 2) -2;
                     g >>=7;
-                    lcd_lib_set (DISPLAY_RIGHT/2+2,ROW4-g ,DISPLAY_RIGHT/2+4,ROW4-2);
+                    lcd_lib_set (DISPLAY_RIGHT/2+2-10,ROW3-g ,DISPLAY_RIGHT/2+4-10,ROW3-2);
 
                     // the movement buffer  depth
                     strcpy_P(buffer,PSTR ("BUF"));
