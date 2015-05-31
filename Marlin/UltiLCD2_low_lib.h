@@ -9,27 +9,27 @@
 
 
 // these are in OCTAL, for your convenience.
-#define DEGREE_C_SYMBOL "\036"
-#define ELIPSIS_SYMBOL "\037"
-#define SQUARED_SYMBOL "\034"
-#define CUBED_SYMBOL "\033"
-#define PER_SECOND_SYMBOL "/s"
+#define DEGREE_C_SYMBOL "\x81"
+#define ELIPSIS_SYMBOL '\x82'
+#define SQUARED_SYMBOL "\x80"
+#define CUBED_SYMBOL "\x7f"
+#define PER_SECOND_SYMBOL "/s" 
 
 // this is what appears between two temperature values (ie: current and target temperatures) 
 // Octal 176 is 126 binary, which is a right arrow symbol in the lcd's font
-#define TEMPERATURE_SEPARATOR '\176'
-#define TEMPERATURE_SEPARATOR_S "\176"
+#define TEMPERATURE_SEPARATOR '~'
+#define TEMPERATURE_SEPARATOR_S "~"
 
 void lcd_lib_init();
 void lcd_lib_update_screen();   /* Start sending out the display buffer to the screen. Wait till lcd_lib_update_ready before issuing any draw functions */
 bool lcd_lib_update_ready();
-inline void lcd_lib_wait_for_screen_ready () { while (!lcd_lib_update_ready()) delay(5); } ;
+inline void lcd_lib_wait_for_screen_ready () { while (!lcd_lib_update_ready()) delay(1); } ;
 
 void lcd_lib_draw_string(uint8_t x, uint8_t y, const char* str);
 void lcd_lib_clear_string(uint8_t x, uint8_t y, const char* str);
 void lcd_lib_draw_string_center(uint8_t y, const char* str);
 void lcd_lib_clear_string_center(uint8_t y, const char* str);
-void lcd_lib_draw_stringP(uint8_t x, uint8_t y, const char* pstr);
+void lcd_lib_draw_stringP(uint8_t x, uint8_t y, const char* pstr, bool clear=false);
 void lcd_lib_clear_stringP(uint8_t x, uint8_t y, const char* pstr);
 void lcd_lib_draw_string_centerP(uint8_t y, const char* pstr);
 void lcd_lib_clear_string_centerP(uint8_t y, const char* pstr);

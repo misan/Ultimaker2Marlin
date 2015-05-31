@@ -52,7 +52,7 @@ extern unsigned long estimatedTime;
 #define time_phase_b(spd)  (((millis() >> (15-spd)) & 3)==1)
 #define time_phase_c(spd)  (((millis() >> (15-spd)) & 3)==2)
 #define time_phase_d(spd)  (((millis() >> (15-spd)) & 3)==3)
-#define ROW_HEIGHT 9
+#define ROW_HEIGHT 7
 #define ROW1 1
 #define ROW2 (ROW1+ROW_HEIGHT)		// 9
 #define ROW3 (ROW2+ROW_HEIGHT)		// 18
@@ -114,6 +114,7 @@ void drawMiniBargraph( int x1,int y1,int x2,int y2,double value );
 
 
 
+void processLongFilename();
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 char *  printDigits( byte digits, byte places, char * buffer );
 

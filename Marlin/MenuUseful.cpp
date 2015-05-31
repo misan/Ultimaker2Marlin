@@ -21,10 +21,10 @@ unsigned char  LED_DIM_TIME = 30;
 void updateTempHistory()
 {
     if (!run_history) return;
+	history_position %=HISTORY_SIZE ;
 	lcd_cache_new.getData(LCD_CACHE::TEMPERATURE_HISTORY).temphist.temp_history[history_position] = constrain((int) target_temperature[active_extruder]	- (int)  current_temperature[active_extruder], (int) -127,(int) 127);
     lcd_cache_new.getData(LCD_CACHE::TEMPERATURE_HISTORY).temphist.bed_history[history_position]  = constrain((int) target_temperature_bed					- (int) current_temperature_bed				 , (int) -127,(int) 127);
     history_position++;
-    if (history_position>= HISTORY_SIZE) history_position =0;
 }
 
 //-----------------------------------------------------------------------------------------------------------------
@@ -313,6 +313,7 @@ void printDoneBeep()
 
 
 //-----------------------------------------------------------------------------------------------------------------
+// t in seconds
 char * EchoTimeSpan( unsigned long t, char * buffer, bool seconds )
 {
     unsigned long sec,min,hr;
@@ -399,15 +400,15 @@ void processLongFilename()
     SERIAL_ECHOLNPGM (" ");*/
 
     byte x = strlen(card.longFilename);
-    if (x > 20)
+    if (x > MAX_DISPLAY_FILENAME_LEN)
         {
-            card.longFilename[16] = card.longFilename[x-4];
-            card.longFilename[17] = card.longFilename[x-3];
-            card.longFilename[18] = card.longFilename[x-2];
-            card.longFilename[19] = card.longFilename[x-1];
-            card.longFilename[15] = 31;// ELIPSIS_SYMBOL;
+            card.longFilename[MAX_DISPLAY_FILENAME_LEN-4] = card.longFilename[x-4];
+            card.longFilename[MAX_DISPLAY_FILENAME_LEN-3] = card.longFilename[x-3];
+            card.longFilename[MAX_DISPLAY_FILENAME_LEN-2] = card.longFilename[x-2];
+            card.longFilename[MAX_DISPLAY_FILENAME_LEN-1] = card.longFilename[x-1];
+            card.longFilename[MAX_DISPLAY_FILENAME_LEN-5] = ELIPSIS_SYMBOL;// ELIPSIS_SYMBOL;
         }
-    card.longFilename[20] = '\0';
+    card.longFilename[MAX_DISPLAY_FILENAME_LEN] = '\0';
 
     /*SERIAL_ECHOPGM ("TRIMMED NAME: ")
     SERIAL_ECHO(card.longFilename);

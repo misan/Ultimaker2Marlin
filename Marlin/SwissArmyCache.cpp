@@ -12,7 +12,7 @@ LCDCACHE_FILEDETAIL filedetail;
 
 
 LCD_CACHE lcd_cache_new;
-
+extern byte history_position;
 
 LCD_CACHE_SHARED_DATA & LCD_CACHE::getData( ACCESS_MODE mode )
 	{
@@ -26,9 +26,16 @@ LCD_CACHE_SHARED_DATA & LCD_CACHE::getData( ACCESS_MODE mode )
 	SERIAL_ECHOPGM(("SWITCHING CACHE MODE TO "));
 	SERIAL_ECHOLN (mode);
 #endif
+	// do any other init when the cache switches context
 	switch (current_mode)
 		{
 		case RAWSTRING: c_data.rawstring[0] = 0; break;
+		case TEMPERATURE_HISTORY: history_position = 0; break;
+			
+		case FILELIST:
+			for (int a=0; a<LCD_CACHE_MAX_FILES_CACHED; a++)
+				LCD_CACHE_FILENAME(a)[0]=0;
+			break;
 		}
 	verify();
 
@@ -86,7 +93,7 @@ bool LCD_CACHE::verify()
 					SERIAL_ECHO(" ");
 					SERIAL_ECHO(LCD_CACHE_FILENAME(a));
 					SERIAL_ECHO("=");
-					SERIAL_ECHOLN(LCD_CACHE_FILENAME(a)[MAX_DISPLAY_FILENAME_LEN+1]);
+					SERIAL_ECHOLN((unsigned int) LCD_CACHE_FILENAME(a)[MAX_DISPLAY_FILENAME_LEN+1]);
 					ok = false;
 					}
 				break;

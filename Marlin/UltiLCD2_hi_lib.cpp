@@ -5,11 +5,13 @@
 #ifdef ENABLE_ULTILCD2
 #include "UltiLCD2_hi_lib.h"
 #include "stringHelpers.h"
-
+#include "UltiLCD2.h"
 
 byte menu_depth =0;
-menuFunc_t currentMenu;
-menuFunc_t previousMenu[MENU_DEPTH];
+
+
+menuFunc_t currentMenu= lcd_menu_startup;;
+menuFunc_t pMenu[MENU_DEPTH];
 menuFunc_t postMenuCheck;
 int16_t previousEncoderPos[MENU_DEPTH];
 uint8_t led_glow = 0;
@@ -32,30 +34,48 @@ void lcd_menu_main();
 
 void lcd_menu_go_back()
 {
-    if (menu_depth <1) 
-		lcd_change_to_menu(lcd_menu_main);
+    if (menu_depth <1)
+        lcd_change_to_menu(lcd_menu_main);
     else
         {
             menu_depth--;
-            lcd_change_to_menu(previousMenu[menu_depth], previousEncoderPos[menu_depth]);
+            lcd_change_to_menu(pMenu[menu_depth], previousEncoderPos[menu_depth], false);
         }
 }
 
-menuFunc_t getPrevMenu ()
-	{
-	 
+// menuFunc_t getPrevMenu ()
+// {
+//
+//
+// }
 
+void lcd_do_current_menu ()
+{
+	if ((!lcd_lib_update_ready())) return;
+    if (currentMenu)
+        currentMenu();
+
+}
+
+
+
+void lcd_menu_clear_back () 
+	{
+	 menu_depth=0;
 	}
 
-void lcd_change_to_menu(menuFunc_t nextMenu, int16_t newEncoderPos)
+void lcd_change_to_menu(menuFunc_t nextMenu, int16_t newEncoderPos, bool saveback)
 {
     minProgress = 0;
     led_glow = led_glow_dir = 0;
     LED_WHITE() ;
     lcd_lib_beep();
-    previousMenu[menu_depth] = currentMenu;
-    previousEncoderPos[menu_depth] = lcd_lib_encoder_pos;
-    if (menu_depth < MENU_DEPTH-1) menu_depth++;
+    if (saveback)
+        {
+            pMenu[menu_depth] = currentMenu;
+            previousEncoderPos[menu_depth] = lcd_lib_encoder_pos;
+            if (menu_depth < MENU_DEPTH-1) menu_depth++;
+        }
 
     currentMenu = nextMenu;
     LED_NORMAL();
@@ -204,8 +224,8 @@ void lcd_info_screen(menuFunc_t cancelMenu, menuFunc_t callbackOnCancel, const c
         {
             if (callbackOnCancel) callbackOnCancel();
             if (cancelMenu) lcd_change_to_menu(cancelMenu);
-			else
-				lcd_menu_go_back();
+            else
+                lcd_menu_go_back();
         }
 
     lcd_basic_screen();
@@ -241,13 +261,14 @@ void lcd_question_screen(menuFunc_t optionAMenu, menuFunc_t callbackOnA, const c
                 {
                     if (callbackOnA) callbackOnA();
                     if (optionAMenu) lcd_change_to_menu(optionAMenu);
+					   else lcd_menu_go_back();
                 }
             else
                 if (IS_SELECTED_MAIN(1))
                     {
                         if (callbackOnB) callbackOnB();
                         if (optionBMenu) lcd_change_to_menu(optionBMenu);
-						else lcd_menu_go_back();
+                        else lcd_menu_go_back();
                     }
         }
 
@@ -374,7 +395,7 @@ void lcd_scroll_menu(const char* menuNameP, int8_t entryCount, entryNameCallback
 
             char* ptr = entryNameCallback(itemIdx);
             //ptr[10] = '\0';
-            ptr[20] = '\0';
+            ptr[25] = '\0';
             if (itemIdx == selIndex)
                 {
                     //lcd_lib_set(3, drawOffset+8*n-1, 62, drawOffset+8*n+7);

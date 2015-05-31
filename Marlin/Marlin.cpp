@@ -279,6 +279,10 @@ void spewHello()
 	SERIAL_ECHOPAIR("  Material name buffers= ",(unsigned long)(MATERIAL_NAME_LENGTH* (1+EXTRUDERS)));
 	SERIAL_ECHOLNPGM(" bytes");
 
+	SERIAL_ECHOPAIR("  Millisecond timer= ",(unsigned long)millis());
+	SERIAL_ECHOLNPGM(" ms");
+
+
 	SERIAL_ECHOPGM("VCC: ");
     SERIAL_ECHO(readAVR_VCC());
     SERIAL_ECHOLNPGM("VDC");
@@ -297,11 +301,14 @@ void setup()
     MYSERIAL.begin(BAUDRATE);
 	spewHello();
 	lcd_cache_new.init();
-
+	LED_DIM_TIME = 30;
     initQueue();
     material_name_buf[0]=0;
     material_name[0][0]=0;
+	old_zlift=0.0;
+	old_retraction =0.0;
 
+	run_history = false;
     lcd_init();
 	if (!lcd_material_verify_material_settings())
 		{

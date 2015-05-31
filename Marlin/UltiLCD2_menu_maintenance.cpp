@@ -31,10 +31,10 @@ void lcd_menu_advanced_factory_reset();
 void lcd_menu_advanced_materials_reset();
 void  doMaterialsReset();
 extern bool allow_encoder_acceleration;
-float extruded_amount=0;
+float extruded_amount;
 
 extern unsigned char  LED_DIM_TIME;
-byte adjust_axis = 0;
+// byte adjust_axis = 0;
 
 
 
@@ -295,7 +295,9 @@ void lcd_menu_maintenance_doAction()
                 fanSpeedOverride = -1;
                 WRITE (MOTHERBOARD_FAN,0);
                 setExtruderAutoFanState(EXTRUDER_0_AUTO_FAN_PIN, 0);
-                lcd_change_to_menu(lcd_menu_main);
+				   lcd_menu_go_back();
+				   return;
+                //lcd_change_to_menu(lcd_menu_main);
                 break;
             case MAINTENANCE_MENU_ADJ_BED:
                 lcd_change_to_menu ( lcd_menu_first_run_start_bed_leveling) ;
@@ -453,7 +455,7 @@ void lcd_menu_maintenance_adjust_max_Y()
             //	base_home_pos[1] = max_pos[1];
             Config_StoreSettings();
             enquecommand_P(PSTR("G28 X0 Y0"));
-			lcd_menu_go_back();
+            lcd_menu_go_back();
         }
     lcd_lib_enable_encoder_acceleration(false);
     lcd_lib_clear();
@@ -486,7 +488,7 @@ void lcd_menu_maintenance_adjust_max_X()
             X_MAX_LENGTH = max_pos[0] - X_MIN_POS;
             Config_StoreSettings();
             enquecommand_P(PSTR("G28 X0 Y0"));
-           lcd_menu_go_back();
+            lcd_menu_go_back();
         }
     lcd_lib_enable_encoder_acceleration(false);
     lcd_lib_clear();
@@ -524,6 +526,7 @@ void lcd_menu_maintenance_extrude()
             set_extrude_min_temp(EXTRUDE_MINTEMP);
             target_temperature[active_extruder] = 0;
             lcd_menu_go_back();
+            return;
         }
     lcd_lib_enable_encoder_acceleration(false);
     lcd_lib_clear();
@@ -558,7 +561,10 @@ void lcd_menu_maintenance_advanced_bed_heatup()
         }
     LED_HEAT();
     if (lcd_lib_button_pressed)
-        lcd_menu_go_back();
+        {
+            lcd_menu_go_back();
+            return;
+        }
     lcd_lib_enable_encoder_acceleration(true);
     lcd_lib_clear();
     lcd_lib_draw_string_centerP(ROW2, PSTR("Bed temperature"));
@@ -617,7 +623,8 @@ void doMaterialsReset()
     lcd_lib_beep_ext(500,200);
     lcd_lib_beep_ext(700,350);
     lcd_material_read_current_material();
-    lcd_change_to_menu(lcd_menu_maintenance_doAction);
+    lcd_menu_go_back();
+//    lcd_change_to_menu(lcd_menu_maintenance_doAction);
 }
 
 void doFactoryReset()
@@ -861,7 +868,9 @@ void lcd_menu_maintenance_led()
                     if (led_mode != LED_MODE_ALWAYS_ON)
                         analogWrite(LED_PIN, 0);
                     Config_StoreSettings();
-                    lcd_change_to_menu(lcd_menu_maintenance_doAction, SCROLL_MENU_ITEM_POS(1));
+					   lcd_menu_go_back();
+					   return;
+//                    lcd_change_to_menu(lcd_menu_maintenance_doAction, SCROLL_MENU_ITEM_POS(1));
                 }
             else
                 if (IS_SELECTED_SCROLL(1))

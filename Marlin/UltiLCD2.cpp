@@ -42,7 +42,6 @@ void lcd_lib_show_message();
 
 void updateTempHistory();
 
-static void lcd_menu_startup();
 #ifdef SPECIAL_STARTUP
 static void lcd_menu_special_startup();
 #endif//SPECIAL_STARTUP
@@ -57,8 +56,7 @@ void clearHistory();
 void lcd_init()
 {
     lcd_lib_init();
-    currentMenu = lcd_menu_startup;
-    analogWrite(LED_PIN, 0);
+     analogWrite(LED_PIN, 0);
     lastSerialCommandTime = millis() - SERIAL_CONTROL_TIMEOUT;
 }
 
@@ -90,7 +88,7 @@ void doStoppedScreen()
 //-----------------------------------------------------------------------------------------------------------------
 void lcd_update()
 {
-    lcd_lib_wait_for_screen_ready();
+    
     lcd_lib_buttons_update();
     card.updateSDInserted();
 
@@ -109,7 +107,7 @@ void lcd_update()
                         updateTempHistory();
                 }
         }
-
+	
     if (IsStopped())
         doStoppedScreen();
     else
@@ -117,19 +115,21 @@ void lcd_update()
             {
                 if (!serialScreenShown)
                     {
+						if (!lcd_lib_update_ready())  return;
                         lcd_lib_clear();
                         lcd_lib_draw_string_centerP(20, PSTR("Printing with USB..."));
                         lcd_lib_show_message(40);
                         serialScreenShown = true;
+						lcd_lib_update_screen();
                     }
                 if (printing_state == PRINT_STATE_HEATING || printing_state == PRINT_STATE_HEATING_BED || printing_state == PRINT_STATE_HOMING)
                     lastSerialCommandTime = millis();
-                lcd_lib_update_screen();
+                
             }
         else
             {
                 serialScreenShown = false;
-                currentMenu();
+                lcd_do_current_menu();
                 if (postMenuCheck) postMenuCheck();
             }
 }
@@ -143,7 +143,6 @@ void lcd_menu_startup()
     lcd_lib_wait_for_screen_ready();
     if (led_glow < 84)
         {
-
             lcd_lib_draw_gfx(40, 0, ultimakerRobotGfx);
 //            lcd_lib_draw_gfx(0, 22, ultimakerTextGfx);
             for(uint8_t n=0; n<10; n++)
@@ -164,13 +163,6 @@ void lcd_menu_startup()
                         lcd_lib_clear(0, 22+n*2, 127, 23+n*2);
 #endif
                 }
-            /*
-            }else if (led_glow < 86) {
-                led_glow--;
-                //lcd_lib_set();
-                //lcd_lib_clear_gfx(0, 22, ultimakerTextGfx);
-                lcd_lib_draw_gfx(0, 22, ultimakerTextGfx);
-            */
         }
     else
         {
@@ -179,12 +171,6 @@ void lcd_menu_startup()
             //lcd_lib_clear_gfx(0, 22, ultimakerTextOutlineGfx);
             // lcd_lib_draw_gfx(0, 22, ultimakerTextGfx);
         }
-// 
-// 	static byte ramp_up = 0;
-// 	if (ramp_up < led_brightness_level) ramp_up++;
-// 	if (led_mode == LED_MODE_ALWAYS_ON)
-// 		analogWrite(LED_PIN, 255 * ramp_up / 100);
-
     lcd_lib_update_screen();
     if (led_glow_dir || lcd_lib_button_pressed)
         {
@@ -198,19 +184,12 @@ void lcd_menu_startup()
 #else
             if (!IS_FIRST_RUN_DONE())
                 {
-                    currentMenu = lcd_menu_first_run_init;
+					lcd_change_to_menu(lcd_menu_first_run_init,ENCODER_NO_SELECTION,false);
                 }
             else
                 {
-                    //                  lcd_lib_clear();
-// 			lcd_lib_draw_string_center(10,"UM" SQUARED_SYMBOL " - Nerd fork");
-// 			lcd_lib_draw_string_center(30,STRING_CONFIG_H_AUTHOR);
-// 			lcd_lib_draw_string_center(40,STRING_VERSION_CONFIG_H);
                     lcd_lib_led_color(255,255,255,false);
-//                    lcd_lib_update_screen();
-
-//			delay (2500);
-                    currentMenu = lcd_menu_main;
+					lcd_change_to_menu(lcd_menu_main,ENCODER_NO_SELECTION,false);
                     LED_GLOW();
                 }
 #endif//SPECIAL_STARTUP
@@ -292,8 +271,8 @@ void lcd_menu_main()
             delay(35);
             return;
         }
-
-    lcd_lib_wait_for_screen_ready();
+	lcd_menu_clear_back();
+     if (!lcd_lib_update_ready()) return;
     lcd_lib_clear();
 
     lcd_triple_menu_low(PSTR("PRINT"), PSTR("FILA"), PSTR("SYSTEM"));
@@ -308,6 +287,7 @@ void lcd_menu_main()
                         {
                             lcd_cache_new.getData(LCD_CACHE::NO_MODE);
                             card.release();
+							file_read_delay_counter = FILE_READ_DELAY;
                             lcd_change_to_menu(lcd_sd_filemenu_doAction, SCROLL_MENU_ITEM_POS(0));
                         }
                         break;
@@ -453,7 +433,7 @@ char* drawSystemInfoScreen( char* c, char * buffer )
 {
     c = buffer+8;
     strcpy_P(buffer, PSTR("UPTIME:     "));
-    c =EchoTimeSpan(millis() / 1000L,c);
+    c =EchoTimeSpan(millis() / 1000UL,c);
     *c++=0;
     lcd_lib_draw_string_center(ROW2,buffer);
     static float last_voltage = readVoltage();
@@ -472,7 +452,7 @@ char* drawSystemInfoScreen( char* c, char * buffer )
     strcpy_P(buffer, PSTR("PSU:"));
     c = float_to_string(last_voltage, c, PSTR("v"));
     *c++=0;
-    lcd_lib_draw_string_right(ROW3, buffer);
+    lcd_lib_draw_string_right(ROW3, buffer,120);
 
 #ifdef DHT_ENVIRONMENTAL_SENSOR
 
@@ -485,7 +465,7 @@ char* drawSystemInfoScreen( char* c, char * buffer )
     c = buffer+6;
     strcpy_P(buffer, PSTR("HUMID:"));
     c = int_to_string(last_humid, c,  PSTR( "%"));
-    lcd_lib_draw_string_right (ROW4, buffer);
+    lcd_lib_draw_string_right (ROW4, buffer,120);
 #endif
     c = buffer+10;
     strcpy_P(buffer, PSTR("Free Mem: "));

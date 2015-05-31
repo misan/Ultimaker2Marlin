@@ -22,7 +22,7 @@ extern char main_menu_x_offset;
 #define IS_SELECTED_MAIN(n) ((n) == SELECTED_MAIN_MENU_ITEM())
 #define IS_SELECTED_SCROLL(n) ((n) == SELECTED_SCROLL_MENU_ITEM())
 
-void lcd_change_to_menu(menuFunc_t nextMenu, int16_t newEncoderPos = ENCODER_NO_SELECTION);
+void lcd_change_to_menu(menuFunc_t nextMenu, int16_t newEncoderPos = ENCODER_NO_SELECTION, bool saveback= true);
 
 void lcd_tripple_menu(const char* left, const char* right, const char* bottom);
 void lcd_basic_screen();
@@ -47,10 +47,9 @@ extern uint8_t lcd_setting_type;
 extern int16_t lcd_setting_min;
 extern int16_t lcd_setting_max;
 
-#define MENU_DEPTH 6
-
-extern menuFunc_t currentMenu;
-extern menuFunc_t previousMenu[MENU_DEPTH];
+#define MENU_DEPTH 10
+void lcd_menu_clear_back () ;
+void lcd_do_current_menu();
 extern menuFunc_t postMenuCheck;
 extern int16_t previousEncoderPos[MENU_DEPTH];
 extern uint8_t minProgress;

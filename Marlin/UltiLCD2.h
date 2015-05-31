@@ -40,6 +40,8 @@ extern uint8_t led_mode;
 
 void lcd_menu_main();
 
+void lcd_menu_startup();
+void doCooldown();
 #endif
 
 #endif//ULTI_LCD2_H

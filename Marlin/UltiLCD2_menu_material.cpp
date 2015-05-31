@@ -107,7 +107,7 @@ void lcd_menu_material()
 
     lcd_lib_update_screen();
 #else
-    currentMenu = lcd_menu_material_main;
+    lcd_change_to_menu(lcd_menu_material_main,ENCODER_NO_SELECTION,false);
 #endif
 }
 
@@ -128,7 +128,7 @@ static void lcd_menu_material_main()
                     lcd_change_to_menu(lcd_menu_material_select, SCROLL_MENU_ITEM_POS(0));
                 else
                     if (IS_SELECTED_MAIN(2))
-                        lcd_change_to_menu(lcd_menu_main);
+                        lcd_menu_go_back();
         }
 
     lcd_lib_update_screen();
@@ -163,7 +163,7 @@ static void lcd_menu_change_material_preheat()
             max_feedrate[E_AXIS] = old_max_feedrate_e;
             retract_acceleration = old_retract_acceleration;
 
-            currentMenu = lcd_menu_change_material_remove;
+            lcd_change_to_menu(lcd_menu_change_material_remove,ENCODER_NO_SELECTION,false);
             temp = target;
         }
 
@@ -203,7 +203,7 @@ static void lcd_menu_change_material_remove()
         {
             lcd_lib_beep();
             led_glow_dir = led_glow = 0;
-            currentMenu = lcd_menu_change_material_remove_wait_user;
+            lcd_change_to_menu(lcd_menu_change_material_remove_wait_user,ENCODER_NO_SELECTION,false);
             SELECT_MAIN_MENU_ITEM(0);
             //Disable the extruder motor so you can pull out the remaining filament.
             disable_e0();
@@ -298,7 +298,8 @@ static void lcd_menu_change_material_insert_forward()
             led_glow_dir = led_glow = 0;
 
             digipot_current(2, motor_current_setting[2]*2/3);//Set the E motor power lower to we skip instead of grind.
-            currentMenu = lcd_menu_change_material_insert;
+            lcd_change_to_menu(lcd_menu_change_material_insert,ENCODER_NO_SELECTION,false);
+
             SELECT_MAIN_MENU_ITEM(0);
         }
 
@@ -378,8 +379,8 @@ static void lcd_menu_change_material_select_material()
     if (lcd_lib_button_pressed)
         {
             lcd_material_set_material(SELECTED_SCROLL_MENU_ITEM(), active_extruder);
-
-            lcd_change_to_menu(lcd_menu_material_selected, MAIN_MENU_ITEM_POS(0));
+			lcd_menu_go_back();
+//            lcd_change_to_menu(lcd_menu_material_selected, MAIN_MENU_ITEM_POS(0));
         }
 }
 
@@ -455,15 +456,15 @@ static void lcd_menu_material_select()
     if (lcd_lib_button_pressed)
         {
             if (IS_SELECTED_SCROLL(0))
-                lcd_change_to_menu(lcd_menu_material_main);
+               lcd_menu_go_back();
             else
                 if (IS_SELECTED_SCROLL(count + 1))
                     lcd_change_to_menu(lcd_menu_material_settings);
                 else
                     {
                         lcd_material_set_material(SELECTED_SCROLL_MENU_ITEM() - 1, active_extruder);
-
-                        lcd_change_to_menu(lcd_menu_material_selected, MAIN_MENU_ITEM_POS(0));
+						lcd_menu_go_back();
+//                        lcd_change_to_menu(lcd_menu_material_selected, MAIN_MENU_ITEM_POS(0));
                     }
         }
 }
@@ -557,7 +558,8 @@ static void lcd_menu_material_settings()
         {
             if (IS_SELECTED_SCROLL(0))
                 {
-                    lcd_change_to_menu(lcd_menu_material_main);
+				lcd_menu_go_back();
+//                    lcd_change_to_menu(lcd_menu_material_main);
                     lcd_material_store_current_material();
                 }
             else
@@ -628,7 +630,7 @@ static void lcd_menu_material_settings_store()
                     lcd_material_store_material(idx);
                     lcd_lib_beep_ext (600,100);
                 }
-            lcd_change_to_menu(lcd_menu_material_settings, SCROLL_MENU_ITEM_POS(6));
+            lcd_menu_go_back();
         }
 }
 
@@ -771,8 +773,8 @@ bool lcd_material_verify_material_settings()
 //-----------------------------------------------------------------------------------------------------------------
 void makeCustomName( uint8_t idx )
 {
-	String buf (PSTR ("CUSTOM_")) ;
-	buf+= idx - 1 - MATERIAL_PRESETS+2;
+    String buf (PSTR ("CUSTOM_")) ;
+    buf+= idx - 1 - MATERIAL_PRESETS+2;
     strcpy (material_name_buf,buf.c_str());
 }
 #endif//ENABLE_ULTILCD2

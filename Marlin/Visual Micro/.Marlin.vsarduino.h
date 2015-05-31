@@ -87,6 +87,10 @@ extern "C" void __cxa_pure_virtual() {;}
 #include <DHT.cpp>
 #include <DHT.h>
 #include <DOGMbitmaps.h>
+#include <FONT_Arial5x6.h>
+#include <FONT_Standard5x7.h>
+#include <FONT_small4x6.h>
+#include <FONT_smaller.h>
 #include <LiquidCrystalRus.cpp>
 #include <LiquidCrystalRus.h>
 #include <Marlin.cpp>

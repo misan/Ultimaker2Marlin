@@ -61,6 +61,7 @@
 #include "language.h"
 #include "MenuUseful.h"
 #include "gcode.h"
+#include "UltiLCD2_menu_print.h"
 
 
 float quality = 1.0;
