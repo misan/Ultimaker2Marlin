@@ -87,7 +87,7 @@ void lcd_menu_material()
 #if EXTRUDERS > 1
     lcd_tripple_menu(PSTR("PRIMARY|NOZZLE"), PSTR("SECONDARY|NOZZLE"), PSTR("RETURN"));
 
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             if (IS_SELECTED_MAIN(0))
                 {
@@ -114,8 +114,9 @@ void lcd_menu_material()
 static void lcd_menu_material_main()
 {
     lcd_tripple_menu(PSTR("CHANGE"), PSTR("SETTINGS"), PSTR("RETURN"));
+	if (millis() - last_user_interaction > MENU_TIMEOUT) lcd_menu_go_back();
 
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             if (IS_SELECTED_MAIN(0))
                 {
@@ -374,9 +375,10 @@ static void lcd_menu_change_material_select_material_details_callback(uint8_t nr
 static void lcd_menu_change_material_select_material()
 {
     uint8_t count = eeprom_read_byte(EEPROM_MATERIAL_COUNT_OFFSET());
+	if (millis() - last_user_interaction > MENU_TIMEOUT) lcd_menu_go_back();
 
     lcd_scroll_menu(PSTR("MATERIAL"), count, lcd_menu_change_material_select_material_callback, lcd_menu_change_material_select_material_details_callback);
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             lcd_material_set_material(SELECTED_SCROLL_MENU_ITEM(), active_extruder);
 			lcd_menu_go_back();
@@ -451,9 +453,10 @@ static void lcd_material_select_details_callback(uint8_t nr)
 static void lcd_menu_material_select()
 {
     uint8_t count = eeprom_read_byte(EEPROM_MATERIAL_COUNT_OFFSET());
+	if (millis() - last_user_interaction > MENU_TIMEOUT) lcd_menu_go_back();
 
     lcd_scroll_menu(PSTR("MATERIAL"), count + MATERIAL_PRESETS, lcd_material_select_callback, lcd_material_select_details_callback);
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             if (IS_SELECTED_SCROLL(0))
                lcd_menu_go_back();
@@ -519,6 +522,8 @@ static void lcd_material_settings_details_callback(uint8_t nr)
     char buffer[10];
     memset (buffer,0,sizeof(buffer));
     ;
+	if (millis() - last_user_interaction > MENU_TIMEOUT) lcd_menu_go_back();
+
     if (nr == 0)
         {
             return;
@@ -554,7 +559,9 @@ static void lcd_material_settings_details_callback(uint8_t nr)
 static void lcd_menu_material_settings()
 {
     lcd_scroll_menu(PSTR("MATERIAL"), 7, lcd_material_settings_callback, lcd_material_settings_details_callback);
-    if (lcd_lib_button_pressed)
+	if (millis() - last_user_interaction > MENU_TIMEOUT) lcd_menu_go_back();
+
+    if (lcd_lib_button_pressed())
         {
             if (IS_SELECTED_SCROLL(0))
                 {
@@ -615,8 +622,9 @@ static void lcd_menu_material_settings_store()
     if (count == EEPROM_MATERIAL_SETTINGS_MAX_COUNT)
         count--;
     lcd_scroll_menu(PSTR("PRESETS"), MATERIAL_PRESETS + count, lcd_menu_material_settings_store_callback, lcd_menu_material_settings_store_details_callback);
+	if (millis() - last_user_interaction > MENU_TIMEOUT) lcd_menu_go_back();
 
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             if (!IS_SELECTED_SCROLL(0))
                 {

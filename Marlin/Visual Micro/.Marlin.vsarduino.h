@@ -88,6 +88,7 @@ extern "C" void __cxa_pure_virtual() {;}
 #include <DHT.h>
 #include <DOGMbitmaps.h>
 #include <FONT_Arial5x6.h>
+#include <FONT_Giant_16pixels.h>
 #include <FONT_Standard5x7.h>
 #include <FONT_small4x6.h>
 #include <FONT_smaller.h>
@@ -99,6 +100,8 @@ extern "C" void __cxa_pure_virtual() {;}
 #include <MarlinSerial.h>
 #include <MenuUseful.cpp>
 #include <MenuUseful.h>
+#include <PeriodTimer.cpp>
+#include <PeriodTimer.h>
 #include <ScreenSaver.cpp>
 #include <ScreenSaver.h>
 #include <Sd2Card.cpp>

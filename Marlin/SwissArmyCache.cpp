@@ -74,7 +74,8 @@ bool LCD_CACHE::verify()
 	switch (current_mode)
 		{
 		case RAWSTRING:
-			if (strlen(c_data.rawstring) > sizeof (c_data) )
+			c_data.rawstring[sizeof(c_data)-1] = 0;
+			if (strnlen(c_data.rawstring, sizeof (c_data) -1) >= sizeof (c_data) -1 )
 				{
 				SERIAL_ECHO_START ;
 				SERIAL_ECHOPGM(("String mode overrun: "));

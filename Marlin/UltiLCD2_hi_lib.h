@@ -4,6 +4,12 @@
 #include "UltiLCD2_low_lib.h"
 #include "UltiLCD2_gfx.h"
 
+
+// how long before the tune menu goes back to the previous screen
+const unsigned long MENU_TIMEOUT = 30000UL;
+
+
+
 typedef void (*menuFunc_t)();
 typedef char* (*entryNameCallback_t)(uint8_t nr);
 typedef void (*entryDetailsCallback_t)(uint8_t nr);

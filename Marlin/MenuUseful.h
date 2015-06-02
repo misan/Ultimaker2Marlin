@@ -68,6 +68,7 @@ extern unsigned long estimatedTime;
  
 
 extern unsigned char LED_DIM_TIME;
+void updateTempHistory( );
 bool lcd_lib_show_message(int position, bool decrement = true);
 void forceMessage ();
 

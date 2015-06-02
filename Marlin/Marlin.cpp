@@ -58,6 +58,7 @@
 #include "UltiLCD2_menu_material.h"
 #include "voltage.h"
 #include "gcode.h"
+#include "PeriodTimer.h"
 
 
 #define VERSION_STRING  "2.1.0"
@@ -222,13 +223,11 @@ void servo_init()
 #endif
 }
 //-----------------------------------------------------------------------------------------------------------------
-void updateAmbientSensor();
-
 
 //-----------------------------------------------------------------------------------------------------------------
 void spewHello()
 {
-	SERIAL_ECHOLNPGM(STRING_BIG_LINE);
+    SERIAL_ECHOLNPGM(STRING_BIG_LINE);
     SERIAL_PROTOCOLLNPGM("start");
     SERIAL_ECHO_START;
 
@@ -263,35 +262,39 @@ void spewHello()
     SERIAL_ECHOPAIR(" x ",(unsigned long)sizeof(block_t) );
     SERIAL_ECHOLNPGM(" bytes) ");
 
-	SERIAL_ECHOPAIR("  LCD_CACHE=",(unsigned long)sizeof(lcd_cache_new) );
-	SERIAL_ECHOLNPGM(" bytes");
+    SERIAL_ECHOPAIR("  LCD_CACHE=",(unsigned long)sizeof(lcd_cache_new) );
+    SERIAL_ECHOLNPGM(" bytes");
 
-	SERIAL_ECHOPAIR("  Screen buffer= ",(unsigned long)LCD_GFX_WIDTH * (LCD_GFX_HEIGHT+1) / 8);
-	SERIAL_ECHOLNPGM(" bytes");
+    SERIAL_ECHOPAIR("  Screen buffer= ",(unsigned long)LCD_GFX_WIDTH * (LCD_GFX_HEIGHT+1) / 8);
+    SERIAL_ECHOLNPGM(" bytes");
 
-	SERIAL_ECHOPAIR("  Command buffer= ",(unsigned long)BUFSIZE);
-	SERIAL_ECHOPAIR("  commands for  ",(unsigned long)BUFSIZE*MAX_CMD_SIZE);
-	SERIAL_ECHOLNPGM(" bytes");
+    SERIAL_ECHOPAIR("  Command buffer= ",(unsigned long)BUFSIZE);
+    SERIAL_ECHOPAIR("  commands for  ",(unsigned long)BUFSIZE*MAX_CMD_SIZE);
+    SERIAL_ECHOLNPGM(" bytes");
 
-	SERIAL_ECHOPAIR("  Serial RX comm buffer= ",(unsigned long)sizeof (rx_buffer) );
-	SERIAL_ECHOLNPGM(" bytes");
+    SERIAL_ECHOPAIR("  Serial RX comm buffer= ",(unsigned long)sizeof (rx_buffer) );
+    SERIAL_ECHOLNPGM(" bytes");
 
-	SERIAL_ECHOPAIR("  Material name buffers= ",(unsigned long)(MATERIAL_NAME_LENGTH* (1+EXTRUDERS)));
-	SERIAL_ECHOLNPGM(" bytes");
+    SERIAL_ECHOPAIR("  Material name buffers= ",(unsigned long)(MATERIAL_NAME_LENGTH* (1+EXTRUDERS)));
+    SERIAL_ECHOLNPGM(" bytes");
 
-	SERIAL_ECHOPAIR("  Millisecond timer= ",(unsigned long)millis());
-	SERIAL_ECHOLNPGM(" ms");
+    SERIAL_ECHOPAIR("  Millisecond timer= ",(unsigned long)millis());
+    SERIAL_ECHOLNPGM(" ms");
 
 
-	SERIAL_ECHOPGM("VCC: ");
+    SERIAL_ECHOPGM("VCC: ");
     SERIAL_ECHO(readAVR_VCC());
     SERIAL_ECHOLNPGM("VDC");
 
     SERIAL_ECHOPGM("PSU Voltage: ");
     SERIAL_ECHO(readVoltage());
     SERIAL_ECHOLNPGM("VDC");
-	SERIAL_ECHOLNPGM(STRING_BIG_LINE);
+    SERIAL_ECHOLNPGM(STRING_BIG_LINE);
 }
+
+extern unsigned long bins_a[16];
+extern unsigned long bins_d[16];
+
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void setup()
@@ -299,27 +302,27 @@ void setup()
     setup_killpin();
     setup_powerhold();
     MYSERIAL.begin(BAUDRATE);
-	spewHello();
-	lcd_cache_new.init();
-	LED_DIM_TIME = 30;
+    spewHello();
+    lcd_cache_new.init();
+    LED_DIM_TIME = 30;
     initQueue();
     material_name_buf[0]=0;
     material_name[0][0]=0;
-	old_zlift=0.0;
-	old_retraction =0.0;
+    old_zlift=0.0;
+    old_retraction =0.0;
 
-	run_history = false;
+    run_history = false;
     lcd_init();
-	if (!lcd_material_verify_material_settings())
-		{
-		SERIAL_ECHO_START;
-		SERIAL_ECHOLNPGM("Invalid material settings found, resetting to defaults");
-		lcd_material_reset_defaults();
-		for(uint8_t e=0; e<EXTRUDERS; e++)
-			lcd_material_set_material(0, e);
-		}
-	lcd_material_read_current_material();
-	SERIAL_ECHOLNPGM(STRING_BIG_LINE);
+    if (!lcd_material_verify_material_settings())
+        {
+            SERIAL_ECHO_START;
+            SERIAL_ECHOLNPGM("Invalid material settings found, resetting to defaults");
+            lcd_material_reset_defaults();
+            for(uint8_t e=0; e<EXTRUDERS; e++)
+                lcd_material_set_material(0, e);
+        }
+    lcd_material_read_current_material();
+    SERIAL_ECHOLNPGM(STRING_BIG_LINE);
     // loads data from EEPROM if available else uses defaults (and resets step acceleration rate)
     Config_RetrieveSettings();
     lifetime_stats_init();
@@ -352,10 +355,87 @@ void setup()
     lcd_lib_beep_ext(880,25);
     lcd_lib_beep_ext(1320,100);
 #endif
-		SERIAL_ECHOLNPGM(STRING_BIG_LINE);
-		lastMotorCheck=previous_millis_cmd=last_user_interaction = millis();
+    SERIAL_ECHOLNPGM(STRING_BIG_LINE);
+    lastMotorCheck=previous_millis_cmd=last_user_interaction = millis();
+	starttime =0;
+	last_print_name[0]=0;
+	estimatedTime=0;
+	memset (bins_a,0,sizeof (bins_a));
+	memset (bins_d,0,sizeof (bins_d));
+	
+	stoptime = 0;
 }
 
+
+#define BED_PID_CHECK_INTERVAL 100
+#define EXTRUDER_PID_CHECK_INTERVAL 100
+#define UI_UPDATE_INTERVAL 20
+
+PeriodTimer ui_timer (lcd_update,UI_UPDATE_INTERVAL);
+
+PeriodTimer extruder_temp_timer (manage_heater,EXTRUDER_PID_CHECK_INTERVAL);
+PeriodTimer temp_log_timer (updateTempHistory,1000);
+PeriodTimer inactivity_timer (manage_inactivity,1000);
+PeriodTimer bed_light_timer (manage_Bed_Lights,100);
+PeriodTimer stats_timer (lifetime_stats_tick,60000);
+PeriodTimer ambient_timer (updateAmbientSensor,10000);
+
+
+
+#if defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1
+PeriodTimer head_cooling_fan_timer (checkExtruderAutoFans,FAN_CHECK_INTERVAL);
+#endif
+
+#ifndef PIDTEMPBED
+PeriodTimer bed_temp_timer (manage_bed,BED_CHECK_INTERVAL);
+#else
+PeriodTimer bed_temp_timer (manage_bed,BED_PID_CHECK_INTERVAL);
+#endif
+
+#ifdef REPORT_TEMPS
+PeriodTimer temp_logging_timer (report_temps,2000);
+#endif
+#if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
+PeriodTimer mobo_cooling_fan_timer (controllerFan,FAN_CHECK_INTERVAL);
+#if defined(FAN_PIN)
+#if CONTROLLERFAN_PIN == FAN_PIN
+#error "You cannot set CONTROLLERFAN_PIN equal to FAN_PIN"
+#endif
+#endif
+
+
+
+
+
+//-----------------------------------------------------------------------------------------------------------------
+void runTasks(bool with_command_processing)
+{
+    if (with_command_processing)
+        {
+            manageBuffer();
+            checkHitEndstops();
+        }
+    ui_timer.tick();
+    inactivity_timer.tick();
+    bed_temp_timer.tick();
+    extruder_temp_timer.tick();
+#if defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1
+    head_cooling_fan_timer.tick();
+#endif
+
+    stats_timer.tick();
+    bed_light_timer.tick();
+#if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
+    mobo_cooling_fan_timer.tick();
+#endif
+
+#ifdef REPORT_TEMPS
+    temp_logging_timer.tick();
+#endif
+	temp_log_timer.tick();
+	ambient_timer.tick();
+
+}
 
 //-----------------------------------------------------------------------------------------------------------------
 void loop()
@@ -365,15 +445,7 @@ void loop()
 #ifdef SDSUPPORT
     card.checkautostart(false);
 #endif
-
-    manageBuffer();
-
-    //check heater every n milliseconds
-    manage_heater();
-    manage_inactivity();
-    checkHitEndstops();
-    lcd_update();
-    lifetime_stats_tick();
+    runTasks(true);
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -430,77 +502,70 @@ void calculate_delta(float cartesian[3])
 #endif
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
-
-#if defined(FAN_PIN)
-#if CONTROLLERFAN_PIN == FAN_PIN
-#error "You cannot set CONTROLLERFAN_PIN equal to FAN_PIN"
-#endif
-#endif
-
-//-----------------------------------------------------------------------------------------------------------------
-void report_temps();
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void controllerFan()
 {
-    if ((millis() - lastMotorCheck) >=FAN_CHECK_INTERVAL) //Not a time critical function, so we only check every 2500ms
+    if (last_temp > CASE_FAN_ON_THRESHOLD)
         {
-            lastMotorCheck = millis();
-			if (last_temp > CASE_FAN_ON_THRESHOLD) 
-				{ 
-				// allows digital or PWM fan output to be used (see M42 handling)
-				digitalWrite(CONTROLLERFAN_PIN, CONTROLLERFAN_SPEED);
-				analogWrite(CONTROLLERFAN_PIN, CONTROLLERFAN_SPEED);
-				return;
-				}
+            // allows digital or PWM fan output to be used (see M42 handling)
+            digitalWrite(CONTROLLERFAN_PIN, CONTROLLERFAN_SPEED);
+            analogWrite(CONTROLLERFAN_PIN, CONTROLLERFAN_SPEED);
+            return;
+        }
 
-            if(!READ(X_ENABLE_PIN) || !READ(Y_ENABLE_PIN) || !READ(Z_ENABLE_PIN)
+    if(!READ(X_ENABLE_PIN) || !READ(Y_ENABLE_PIN) || !READ(Z_ENABLE_PIN)
 #if EXTRUDERS > 2
-                    || !READ(E2_ENABLE_PIN)
+            || !READ(E2_ENABLE_PIN)
 #endif
 #if EXTRUDER > 1
-                    || !READ(E1_ENABLE_PIN)
+            || !READ(E1_ENABLE_PIN)
 #endif
-                    || !READ(E0_ENABLE_PIN)) //If any of the drivers are enabled...
-                {
-                    lastMotor = millis(); //... set time to NOW so the fan will turn on
-                }
-
-            if ((millis() - lastMotor) >= (CONTROLLERFAN_SECS*1000UL) || lastMotor == 0) //If the last time any driver was enabled, is longer since than CONTROLLERSEC...
-                {
-                    digitalWrite(CONTROLLERFAN_PIN, 0);
-                    analogWrite(CONTROLLERFAN_PIN, 0);
-                }
-            else
-                {
-                    // allows digital or PWM fan output to be used (see M42 handling)
-                    digitalWrite(CONTROLLERFAN_PIN, CONTROLLERFAN_SPEED);
-                    analogWrite(CONTROLLERFAN_PIN, CONTROLLERFAN_SPEED);
-                }
-#ifdef REPORT_TEMPS
-            report_temps();
-#endif
-
-
+            || !READ(E0_ENABLE_PIN)) //If any of the drivers are enabled...
+        {
+            lastMotor = millis(); //... set time to NOW so the fan will turn on
         }
+
+    if ((millis() - lastMotor) >= (CONTROLLERFAN_SECS*1000UL) || lastMotor == 0) //If the last time any driver was enabled, is longer since than CONTROLLERSEC...
+        {
+            digitalWrite(CONTROLLERFAN_PIN, 0);
+            analogWrite(CONTROLLERFAN_PIN, 0);
+        }
+    else
+        {
+            // allows digital or PWM fan output to be used (see M42 handling)
+            digitalWrite(CONTROLLERFAN_PIN, CONTROLLERFAN_SPEED);
+            analogWrite(CONTROLLERFAN_PIN, CONTROLLERFAN_SPEED);
+        }
+
+
+
 }
 #endif
+
+
+//-----------------------------------------------------------------------------------------------------------------
+void manage_Bed_Lights()
+{
+    static byte dimmer  = 0;
+    bed_light_timer.setPeriod(100);
+    if (LED_DIM_TIME>0 && (millis() - last_user_interaction > LED_DIM_TIME*MILLISECONDS_PER_MINUTE ))
+        {
+            if (dimmer > DIM_LEVEL) dimmer--;
+            else bed_light_timer.setPeriod(1000);
+        }
+    else
+        {
+
+            if (dimmer <  led_brightness_level-2) dimmer+=2;
+            else bed_light_timer.setPeriod(1000);
+        }
+    analogWrite(LED_PIN, 255 * int(dimmer) / 100);
+}
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void manage_inactivity()
 {
-	static byte dimmer  = 0;
-
-    if (LED_DIM_TIME>0 && (millis() - last_user_interaction > LED_DIM_TIME*MILLISECONDS_PER_MINUTE ))
-        {
-			if (dimmer > DIM_LEVEL) dimmer--;
-        }
-    else
-       { 
-	   	if (dimmer <  led_brightness_level-2) dimmer+=2;
-		}
-	analogWrite(LED_PIN, 255 * int(dimmer) / 100);
 
     if(max_inactive_time)
         if( (millis() - previous_millis_cmd) >  max_inactive_time )
@@ -541,9 +606,7 @@ void manage_inactivity()
             Stop(STOP_REASON_SAFETY_TRIGGER);
         }
 #endif
-#if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
-    controllerFan(); //Check if fan should be turned on to cool stepper drivers down
-#endif
+
 #ifdef EXTRUDER_RUNOUT_PREVENT
     if( (millis() - previous_millis_cmd) >  EXTRUDER_RUNOUT_SECONDS*1000 )
         if(degHotend(active_extruder)>EXTRUDER_RUNOUT_MINTEMP)

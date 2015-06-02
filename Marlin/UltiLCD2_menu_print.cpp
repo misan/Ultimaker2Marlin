@@ -27,16 +27,12 @@
 
 // #pragma GCC diagnostic pop
 
-// how long before the tune menu goes back to the printing screen
-const unsigned long PRINTMENU_TIMEOUT = 30000UL;
-
-
 unsigned int total_layers = 1;
 
-float old_zlift=0;
-float old_retraction =0;
+float old_zlift;
+float old_retraction ;
 
-float estimated_filament_length_in_m =0;
+float estimated_filament_length_in_m;
 
 char last_print_name[LONG_FILENAME_LENGTH];
 
@@ -551,7 +547,7 @@ void lcd_sd_filemenu_doAction()
             return;
         }
 
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             uint8_t selIndex = uint16_t(SELECTED_SCROLL_MENU_ITEM());
             if (selIndex == 0)
@@ -776,6 +772,7 @@ void lcd_menu_print_heatup()
 bool inhibitDrawOnSlowdowns()
 	{
 	static byte slow_buffer_counter =0;
+	if (lcd_lib_button_pressed()) return false;
 	if (!card.pause)
 		{
 		if (movesplanned() < 2) slow_buffer_counter+=1;
@@ -1255,13 +1252,13 @@ char* lcd_menu_print_tune_getString(uint8_t nr)
                 strcpy_P(c, PSTR("Nudge Bed Down 0.1mm"));
                 break;
             case MENU_PRINT_TUNE_DISABLE_RETRACTION:
-                if (old_retraction == 0)
+                if (old_retraction == 0.0)
                     strcpy_P(c, PSTR("Disable Retraction"));
                 else
                     strcpy_P(c, PSTR("Enable  Retraction"));
                 break;
             case MENU_PRINT_TUNE_DISABLE_ZLIFT:
-                if (old_zlift ==0 )
+                if (old_zlift ==0.0 )
                     strcpy_P(c, PSTR("Disable Z-Lift"));
                 else
                     strcpy_P(c, PSTR("Enable  Z-Lift"));
@@ -1369,7 +1366,7 @@ void lcd_menu_print_tune_doAction()
     lcd_scroll_menu(PSTR("TUNE"),MENU_PRINT_TUNE_MAX, lcd_menu_print_tune_getString, lcd_menu_print_tune_getDetails);
 //    lcd_scroll_menu(PSTR("TUNE"), 8 + EXTRUDERS * 2, tune_item_callback, tune_item_details_callback);
 
-    if (millis() - last_user_interaction > PRINTMENU_TIMEOUT )		// 30 seconds, idle out of menu because we won't advance from preheating to printing if we don;t
+    if (millis() - last_user_interaction > MENU_TIMEOUT )		// 30 seconds, idle out of menu because we won't advance from preheating to printing if we don;t
         {
 		lcd_menu_go_back();
 //             if (card.sdprinting)
@@ -1378,7 +1375,7 @@ void lcd_menu_print_tune_doAction()
 //                 lcd_change_to_menu(lcd_menu_print_heatup);
         }
 
-    if (!lcd_lib_button_pressed) return;
+    if (!lcd_lib_button_pressed()) return;
     byte index = 0;
     switch (SELECTED_SCROLL_MENU_ITEM())
         {
@@ -1498,6 +1495,8 @@ unsigned char  nozzle_adjust_id=0;
 
 void lcd_menu_print_tune_heatup_nozzle()
 {
+	if (millis() - last_user_interaction > MENU_TIMEOUT) {  lcd_menu_go_back(); }
+
     unsigned int mt = HEATER_0_MAXTEMP;
 #ifdef HEATER_1_MAXTEMP
     if (nozzle_adjust_id ==1) mt = HEATER_1_MAXTEMP;
@@ -1515,7 +1514,7 @@ void lcd_menu_print_tune_heatup_nozzle()
                 target_temperature[nozzle_adjust_id] = mt - 15;
             lcd_lib_encoder_pos = 0;
         }
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         lcd_menu_go_back();
     lcd_menu_draw_temp_adj_screen();
 }
@@ -1580,8 +1579,9 @@ void lcd_menu_retraction_doAction()
     if (!lcd_lib_update_ready()) return;
     if (old_retraction!=0.0) swap (old_retraction,retract_length);
     old_retraction=0.0;
+	if (millis() - last_user_interaction > MENU_TIMEOUT) {  lcd_menu_go_back(); }
     lcd_scroll_menu(PSTR("RETRACTION"), 3 + (EXTRUDERS > 1 ? 1 : 0), lcd_menu_retraction_getString, lcd_menu_retraction_getDetails);
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             switch (SELECTED_SCROLL_MENU_ITEM())
                 {

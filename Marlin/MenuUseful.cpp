@@ -18,7 +18,7 @@ unsigned char  LED_DIM_TIME = 30;
 // 30 min
 
 //-----------------------------------------------------------------------------------------------------------------
-void updateTempHistory()
+void updateTempHistory( )
 {
     if (!run_history) return;
 	history_position %=HISTORY_SIZE ;

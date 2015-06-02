@@ -12,8 +12,8 @@ extern char last_temp  ;
 extern byte last_humid ;
 
 //-----------------------------------------------------------------------------------------------------------------
-void updateAmbientSensor();
 
+void updateAmbientSensor();
 
 
 /* DHT library 

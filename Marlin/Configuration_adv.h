@@ -287,7 +287,7 @@ const unsigned int dropsegments=20; //everything with less than this number of s
 // The number of linear motions that can be in the plan at any give time.  
 // THE BLOCK_BUFFER_SIZE NEEDS TO BE A POWER OF 2, i.g. 8,16,32 because shifts and ors are used to do the ringbuffering.
 #if defined  __AVR_ATmega2560__
-#define BLOCK_BUFFER_SIZE 32   // we got more RAM, lets use it
+#define BLOCK_BUFFER_SIZE 16   // we got more RAM, lets use it
 #else 
 #if defined SDSUPPORT
   #define BLOCK_BUFFER_SIZE 16   // SD,LCD,Buttons take more memory, block buffer needs to be smaller

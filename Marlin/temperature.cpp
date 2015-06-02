@@ -106,7 +106,7 @@ static float temp_iState_max_bed;
 static unsigned long  previous_millis_bed_heater;
 #endif //PIDTEMPBED
 static unsigned char soft_pwm[EXTRUDERS];
- unsigned char soft_pwm_bed;
+unsigned char soft_pwm_bed;
 #ifdef FAN_SOFT_PWM
 static unsigned char soft_pwm_fan;
 #endif
@@ -156,7 +156,7 @@ void PID_autotune(float temp, int extruder, int ncycles)
     float input = 0.0;
     int cycles=0;
     bool heating = true;
-	int glitch_count =0 ;
+    int glitch_count =0 ;
     unsigned long temp_millis = millis();
     unsigned long t1=temp_millis;
     unsigned long t2=temp_millis;
@@ -318,8 +318,7 @@ void PID_autotune(float temp, int extruder, int ncycles)
                     SERIAL_PROTOCOLLNPGM("PID Autotune finished! Put the Kp, Ki and Kd constants into Configuration.h");
                     return;
                 }
-            lcd_update();
-            lifetime_stats_tick();
+            runTasks();
         }
 }
 
@@ -366,18 +365,25 @@ void setExtruderAutoFanState(int pin, bool state)
     pinMode(pin, OUTPUT);
     digitalWrite(pin, newFanSpeed);
     analogWrite(pin, newFanSpeed);
+// 	SERIAL_ECHO_START;
+// 	SERIAL_ECHOPAIR("EXTRUDER FAN SPEED ", (unsigned long) newFanSpeed);
+// 	SERIAL_ECHOPAIR(" CURRENT TEMP ",  current_temperature[0]);
+// 	SERIAL_ECHOLNPGM("'C ");
 }
 
 void checkExtruderAutoFans()
 {
     uint8_t fanState = 0;
+	// attempt to stop a noisy signal from tripping the fan at random
+	static float smoothed_temp = 25.0;
+	smoothed_temp = current_temperature[0]*0.25 + smoothed_temp * 0.75;
 
     // which fan pins need to be turned on?
 #if defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1
-    if (current_temperature[0] > EXTRUDER_AUTO_FAN_TEMPERATURE+2)			// add a little hysteresis to prevent frequent toggling at the threshold
+    if (smoothed_temp > EXTRUDER_AUTO_FAN_TEMPERATURE+2)			// add a little hysteresis to prevent frequent toggling at the threshold
         fanState |= 1;
     else
-        if (current_temperature[0] < EXTRUDER_AUTO_FAN_TEMPERATURE-2)
+        if (smoothed_temp < EXTRUDER_AUTO_FAN_TEMPERATURE-2)
             fanState =0;
         else return;
 #endif
@@ -420,7 +426,87 @@ void checkExtruderAutoFans()
 
 #endif // any extruder auto fan pins set
 
-void manage_heater()
+
+void manage_bed()
+{
+
+#if TEMP_SENSOR_BED != 0
+
+#ifdef PIDTEMPBED
+    pid_input = current_temperature_bed;
+
+#ifndef PID_OPENLOOP
+    pid_error_bed = target_temperature_bed - pid_input;
+    pTerm_bed = bedKp * pid_error_bed;
+    temp_iState_bed += pid_error_bed;
+    temp_iState_bed = constrain(temp_iState_bed, temp_iState_min_bed, temp_iState_max_bed);
+    iTerm_bed = bedKi * temp_iState_bed;
+
+//K1 defined in Configuration.h in the PID settings
+#define K2 (1.0-K1)
+    dTerm_bed= (bedKd * (pid_input - temp_dState_bed))*K2 + (K1 * dTerm_bed);
+    temp_dState_bed = pid_input;
+
+    pid_output = constrain(pTerm_bed + iTerm_bed - dTerm_bed, 0, MAX_BED_POWER);
+
+#else
+    pid_output = constrain(target_temperature_bed, 0, MAX_BED_POWER);
+#endif //PID_OPENLOOP
+
+    if((current_temperature_bed > BED_MINTEMP) && (current_temperature_bed < BED_MAXTEMP))
+        {
+            soft_pwm_bed = (int)pid_output >> 1;
+        }
+    else
+        {
+            soft_pwm_bed = 0;
+        }
+
+#elif !defined(BED_LIMIT_SWITCHING)
+// Check if temperature is within the correct range
+    if((current_temperature_bed > BED_MINTEMP) && (current_temperature_bed < BED_MAXTEMP))
+        {
+            if(current_temperature_bed >= target_temperature_bed)
+                {
+                    soft_pwm_bed = 0;
+                }
+            else
+                {
+                    soft_pwm_bed = MAX_BED_POWER>>1;
+                    if (MOTHERBOARD_FAN>-1)
+                        WRITE (MOTHERBOARD_FAN,1);
+
+                }
+        }
+    else
+        {
+            soft_pwm_bed = 0;
+            WRITE(HEATER_BED_PIN,LOW);
+        }
+#else //#ifdef BED_LIMIT_SWITCHING
+// Check if temperature is within the correct band
+    if((current_temperature_bed > BED_MINTEMP) && (current_temperature_bed < BED_MAXTEMP))
+        {
+            if(current_temperature_bed > target_temperature_bed + BED_HYSTERESIS)
+                {
+                    soft_pwm_bed = 0;
+                }
+            else
+                if(current_temperature_bed <= target_temperature_bed - BED_HYSTERESIS)
+                    {
+                        soft_pwm_bed = MAX_BED_POWER>>1;
+                    }
+        }
+    else
+        {
+            soft_pwm_bed = 0;
+            WRITE(HEATER_BED_PIN,LOW);
+        }
+#endif
+#endif
+}
+
+void manage_heater( )
 {
     float pid_input;
     float pid_output;
@@ -536,126 +622,8 @@ void manage_heater()
 #endif
         } // End extruder for loop
 
-#if (defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1) || \
-      (defined(EXTRUDER_1_AUTO_FAN_PIN) && EXTRUDER_1_AUTO_FAN_PIN > -1) || \
-      (defined(EXTRUDER_2_AUTO_FAN_PIN) && EXTRUDER_2_AUTO_FAN_PIN > -1)
-    if(millis() - extruder_autofan_last_check > FAN_CHECK_INTERVAL)  // only need to check fan state very infrequently
-        {
-            checkExtruderAutoFans();
-            extruder_autofan_last_check = millis();
-        }
-#endif
 
 
-    //For the UM2 the head fan is connected to PJ6, which does not have an Arduino PIN definition. So use direct register access.
-
-    // ???  No....according to the schemtatics, Pj6 is not connected to anything....
-    /*
-    #if HEAD_FAN_PIN > -1
-        //    DDRJ |= _BV(6);
-            if (current_temperature[0] > EXTRUDER_AUTO_FAN_TEMPERATURE
-    #if EXTRUDERS > 1
-                    || current_temperature[1] > EXTRUDER_AUTO_FAN_TEMPERATURE
-    #endif
-    #if EXTRUDERS > 2
-                    || current_temperature[2] > EXTRUDER_AUTO_FAN_TEMPERATURE
-    #endif
-               )
-                {
-         //           PORTJ |= _BV(6);
-    			WRITE (HEAD_FAN_PIN,1);
-    			if (MOTHERBOARD_FAN>-1)
-    				WRITE (MOTHERBOARD_FAN,1);
-                }
-            else
-                {
-           //         PORTJ &=~_BV(6);
-    			WRITE (HEAD_FAN_PIN,0);
-                }
-        }
-    #endif
-    	*/
-
-#ifndef PIDTEMPBED
-    if(millis() - previous_millis_bed_heater < BED_CHECK_INTERVAL)
-        return;
-    previous_millis_bed_heater = millis();
-#endif
-
-#if TEMP_SENSOR_BED != 0
-
-#ifdef PIDTEMPBED
-    pid_input = current_temperature_bed;
-
-#ifndef PID_OPENLOOP
-    pid_error_bed = target_temperature_bed - pid_input;
-    pTerm_bed = bedKp * pid_error_bed;
-    temp_iState_bed += pid_error_bed;
-    temp_iState_bed = constrain(temp_iState_bed, temp_iState_min_bed, temp_iState_max_bed);
-    iTerm_bed = bedKi * temp_iState_bed;
-
-    //K1 defined in Configuration.h in the PID settings
-#define K2 (1.0-K1)
-    dTerm_bed= (bedKd * (pid_input - temp_dState_bed))*K2 + (K1 * dTerm_bed);
-    temp_dState_bed = pid_input;
-
-    pid_output = constrain(pTerm_bed + iTerm_bed - dTerm_bed, 0, MAX_BED_POWER);
-
-#else
-    pid_output = constrain(target_temperature_bed, 0, MAX_BED_POWER);
-#endif //PID_OPENLOOP
-
-    if((current_temperature_bed > BED_MINTEMP) && (current_temperature_bed < BED_MAXTEMP))
-        {
-            soft_pwm_bed = (int)pid_output >> 1;
-        }
-    else
-        {
-            soft_pwm_bed = 0;
-        }
-
-#elif !defined(BED_LIMIT_SWITCHING)
-    // Check if temperature is within the correct range
-    if((current_temperature_bed > BED_MINTEMP) && (current_temperature_bed < BED_MAXTEMP))
-        {
-            if(current_temperature_bed >= target_temperature_bed)
-                {
-                    soft_pwm_bed = 0;
-                }
-            else
-                {
-                    soft_pwm_bed = MAX_BED_POWER>>1;
-                    if (MOTHERBOARD_FAN>-1)
-                        WRITE (MOTHERBOARD_FAN,1);
-
-                }
-        }
-    else
-        {
-            soft_pwm_bed = 0;
-            WRITE(HEATER_BED_PIN,LOW);
-        }
-#else //#ifdef BED_LIMIT_SWITCHING
-    // Check if temperature is within the correct band
-    if((current_temperature_bed > BED_MINTEMP) && (current_temperature_bed < BED_MAXTEMP))
-        {
-            if(current_temperature_bed > target_temperature_bed + BED_HYSTERESIS)
-                {
-                    soft_pwm_bed = 0;
-                }
-            else
-                if(current_temperature_bed <= target_temperature_bed - BED_HYSTERESIS)
-                    {
-                        soft_pwm_bed = MAX_BED_POWER>>1;
-                    }
-        }
-    else
-        {
-            soft_pwm_bed = 0;
-            WRITE(HEATER_BED_PIN,LOW);
-        }
-#endif
-#endif
 }
 
 extern float VCC;
@@ -689,7 +657,7 @@ static float analog2temp(int raw, uint8_t e)
 
     if(heater_ttbl_map[e] != NULL)
         {
-            raw = (int) (round ((float) raw * VCC / 4.9f));
+            raw = (int) (round ((float) raw /** VCC / 4.9f)*/));
             float celsius = 0;
             uint8_t i;
             short (*tt)[][2] = (short (*)[][2])(heater_ttbl_map[e]);
@@ -1325,7 +1293,7 @@ ISR(TIMER0_COMPB_vect)
             if (max_temp_error_count> 50)
                 {
                     max_temp_error(0);
-					return;
+                    return;
                 }
             if (max_temp_error_count > 0) max_temp_error_count --;
 
@@ -1338,7 +1306,7 @@ ISR(TIMER0_COMPB_vect)
                         {
 #endif
                             min_temp_error(0);
-							return;
+                            return;
                         }
 #if EXTRUDERS > 1
 #if HEATER_1_RAW_LO_TEMP > HEATER_1_RAW_HI_TEMP

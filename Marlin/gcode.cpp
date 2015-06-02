@@ -284,6 +284,12 @@ void moveToPausePosition()
 
     //finish moves
     st_synchronize();
+
+	current_position[X_AXIS]=pause_target_position[X_AXIS];
+	current_position[Y_AXIS]=pause_target_position[Y_AXIS];
+	current_position[Z_AXIS]=pause_target_position[Z_AXIS];
+	current_position[E_AXIS]=pause_target_position[E_AXIS];
+
 }
 
 //-----------------------------------------------------------------------------------------------------------------
@@ -305,7 +311,15 @@ void resumeFromPausePosition()
     plan_buffer_line(	pre_pause_position[X_AXIS]   ,		pre_pause_position[Y_AXIS],			pre_pause_position[Z_AXIS],		pre_pause_position[E_AXIS], retract_feedrate/60.0,			active_extruder); //final untretract
 	SERIAL_ECHO_START
 	SERIAL_ECHOLNPGM("unpaused");
+	st_synchronize();
+	current_position[X_AXIS]=pre_pause_position[X_AXIS];
+	current_position[Y_AXIS]=pre_pause_position[Y_AXIS];
+	current_position[Z_AXIS]=pre_pause_position[Z_AXIS];
+	current_position[E_AXIS]=pre_pause_position[E_AXIS];
+
 }
+
+
 
 //-----------------------------------------------------------------------------------------------------------------
 void process_commands()
@@ -362,10 +376,8 @@ void process_commands()
                                 c = int_to_string((int) (codenum-millis()/1000),c,PSTR(" sec"));
                                 *c++=0;
                                 lcd_setstatus (buffer);
-                                lcd_update();
-                                manage_heater();
-                                manage_inactivity();
-                                lifetime_stats_tick();
+								runTasks();
+
                             }
                         clear_message();
                         break;
@@ -669,7 +681,7 @@ void process_commands()
                                 if (codenum > 0)
                                     {
                                         codenum += millis();  // keep track of when we started waiting
-                                        while(millis()  < codenum && !lcd_lib_button_down)
+                                        while(millis()  < codenum && !lcd_lib_button_pressed())
                                             {
                                                 char buffer[20];
                                                 memset (buffer,0,sizeof(buffer));
@@ -680,23 +692,18 @@ void process_commands()
                                                 c = int_to_string((int) (codenum-millis()/1000),c,PSTR(" sec"));
                                                 *c++=0;
                                                 lcd_setstatus (buffer);
+												last_user_interaction = millis();
                                                 lcd_lib_update_screen();
-                                                lcd_update();
-                                                manage_heater();
-                                                manage_inactivity();
-                                                last_user_interaction = millis();
-                                                lifetime_stats_tick();
+												runTasks();
                                             }
                                     }
                                 else
                                     {
-                                        while(!lcd_lib_button_down)
+                                        while(!lcd_lib_button_pressed())
                                             {
                                                 LCD_MESSAGEPGM (PSTR("CLICK TO CONTINUE!"));
-                                                manage_heater();
-                                                manage_inactivity();
+												runTasks();
                                                 last_user_interaction = millis();
-                                                lifetime_stats_tick();
                                             }
                                         clear_message();
                                     }
@@ -982,10 +989,7 @@ void process_commands()
 #endif
                                                 codenum = millis();
                                             }
-                                        manage_heater();
-                                        manage_inactivity();
-                                        lcd_update();
-                                        lifetime_stats_tick();
+                                       runTasks();
 #ifdef TEMP_RESIDENCY_TIME
                                         /* start/restart the TEMP_RESIDENCY_TIME timer whenever we reach target temp for the first time
                                         or when current temp falls outside the hysteresis after target temp was reached */
@@ -1024,10 +1028,7 @@ void process_commands()
                                             SERIAL_PROTOCOLLN("");
                                             codenum = millis();
                                         }
-                                    manage_heater();
-                                    manage_inactivity();
-                                    lcd_update();
-                                    lifetime_stats_tick();
+                                    runTasks();
                                 }
                             LCD_MESSAGEPGM(MSG_BED_DONE);
                             previous_millis_cmd = millis();
@@ -1729,10 +1730,7 @@ void process_commands()
                             while(card.pause)
                                 {
                                     if (!is_message_shown) LCD_MESSAGEPGM ("PAUSED");
-                                    manage_heater();
-                                    manage_inactivity();
-                                    lcd_update();
-                                    lifetime_stats_tick();
+									runTasks();
                                 }
                             clear_message();
                             resumeFromPausePosition();

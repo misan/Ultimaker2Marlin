@@ -851,7 +851,7 @@ void lcd_lib_beep_ext( unsigned int freq, unsigned int dur )
 
 int8_t lcd_lib_encoder_pos_interrupt = 0;
 int16_t lcd_lib_encoder_pos = 0;
-bool lcd_lib_button_pressed = false;
+bool lcd_lib_button_was_pressed = false;
 bool lcd_lib_button_down;
 
 #define ENCODER_ROTARY_BIT_0 _BV(0)
@@ -904,9 +904,11 @@ void lcd_lib_buttons_update_interrupt()
 
 // this is changed by the various menus to enable or disable encoder acceleration for that time.
 bool allow_encoder_acceleration = false;
-
+bool clear_button_press = true;
 void lcd_lib_buttons_update()
 {
+
+
 // Added encoder acceleration (Lars Jun 2014)
 // if we detect we're moving the encoder the same direction for repeated frames, we increase our step size (up to a maximum)
 // if we stop, or change direction, set the step size back to +/- 1
@@ -934,7 +936,7 @@ void lcd_lib_buttons_update()
             if (allow_encoder_acceleration) lcd_lib_beep_ext (400+encoder_accel*25,10);
 #endif
         }
-    if (lcd_lib_encoder_pos_interrupt ==0)						// no movement --  back to 0 acceleration
+    if (/*lcd_lib_encoder_pos_interrupt ==0 ||*/ (millis() - last_user_interaction > 300) )						// no movement --  back to 0 acceleration
         {
             encoder_accel=0;
         }
@@ -944,13 +946,33 @@ void lcd_lib_buttons_update()
 
     lcd_lib_encoder_pos += abs(encoder_accel) * lcd_lib_encoder_pos_interrupt;
 
+	if (clear_button_press)
+		{
+		lcd_lib_button_was_pressed= false;
+		clear_button_press = false;
+		} 
     uint8_t buttonState = !READ(BTN_ENC);
-    lcd_lib_button_pressed = (buttonState && !lcd_lib_button_down);
+    if (buttonState && !lcd_lib_button_down) 
+		lcd_lib_button_was_pressed= true;
     lcd_lib_button_down = buttonState;
 
     if  (lcd_lib_button_down || lcd_lib_encoder_pos_interrupt!=0 ) last_user_interaction=millis();
     lcd_lib_encoder_pos_interrupt = 0;
 }
+
+
+// this saves the pressed state until something reads it
+
+bool lcd_lib_button_pressed()
+	{
+	 bool rv = lcd_lib_button_was_pressed;
+	 if (rv && (millis() - last_user_interaction > 2000) ) rv = false;		// it was more than 2 seconds ago, don't respond to outdated presses!
+	 if (rv) lcd_lib_beep_ext (1200,50);
+	 clear_button_press = true;
+	
+	 return rv;
+	}
+
 
 //-----------------------------------------------------------------------------------------------------------------
 void lcd_lib_update_RGB_LED()

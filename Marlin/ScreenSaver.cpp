@@ -122,7 +122,7 @@ void lcd_menu_breakout()
 		{
 		ball_y = 57 << 8;
 		ball_x = (lcd_lib_encoder_pos * 2 + BREAKOUT_PADDLE_WIDTH / 2) << 8;
-		if (lcd_lib_button_pressed)
+		if (lcd_lib_button_pressed())
 			{
 			ball_dx = -256 + lcd_lib_encoder_pos * 8;
 			ball_dy = -512 + abs(ball_dx);

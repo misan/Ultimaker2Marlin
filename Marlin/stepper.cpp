@@ -37,6 +37,11 @@
 #include "MenuUseful.h"
 
 
+// if enabled, the acceleration will be adjusted so that the Jerk is limited to a sinusoidal curve, which
+// gives the accleration an S-curve profile.  The sinusoidal jerk is a close approximation to the fifth
+// order motion and superior to second order (constant acceleration) or third order  (constant jerk)
+// in terms of optimal path, speed, and reduced vibration, machinee stress
+#define SINUSOIDAL_JERK 0
 //===========================================================================
 //=============================public variables  ============================
 //===========================================================================
@@ -54,7 +59,7 @@ static long counter_x,       // Counter variables for the bresenham line tracer
        counter_y,
        counter_z,
        counter_e;
-volatile static unsigned long step_events_completed; // The number of step events executed in the current block
+volatile static unsigned long steps_completed; // The number of step events executed in the current block
 #ifdef ADVANCE
 static long advance_rate, advance, final_advance = 0;
 static long old_advance = 0;
@@ -62,7 +67,7 @@ static long e_steps[3];
 #endif
 static long acceleration_time, deceleration_time;
 //static unsigned long accelerate_until, decelerate_after, acceleration_rate, initial_rate, final_rate, nominal_rate;
-static unsigned short acc_step_rate; // needed for deccelaration start point
+static unsigned short velocity_accel_phase; // needed for deccelaration start point
 static char step_loops;
 static unsigned short OCR1A_nominal;
 static unsigned short step_loops_nominal;
@@ -307,6 +312,12 @@ FORCE_INLINE unsigned short calc_timer(unsigned short step_rate)
     return timer;
 }
 
+
+
+static short  delta_v_during_acc =1;
+static short  delta_v_during_dec =1;
+
+
 // Initializes the trapezoid generator from the current block. Called whenever a new
 // block begins.
 FORCE_INLINE void trapezoid_generator_reset()
@@ -320,12 +331,16 @@ FORCE_INLINE void trapezoid_generator_reset()
 #endif
     deceleration_time = 0;
     // step_rate to timer interval
-    OCR1A_nominal = calc_timer(current_block->nominal_rate);
+    OCR1A_nominal = calc_timer(current_block->peak_velocity_in_steps_per_sec);
     // make a note of the number of step loops required at nominal speed
     step_loops_nominal = step_loops;
-    acc_step_rate = current_block->initial_rate;
-    acceleration_time = calc_timer(acc_step_rate);
+    velocity_accel_phase = current_block->initial_velocity;
+    acceleration_time = calc_timer(velocity_accel_phase);
     OCR1A = acceleration_time;
+    delta_v_during_acc =(current_block->peak_velocity_in_steps_per_sec - current_block->initial_velocity) >>4;
+    delta_v_during_dec = 0;
+
+
 
 //    SERIAL_ECHO_START;
 //    SERIAL_ECHOPGM("advance :");
@@ -338,6 +353,15 @@ FORCE_INLINE void trapezoid_generator_reset()
 //    SERIAL_ECHOLN(current_block->final_advance/256.0);
 
 }
+
+// this is a precalculated adjustment to acceleration vs time based on a sinusoidal jerk function.  These values will take the normalized 0-1.0 range of acceleration in the accel or decell phases
+// and shift them into an s-curve.  These values are shifted left by 8 for fixed point math
+static const unsigned short  SCurveTable[16] = { 7,	26,	55,	93,	136,	179	,220,	256,	284,	302,	311,	310,	302,	289,	273,	256};
+
+unsigned long bins_a[16];
+unsigned long bins_d[16];
+
+
 
 // "The Stepper Driver Interrupt" - This timer interrupt is the workhorse.
 // It pops blocks from the block_buffer and executes them by pulsing the stepper pins appropriately.
@@ -352,11 +376,13 @@ ISR(TIMER1_COMPA_vect)
                 {
                     current_block->busy = true;
                     trapezoid_generator_reset();
-                    counter_x = -(current_block->step_event_count >> 1);
+                    counter_x = -(current_block->total_steps >> 1);
                     counter_y = counter_x;
                     counter_z = counter_x;
                     counter_e = counter_x;
-                    step_events_completed = 0;
+                    steps_completed = 0;
+
+
 
 #ifdef Z_LATE_ENABLE
                     if(current_block->steps_z > 0)
@@ -420,7 +446,7 @@ ISR(TIMER1_COMPA_vect)
                     {
                         endstops_trigsteps[X_AXIS] = count_position[X_AXIS];
                         endstop_x_hit=true;
-                        step_events_completed = current_block->step_event_count;
+                        steps_completed = current_block->total_steps;
                     }
                 old_x_min_endstop = x_min_endstop;
 #endif
@@ -436,7 +462,7 @@ ISR(TIMER1_COMPA_vect)
                     {
                         endstops_trigsteps[X_AXIS] = count_position[X_AXIS];
                         endstop_x_hit=true;
-                        step_events_completed = current_block->step_event_count;
+                        steps_completed = current_block->total_steps;
                     }
                 old_x_max_endstop = x_max_endstop;
 #endif
@@ -458,7 +484,7 @@ ISR(TIMER1_COMPA_vect)
                     {
                         endstops_trigsteps[Y_AXIS] = count_position[Y_AXIS];
                         endstop_y_hit=true;
-                        step_events_completed = current_block->step_event_count;
+                        steps_completed = current_block->total_steps;
                     }
                 old_y_min_endstop = y_min_endstop;
 #endif
@@ -474,7 +500,7 @@ ISR(TIMER1_COMPA_vect)
                     {
                         endstops_trigsteps[Y_AXIS] = count_position[Y_AXIS];
                         endstop_y_hit=true;
-                        step_events_completed = current_block->step_event_count;
+                        steps_completed = current_block->total_steps;
                     }
                 old_y_max_endstop = y_max_endstop;
 #endif
@@ -498,7 +524,7 @@ ISR(TIMER1_COMPA_vect)
                     {
                         endstops_trigsteps[Z_AXIS] = count_position[Z_AXIS];
                         endstop_z_hit=true;
-                        step_events_completed = current_block->step_event_count;
+                        steps_completed = current_block->total_steps;
                     }
                 old_z_min_endstop = z_min_endstop;
 #endif
@@ -521,7 +547,7 @@ ISR(TIMER1_COMPA_vect)
                     {
                         endstops_trigsteps[Z_AXIS] = count_position[Z_AXIS];
                         endstop_z_hit=true;
-                        step_events_completed = current_block->step_event_count;
+                        steps_completed = current_block->total_steps;
                     }
                 old_z_max_endstop = z_max_endstop;
 #endif
@@ -553,7 +579,7 @@ ISR(TIMER1_COMPA_vect)
             counter_e += current_block->steps_e;
             if (counter_e > 0)
                 {
-                    counter_e -= current_block->step_event_count;
+                    counter_e -= current_block->total_steps;
                     if ((out_bits & (1<<E_AXIS)) != 0)   // - direction
                         {
                             e_steps[current_block->active_extruder]--;
@@ -569,7 +595,7 @@ ISR(TIMER1_COMPA_vect)
             if (counter_x > 0)
                 {
                     WRITE(X_STEP_PIN, !INVERT_X_STEP_PIN);
-                    counter_x -= current_block->step_event_count;
+                    counter_x -= current_block->total_steps;
                     count_position[X_AXIS]+=count_direction[X_AXIS];
                     WRITE(X_STEP_PIN, INVERT_X_STEP_PIN);
                 }
@@ -578,7 +604,7 @@ ISR(TIMER1_COMPA_vect)
             if (counter_y > 0)
                 {
                     WRITE(Y_STEP_PIN, !INVERT_Y_STEP_PIN);
-                    counter_y -= current_block->step_event_count;
+                    counter_y -= current_block->total_steps;
                     count_position[Y_AXIS]+=count_direction[Y_AXIS];
                     WRITE(Y_STEP_PIN, INVERT_Y_STEP_PIN);
                 }
@@ -592,7 +618,7 @@ ISR(TIMER1_COMPA_vect)
                     WRITE(Z2_STEP_PIN, !INVERT_Z_STEP_PIN);
 #endif
 
-                    counter_z -= current_block->step_event_count;
+                    counter_z -= current_block->total_steps;
                     count_position[Z_AXIS]+=count_direction[Z_AXIS];
                     WRITE(Z_STEP_PIN, INVERT_Z_STEP_PIN);
 
@@ -606,31 +632,44 @@ ISR(TIMER1_COMPA_vect)
             if (counter_e > 0)
                 {
                     WRITE_E_STEP(!INVERT_E_STEP_PIN);
-                    counter_e -= current_block->step_event_count;
+                    counter_e -= current_block->total_steps;
                     count_position[E_AXIS]+=count_direction[E_AXIS];
                     WRITE_E_STEP(INVERT_E_STEP_PIN);
                 }
 #endif //!ADVANCE
-            step_events_completed += 1;
-            if(step_events_completed >= current_block->step_event_count) break;
+            steps_completed += 1;
+            if(steps_completed >= current_block->total_steps) break;
         }
     // Calculare new timer value
-    unsigned short timer;
-    unsigned short step_rate;
-    if (step_events_completed <= (unsigned long int)current_block->accelerate_until)
-        {
+    unsigned short delay_time;
+    short velocity;
+    short cumulative_linear_acceleration;
+    if (steps_completed <= (unsigned long int)current_block->accelerate_until)
+		{
+			// ACCELERATING PHASE 
 
-            MultiU24X24toH16(acc_step_rate, acceleration_time, current_block->acceleration_rate);
-            acc_step_rate += current_block->initial_rate;
+            MultiU24X24toH16(cumulative_linear_acceleration, acceleration_time, current_block->acceleration_rate);
+#if SINUSOIDAL_JERK
+
+            // from linear acceleration, let's figure out time of accel phase by taking the change in velocity divided by accel)
+            int index = ( cumulative_linear_acceleration /  delta_v_during_acc);
+            if (index < 0 ) index = 15+index;
+            if (index > 15) index = 15;
+            if (index < 0 ) index = 0 ;
+            bins_a[index]++;
+            cumulative_linear_acceleration =( unsigned long )  ((unsigned long) cumulative_linear_acceleration * SCurveTable[index] ) >> 8;
+#endif
+
+            velocity_accel_phase = current_block->initial_velocity+cumulative_linear_acceleration;
 
             // upper limit
-            if(acc_step_rate > current_block->nominal_rate)
-                acc_step_rate = current_block->nominal_rate;
+            if(velocity_accel_phase > current_block->peak_velocity_in_steps_per_sec)
+                velocity_accel_phase = current_block->peak_velocity_in_steps_per_sec;
 
             // step_rate to timer interval
-            timer = calc_timer(acc_step_rate);
-            OCR1A = timer;
-            acceleration_time += timer;
+            delay_time = calc_timer(velocity_accel_phase);
+            OCR1A = delay_time;
+            acceleration_time += delay_time;
 #ifdef ADVANCE
             for(int8_t i=0; i < step_loops; i++)
                 {
@@ -644,27 +683,38 @@ ISR(TIMER1_COMPA_vect)
 #endif
         }
     else
-        if (step_events_completed > (unsigned long int)current_block->decelerate_after)
+        if (steps_completed > (unsigned long int)current_block->decelerate_after)
+			// DECELERATION PHASE
             {
-                MultiU24X24toH16(step_rate, deceleration_time, current_block->acceleration_rate);
+                MultiU24X24toH16(cumulative_linear_acceleration, deceleration_time, current_block->acceleration_rate);
 
-                if(step_rate > acc_step_rate)   // Check step_rate stays positive
+#if SINUSOIDAL_JERK
+                if (delta_v_during_dec==0) delta_v_during_dec = (velocity_accel_phase - current_block->final_velocity)/16;//>>4;
+                int index = cumulative_linear_acceleration /delta_v_during_dec ;
+                if (index < 0 ) index = 15+index;
+                if (index > 15) index = 15;
+                if (index < 0 ) index = 0 ;
+                bins_d[index]++;
+                cumulative_linear_acceleration=( unsigned long ) ( ( unsigned long ) cumulative_linear_acceleration * SCurveTable[index]  ) >> 8;
+
+#endif
+                if(cumulative_linear_acceleration > velocity_accel_phase)   // Check step_rate stays positive
                     {
-                        step_rate = current_block->final_rate;
+                        velocity = current_block->final_velocity;
                     }
                 else
                     {
-                        step_rate = acc_step_rate - step_rate; // Decelerate from aceleration end point.
+                        velocity = velocity_accel_phase - cumulative_linear_acceleration; // Decelerate from aceleration end point.
                     }
 
                 // lower limit
-                if(step_rate < current_block->final_rate)
-                    step_rate = current_block->final_rate;
+                if(velocity < current_block->final_velocity)
+                    velocity = current_block->final_velocity;
 
                 // step_rate to timer interval
-                timer = calc_timer(step_rate);
-                OCR1A = timer;
-                deceleration_time += timer;
+                delay_time = calc_timer(velocity);
+                OCR1A = delay_time;
+                deceleration_time += delay_time;
 #ifdef ADVANCE
                 for(int8_t i=0; i < step_loops; i++)
                     {
@@ -677,14 +727,16 @@ ISR(TIMER1_COMPA_vect)
 #endif //ADVANCE
             }
         else
+			// CRUISING AT MAX SPEED PHASE
             {
                 OCR1A = OCR1A_nominal;
                 // ensure we're running at the correct step rate, even if we just came off an acceleration
                 step_loops = step_loops_nominal;
+                //  velocity_accel_phase = current_block->peak_velocity_in_steps_per_sec;
             }
 
     // If current block is finished, reset pointer
-    if (step_events_completed >= current_block->step_event_count)
+    if (steps_completed >= current_block->total_steps)
         {
             current_block = NULL;
             plan_discard_current_block();
@@ -946,10 +998,7 @@ void st_synchronize()
 {
     while( blocks_queued())
         {
-            manage_heater();
-            manage_inactivity();
-            lcd_update();
-            lifetime_stats_tick();
+            runTasks();
         }
 }
 

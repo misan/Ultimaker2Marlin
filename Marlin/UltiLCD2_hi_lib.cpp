@@ -52,6 +52,7 @@ void lcd_menu_go_back()
 void lcd_do_current_menu ()
 {
 	if ((!lcd_lib_update_ready())) return;
+	lcd_lib_buttons_update();
     if (currentMenu)
         currentMenu();
 
@@ -220,7 +221,7 @@ void lcd_info_screen(menuFunc_t cancelMenu, menuFunc_t callbackOnCancel, const c
         }
     lcd_check_menu_selected_change(SELECTED_MAIN_MENU_ITEM());
 
-    if (lcd_lib_button_pressed && IS_SELECTED_MAIN(0))
+    if (lcd_lib_button_pressed() && IS_SELECTED_MAIN(0))
         {
             if (callbackOnCancel) callbackOnCancel();
             if (cancelMenu) lcd_change_to_menu(cancelMenu);
@@ -255,7 +256,7 @@ void lcd_question_screen(menuFunc_t optionAMenu, menuFunc_t callbackOnA, const c
 
     lcd_check_menu_selected_change(SELECTED_MAIN_MENU_ITEM());
 
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             if (IS_SELECTED_MAIN(0))
                 {
@@ -319,7 +320,7 @@ void lcd_scroll_menu(const char* menuNameP, int8_t entryCount, entryNameCallback
     // we don't want encoder rotation acceleration in menus!
     lcd_lib_enable_encoder_acceleration(false);
 
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             last_menu_index=-1;
             return;//Selection possibly changed the menu, so do not update it this cycle.
@@ -475,7 +476,7 @@ void lcd_menu_edit_setting()
     lcd_lib_draw_string_center(30, buffer);
     lcd_lib_update_screen();
 
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         lcd_menu_go_back();
 }
 //-----------------------------------------------------------------------------------------------------------------

@@ -56,7 +56,7 @@ void clearHistory();
 void lcd_init()
 {
     lcd_lib_init();
-     analogWrite(LED_PIN, 0);
+    analogWrite(LED_PIN, 0);
     lastSerialCommandTime = millis() - SERIAL_CONTROL_TIMEOUT;
 }
 
@@ -88,7 +88,7 @@ void doStoppedScreen()
 //-----------------------------------------------------------------------------------------------------------------
 void lcd_update()
 {
-    
+
     lcd_lib_buttons_update();
     card.updateSDInserted();
 
@@ -103,11 +103,9 @@ void lcd_update()
             if (led_glow >= 126)
                 {
                     led_glow_dir = 1;
-                    if (!IsStopped() )
-                        updateTempHistory();
                 }
         }
-	
+
     if (IsStopped())
         doStoppedScreen();
     else
@@ -115,16 +113,16 @@ void lcd_update()
             {
                 if (!serialScreenShown)
                     {
-						if (!lcd_lib_update_ready())  return;
+                        if (!lcd_lib_update_ready())  return;
                         lcd_lib_clear();
                         lcd_lib_draw_string_centerP(20, PSTR("Printing with USB..."));
                         lcd_lib_show_message(40);
                         serialScreenShown = true;
-						lcd_lib_update_screen();
+                        lcd_lib_update_screen();
                     }
                 if (printing_state == PRINT_STATE_HEATING || printing_state == PRINT_STATE_HEATING_BED || printing_state == PRINT_STATE_HOMING)
                     lastSerialCommandTime = millis();
-                
+
             }
         else
             {
@@ -172,11 +170,11 @@ void lcd_menu_startup()
             // lcd_lib_draw_gfx(0, 22, ultimakerTextGfx);
         }
     lcd_lib_update_screen();
-    if (led_glow_dir || lcd_lib_button_pressed)
+    if (led_glow_dir || lcd_lib_button_pressed())
         {
             led_glow = led_glow_dir = 0;
             LED_NORMAL();
-            if (lcd_lib_button_pressed)
+            if (lcd_lib_button_pressed())
                 lcd_lib_beep();
 
 #ifdef SPECIAL_STARTUP
@@ -184,12 +182,12 @@ void lcd_menu_startup()
 #else
             if (!IS_FIRST_RUN_DONE())
                 {
-					lcd_change_to_menu(lcd_menu_first_run_init,ENCODER_NO_SELECTION,false);
+                    lcd_change_to_menu(lcd_menu_first_run_init,ENCODER_NO_SELECTION,false);
                 }
             else
                 {
                     lcd_lib_led_color(255,255,255,false);
-					lcd_change_to_menu(lcd_menu_main,ENCODER_NO_SELECTION,false);
+                    lcd_change_to_menu(lcd_menu_main,ENCODER_NO_SELECTION,false);
                     LED_GLOW();
                 }
 #endif//SPECIAL_STARTUP
@@ -208,7 +206,7 @@ static void lcd_menu_special_startup()
     lcd_lib_draw_string_centerP(55, PSTR("experience!"));
     lcd_lib_update_screen();
 
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             if (!IS_FIRST_RUN_DONE())
                 {
@@ -268,18 +266,21 @@ void lcd_menu_main()
     if (LED_DIM_TIME>0 && (millis() -  last_user_interaction> LED_DIM_TIME*MILLISECONDS_PER_MINUTE))
         {
             lcd_main_screensaver();
-            delay(35);
+            delay(10);
             return;
         }
-	lcd_menu_clear_back();
-     if (!lcd_lib_update_ready()) return;
+    lcd_menu_clear_back();
+    if (!lcd_lib_update_ready()) return;
     lcd_lib_clear();
+//     lcd_lib_update_screen();
+//     lcd_lib_wait_for_screen_ready();
 
     lcd_triple_menu_low(PSTR("PRINT"), PSTR("FILA"), PSTR("SYSTEM"));
 
 //    lcd_triple_X_menu_low(MainMenuLlist,5);
+	if (millis() - last_user_interaction > MENU_TIMEOUT) lcd_lib_encoder_pos = ENCODER_NO_SELECTION;
 
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             switch (SELECTED_MAIN_MENU_ITEM())
                 {
@@ -287,7 +288,7 @@ void lcd_menu_main()
                         {
                             lcd_cache_new.getData(LCD_CACHE::NO_MODE);
                             card.release();
-							file_read_delay_counter = FILE_READ_DELAY;
+                            file_read_delay_counter = FILE_READ_DELAY;
                             lcd_change_to_menu(lcd_sd_filemenu_doAction, SCROLL_MENU_ITEM_POS(0));
                         }
                         break;
@@ -324,26 +325,25 @@ void lcd_menu_main()
     lcd_lib_draw_hline(0,127,ROW2-2);
 
 // we haven't printed anythig, so cycle through a set of information screens
-    bool did_print =! (starttime ==0 || stoptime ==0 ) ;
+    bool did_print =(starttime !=0 && stoptime !=0 ) ;
 
     if (!lcd_lib_show_message (ROW3))
         {
-            delay (50);
-            bool recently_printed = did_print && (millis() - stoptime < 30000UL);
-            if (IS_SELECTED_MAIN(MAIN_MENU_FILAMENT) || (time_phase_a(2) && !recently_printed))	// SHOW CURRENTLY LOADED MATERIAL SETTINGS (EXTR 0)
+            bool recently_printed = did_print && (millis() - stoptime < MENU_TIMEOUT);
+            if (IS_SELECTED_MAIN(MAIN_MENU_FILAMENT) || ((time_phase_a(2) && (!recently_printed))))	// SHOW CURRENTLY LOADED MATERIAL SETTINGS (EXTR 0)
                 {
                     c = drawMaterialInfoScreen(c, buffer);
                     lcd_lib_update_screen();
                     return;
                 }
 
-            if (IS_SELECTED_MAIN(MAIN_MENU_SYSTEM) || (time_phase_b(2) && !recently_printed)	)	// SHOW SYSTEM INFO (volts, uptime)
+            if (IS_SELECTED_MAIN(MAIN_MENU_SYSTEM) || ((time_phase_b(2) && (!recently_printed)	)))	// SHOW SYSTEM INFO (volts, uptime)
                 {
                     c = drawSystemInfoScreen(c, buffer);
                     lcd_lib_update_screen();
                     return;
                 }
-            if (IS_SELECTED_MAIN(MAIN_MENU_PRINT)|| time_phase_c(2) || recently_printed)		// SHOWLAST PRINT INFO, OR SYSTEM VERSION INFO
+            if (IS_SELECTED_MAIN(MAIN_MENU_PRINT)|| (time_phase_c(2) || recently_printed)	)	// SHOWLAST PRINT INFO, OR SYSTEM VERSION INFO
                 {
                     if (did_print)
                         c = drawLastPrintInfo(buffer, c);
@@ -480,19 +480,17 @@ char* drawSystemInfoScreen( char* c, char * buffer )
             last_voltage = readVoltage();
             last_voltage2 = readAVR_VCC();
             last_memory = freeMemory();
-
-#ifdef DHT_ENVIRONMENTAL_SENSOR
-            updateAmbientSensor();
-#endif
-        }	return c;
+        }	
+	return c;
 }
 
 
 //-----------------------------------------------------------------------------------------------------------------
 char* drawLastPrintInfo( char * buffer, char* c )
 {
-    lcd_lib_draw_string_center(ROW2, last_print_name);
     unsigned long printTimeSec = (stoptime-starttime)/1000;
+    if (printTimeSec < 3) return c;
+    lcd_lib_draw_string_center(ROW2, last_print_name);
 
     strcpy_P(buffer, PSTR("Time: "));
     c =EchoTimeSpan(printTimeSec,buffer+5);
@@ -515,7 +513,8 @@ char* drawLastPrintInfo( char * buffer, char* c )
     strcpy_P(c, PSTR("m of "));
     c+=5;
     strncpy(c, material_name[0],10);
-    lcd_lib_draw_string_center(ROW6, buffer);	return c;
+    lcd_lib_draw_string_center(ROW6, buffer);
+	return c;
 }
 
 

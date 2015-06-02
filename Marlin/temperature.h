@@ -29,6 +29,7 @@
 
 // public functions
 void tp_init();  //initialise the heating
+void manage_bed();
 void manage_heater(); //it is critical that this is called periodically.
 
 // low level conversion routines
@@ -144,5 +145,6 @@ FORCE_INLINE void autotempShutdown(){
 
 void PID_autotune(float temp, int extruder, int ncycles);
 void setExtruderAutoFanState(int pin, bool state);
+void checkExtruderAutoFans();
 #endif
 

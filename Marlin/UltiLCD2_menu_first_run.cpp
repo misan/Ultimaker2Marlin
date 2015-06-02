@@ -441,7 +441,7 @@ static void lcd_menu_first_run_material_select_pla_abs()
     DRAW_PROGRESS_NR(17);
     lcd_lib_update_screen();
     
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
     {
         digipot_current(2, motor_current_setting[2]);//Set E motor power to default.
         if (IS_SELECTED_MAIN(0))

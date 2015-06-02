@@ -18,6 +18,7 @@
 #include "stringHelpers.h"
 
 
+#define MAINTENANCE_FUNCTION_TIMEOUT 0 
 
 //void lcd_menu_maintenance_advanced_heatup();
 void lcd_menu_maintenance_advanced_bed_heatup();
@@ -44,6 +45,7 @@ enum MAINTENANCE_MENU
     MAINTENANCE_MENU_RETURN=0,
     MAINTENANCE_MENU_HOME_HEAD,
     MAINTENANCE_MENU_CENTER_HEAD,
+	MAINTENANCE_MENU_LIMITS_HEAD,
     MAINTENANCE_MENU_RELAX_MOTORS,
     MAINTENANCE_MENU_HEAT_EXTR,
 #if EXTRUDERS > 1
@@ -210,6 +212,10 @@ static char* lcd_menu_maintenance_getString(uint8_t nr)
             case MAINTENANCE_MENU_COOL_FAN:
                 strcpy_P(c, PSTR("Turn on cooling fan"));
                 break;
+			case MAINTENANCE_MENU_LIMITS_HEAD:
+				strcpy_P(c, PSTR("Run head through XY limits"));
+				break;
+
         }
     return c;
 }
@@ -276,27 +282,42 @@ void lcd_menu_maintenance_doAction()
 {
     lcd_scroll_menu(PSTR("SYSTEM"),MAINTENANCE_MENU_MAX, lcd_menu_maintenance_getString, lcd_menu_maintenance_getDetails);
     LED_NORMAL();
+    if (millis() - last_user_interaction > MENU_TIMEOUT) lcd_menu_go_back();
 
-    if (!lcd_lib_button_pressed) return;
+    if (!lcd_lib_button_pressed()) return;
+    SERIAL_ECHO_START;
+    SERIAL_ECHOLNPGM("MAIN MENU BUTTON");
+
     byte index =0;
     switch (SELECTED_SCROLL_MENU_ITEM())
         {
+            default:
+                SERIAL_ECHO_START;
+                SERIAL_ECHOLNPGM("UNKNOWN MENU ITEM");
+                SERIAL_ECHOLN((unsigned long) (SELECTED_SCROLL_MENU_ITEM()));
+                break;
+
             case MAINTENANCE_MENU_COOL_FAN:
                 fanSpeedOverride = 255;
+				analogWrite(FAN_PIN,fanSpeedOverride);
                 break;
             case MAINTENANCE_MENU_CASE_FAN:
                 WRITE (MOTHERBOARD_FAN,1);
+				mobo_cooling_fan_timer.pause();
                 break;
             case MAINTENANCE_MENU_HEAD_FAN:
+				head_cooling_fan_timer.pause();
                 setExtruderAutoFanState(EXTRUDER_0_AUTO_FAN_PIN, 1);
                 break;
             case MAINTENANCE_MENU_RETURN:
                 Config_StoreSettings();
                 fanSpeedOverride = -1;
-                WRITE (MOTHERBOARD_FAN,0);
-                setExtruderAutoFanState(EXTRUDER_0_AUTO_FAN_PIN, 0);
-				   lcd_menu_go_back();
-				   return;
+				head_cooling_fan_timer.resume();
+				mobo_cooling_fan_timer.resume();
+                checkExtruderAutoFans();
+				controllerFan();
+                lcd_menu_go_back();
+                return;
                 //lcd_change_to_menu(lcd_menu_main);
                 break;
             case MAINTENANCE_MENU_ADJ_BED:
@@ -340,9 +361,26 @@ void lcd_menu_maintenance_doAction()
             case MAINTENANCE_MENU_CENTER_HEAD:
                 {
                     lcd_lib_beep();
-                    enquecommand_P(PSTR("G1 X100 Y20 F12000"));
+                    enquecommand_P(PSTR("G1 X100 Y20 F35000"));
                 }
                 break;
+			case MAINTENANCE_MENU_LIMITS_HEAD:
+				{
+				lcd_lib_beep();
+				enquecommand_P(PSTR("G28 X0 Y0"));
+				enquecommand_P(PSTR("G1 X0 Y0 F35000"));
+				char buffer[20];
+				memset (buffer,0,sizeof(buffer));
+				sprintf_P(buffer, PSTR("G1 Y%i"), int(max_pos[Y_AXIS]));
+				enquecommand(buffer);
+				sprintf_P(buffer, PSTR("G1 X%i"), int(max_pos[X_AXIS]));
+				enquecommand(buffer);
+				enquecommand_P(PSTR("G1 Y0 F35000"));
+				enquecommand_P(PSTR("G28 X0 Y0"));
+
+				}
+				break;
+
             case MAINTENANCE_MENU_LOWER_BED:
                 {
                     lcd_lib_beep();
@@ -449,7 +487,12 @@ void lcd_menu_maintenance_adjust_max_Y()
                     lcd_lib_encoder_pos = 0;
                 }
         }
-    if (lcd_lib_button_pressed)		// exit
+	// do we want a timeout here?
+#if MAINTENANCE_FUNCTION_TIMEOUT
+	if (millis() - last_user_interaction > MENU_TIMEOUT) {  enquecommand_P(PSTR("G28 X0 Y0"));  lcd_menu_go_back(); }
+#endif 
+
+    if (lcd_lib_button_pressed())		// exit
         {
             Y_MAX_LENGTH = max_pos[1] - Y_MIN_POS;
             //	base_home_pos[1] = max_pos[1];
@@ -483,7 +526,13 @@ void lcd_menu_maintenance_adjust_max_X()
                     lcd_lib_encoder_pos = 0;
                 }
         }
-    if (lcd_lib_button_pressed)		// exit
+
+	// do we want a timeout here?
+#if MAINTENANCE_FUNCTION_TIMEOUT
+	if (millis() - last_user_interaction > MENU_TIMEOUT) {  enquecommand_P(PSTR("G28 X0 Y0"));  lcd_menu_go_back(); }
+#endif 
+
+    if (lcd_lib_button_pressed())		// exit
         {
             X_MAX_LENGTH = max_pos[0] - X_MIN_POS;
             Config_StoreSettings();
@@ -521,7 +570,12 @@ void lcd_menu_maintenance_extrude()
                     lcd_lib_encoder_pos = 0;
                 }
         }
-    if (lcd_lib_button_pressed)		// exit
+// do we want a timeout here?
+#if MAINTENANCE_FUNCTION_TIMEOUT
+    if (millis() - last_user_interaction > MENU_TIMEOUT) {   lcd_menu_go_back(); return }
+#endif
+
+    if (lcd_lib_button_pressed())		// exit
         {
             set_extrude_min_temp(EXTRUDE_MINTEMP);
             target_temperature[active_extruder] = 0;
@@ -560,7 +614,11 @@ void lcd_menu_maintenance_advanced_bed_heatup()
             lcd_lib_encoder_pos = 0;
         }
     LED_HEAT();
-    if (lcd_lib_button_pressed)
+    // do we want a timeout here?
+#if MAINTENANCE_FUNCTION_TIMEOUT
+    if (millis() - last_user_interaction > MENU_TIMEOUT) {   lcd_menu_go_back(); return }
+#endif
+    if (lcd_lib_button_pressed())
         {
             lcd_menu_go_back();
             return;
@@ -713,7 +771,7 @@ void lcd_menu_maintenance_retraction()
     LED_NORMAL();
 
     lcd_scroll_menu(PSTR("RETRACTION"), 3, lcd_menu_retraction_getString, lcd_menu_retraction_getDetails);
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             if (IS_SELECTED_SCROLL(0))
                 {
@@ -784,8 +842,8 @@ void lcd_menu_maintenance_motion()
 {
     lcd_scroll_menu(PSTR("MOTION"), 6, lcd_motion_item, lcd_motion_details);
     LED_NORMAL();
-
-    if (lcd_lib_button_pressed)
+    if (millis() - last_user_interaction > MENU_TIMEOUT) {   lcd_menu_go_back(); return; }
+    if (lcd_lib_button_pressed())
         {
             if (IS_SELECTED_SCROLL(0))
                 {
@@ -858,18 +916,19 @@ void lcd_led_details(uint8_t nr)
 
 void lcd_menu_maintenance_led()
 {
+    if (millis() - last_user_interaction > MENU_TIMEOUT) {   lcd_menu_go_back(); return; }
     LED_NORMAL();
     analogWrite(LED_PIN, 255 * int(led_brightness_level) / 100);
     lcd_scroll_menu(PSTR("LED"), 6, lcd_led_item, lcd_led_details);
-    if (lcd_lib_button_pressed)
+    if (lcd_lib_button_pressed())
         {
             if (IS_SELECTED_SCROLL(0))
                 {
                     if (led_mode != LED_MODE_ALWAYS_ON)
                         analogWrite(LED_PIN, 0);
                     Config_StoreSettings();
-					   lcd_menu_go_back();
-					   return;
+                    lcd_menu_go_back();
+                    return;
 //                    lcd_change_to_menu(lcd_menu_maintenance_doAction, SCROLL_MENU_ITEM_POS(1));
                 }
             else

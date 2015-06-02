@@ -31,7 +31,7 @@
 typedef struct {
   // Fields used by the bresenham algorithm for tracing the line
   long steps_x, steps_y, steps_z, steps_e;  // Step count along each axis
-  unsigned long step_event_count;           // The number of step events required to complete this block
+  unsigned long total_steps;           // The number of step events required to complete this block
   long accelerate_until;                    // The index of the step event on which to stop acceleration
   long decelerate_after;                    // The index of the step event on which to start decelerating
   long acceleration_rate;                   // The acceleration rate used for acceleration calculation
@@ -50,17 +50,17 @@ typedef struct {
 
   // Fields used by the motion planner to manage acceleration
   float speed_x, speed_y, speed_z, speed_e;        // Nominal mm/sec for each axis
-  float nominal_speed;                               // The nominal speed for this block in mm/sec 
+  float nominal_speed_in_mm_s;                               // The nominal speed for this block in mm/sec 
   float entry_speed;                                 // Entry speed at previous-current junction in mm/sec
   float max_entry_speed;                             // Maximum allowable junction entry speed in mm/sec
   float millimeters;                                 // The total travel of this block in mm
   float acceleration;                                // acceleration mm/sec^2
 
   // Settings for the trapezoid generator
-  unsigned long nominal_rate;                        // The nominal step rate for this block in step_events/sec 
-  unsigned long initial_rate;                        // The jerk-adjusted step rate at start of block  
-  unsigned long final_rate;                          // The minimal rate at exit
-  unsigned long acceleration_st;                     // acceleration steps/sec^2
+  unsigned long peak_velocity_in_steps_per_sec;                        // The nominal step rate for this block in step_events/sec 
+  unsigned long initial_velocity;                        // The jerk-adjusted step rate at start of block  
+  unsigned long final_velocity;                          // The minimal rate at exit
+  unsigned long acceleration_steps_per_sec2;                     // acceleration steps/sec^2
 //   unsigned long 
   unsigned char fan_speed;
   #ifdef BARICUDA
