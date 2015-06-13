@@ -354,7 +354,7 @@ void lcd_lib_draw_small_stringP(uint8_t x, uint8_t y, const char* pstr, bool cle
 {
     uint8_t* dst = lcd_buffer + x + (y / 8) * LCD_GFX_WIDTH;
     uint8_t* dst2 = lcd_buffer + x + (y / 8) * LCD_GFX_WIDTH + LCD_GFX_WIDTH;
-    uint8_t index;
+  //  uint8_t index;
     for(char c = pgm_read_byte(pstr); c; c = pgm_read_byte(++pstr))
         {
             drawSmallChar(y, c, clear, dst, dst2);
@@ -366,7 +366,7 @@ void lcd_lib_draw_small_string(uint8_t x, uint8_t y, const char* str, bool clear
 {
     uint8_t* dst = lcd_buffer + x + (y / 8) * LCD_GFX_WIDTH;
     uint8_t* dst2 = lcd_buffer + x + (y / 8) * LCD_GFX_WIDTH + LCD_GFX_WIDTH;
-    uint8_t index;
+//    uint8_t index;
     while(*str)
         {
             drawSmallChar(y, *str , clear, dst, dst2);
@@ -967,7 +967,7 @@ bool lcd_lib_button_pressed()
 	{
 	 bool rv = lcd_lib_button_was_pressed;
 	 if (rv && (millis() - last_user_interaction > 2000) ) rv = false;		// it was more than 2 seconds ago, don't respond to outdated presses!
-	 if (rv) lcd_lib_beep_ext (1200,50);
+	 if (rv) lcd_lib_beep_ext (1200,20);
 	 clear_button_press = true;
 	
 	 return rv;

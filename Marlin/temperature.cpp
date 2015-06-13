@@ -103,7 +103,7 @@ static float pid_error_bed;
 static float temp_iState_min_bed;
 static float temp_iState_max_bed;
 #else //PIDTEMPBED
-static unsigned long  previous_millis_bed_heater;
+// static unsigned long  previous_millis_bed_heater;
 #endif //PIDTEMPBED
 static unsigned char soft_pwm[EXTRUDERS];
 unsigned char soft_pwm_bed;

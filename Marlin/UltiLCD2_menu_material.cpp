@@ -36,7 +36,7 @@ char material_name[EXTRUDERS][MATERIAL_NAME_LENGTH+1];
 
 struct material_preset
 {
-    char PROGMEM name[MATERIAL_NAME_LENGTH];		//  `12 chars max
+    char name[MATERIAL_NAME_LENGTH];		//  `12 chars max
     int temperature;
     int bed;
     byte fan_speed;

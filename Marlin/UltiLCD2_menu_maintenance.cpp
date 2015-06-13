@@ -278,6 +278,8 @@ void lcd_menu_maintenance_getDetails(uint8_t nr)
     lcd_lib_draw_string(5, 53, temporary_string_buffer);
 }
 
+void log_stepper();
+
 void lcd_menu_maintenance_doAction()
 {
     lcd_scroll_menu(PSTR("SYSTEM"),MAINTENANCE_MENU_MAX, lcd_menu_maintenance_getString, lcd_menu_maintenance_getDetails);
@@ -361,22 +363,30 @@ void lcd_menu_maintenance_doAction()
             case MAINTENANCE_MENU_CENTER_HEAD:
                 {
                     lcd_lib_beep();
-                    enquecommand_P(PSTR("G1 X100 Y20 F35000"));
+                    enquecommand_P(PSTR("G1 X100 Y20 F25000"));
                 }
                 break;
 			case MAINTENANCE_MENU_LIMITS_HEAD:
 				{
 				lcd_lib_beep();
 				enquecommand_P(PSTR("G28 X0 Y0"));
-				enquecommand_P(PSTR("G1 X0 Y0 F35000"));
+				enquecommand_P(PSTR("G1 X0 Y0 F25000"));
 				char buffer[20];
 				memset (buffer,0,sizeof(buffer));
 				sprintf_P(buffer, PSTR("G1 Y%i"), int(max_pos[Y_AXIS]));
 				enquecommand(buffer);
 				sprintf_P(buffer, PSTR("G1 X%i"), int(max_pos[X_AXIS]));
 				enquecommand(buffer);
-				enquecommand_P(PSTR("G1 Y0 F35000"));
+				enquecommand_P(PSTR("G1 Y0 F25000"));
 				enquecommand_P(PSTR("G28 X0 Y0"));
+				while( blocks_queued())
+					{
+					manageBuffer();
+					log_stepper();
+					checkHitEndstops();
+						log_stepper();
+
+					}
 
 				}
 				break;

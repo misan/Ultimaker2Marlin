@@ -357,13 +357,13 @@ void setup()
 #endif
     SERIAL_ECHOLNPGM(STRING_BIG_LINE);
     lastMotorCheck=previous_millis_cmd=last_user_interaction = millis();
-	starttime =0;
-	last_print_name[0]=0;
-	estimatedTime=0;
-	memset (bins_a,0,sizeof (bins_a));
-	memset (bins_d,0,sizeof (bins_d));
-	
-	stoptime = 0;
+    starttime =0;
+    last_print_name[0]=0;
+    estimatedTime=0;
+    memset (bins_a,0,sizeof (bins_a));
+    memset (bins_d,0,sizeof (bins_d));
+
+    stoptime = 0;
 }
 
 
@@ -406,6 +406,38 @@ PeriodTimer mobo_cooling_fan_timer (controllerFan,FAN_CHECK_INTERVAL);
 
 
 
+extern unsigned short current_speed;
+extern unsigned long block_start;
+
+extern short  curve_index ;
+extern short cur_lin_acc ;
+extern short cur_lin_acc_raw ;
+void log_stepper2()
+	{
+	return;
+		if (current_speed==0) return;
+		SERIAL_ECHO ((micros() - block_start)>>7);
+		SERIAL_ECHOPGM("\t");
+		SERIAL_ECHO ((unsigned short) current_speed);
+		SERIAL_ECHOPGM("\t");
+		SERIAL_ECHO ((unsigned short) curve_index);
+		SERIAL_ECHOPGM("\t");
+		SERIAL_ECHO ((short) cur_lin_acc);
+		SERIAL_ECHOPGM("\t");
+		SERIAL_ECHO ((short) cur_lin_acc_raw);
+		SERIAL_ECHOLNPGM(" ");
+		current_speed =0 ;
+	}
+
+PeriodTimer motion_logger (log_stepper2,30000);
+
+//-----------------------------------------------------------------------------------------------------------------
+void log_stepper()
+	{
+	//motion_logger.tick();
+return;
+
+	}
 
 //-----------------------------------------------------------------------------------------------------------------
 void runTasks(bool with_command_processing)
@@ -413,6 +445,7 @@ void runTasks(bool with_command_processing)
     if (with_command_processing)
         {
             manageBuffer();
+			log_stepper();
             checkHitEndstops();
         }
     ui_timer.tick();
@@ -432,14 +465,18 @@ void runTasks(bool with_command_processing)
 #ifdef REPORT_TEMPS
     temp_logging_timer.tick();
 #endif
-	temp_log_timer.tick();
-	ambient_timer.tick();
+    temp_log_timer.tick();
+    ambient_timer.tick();
+
+
+	log_stepper();
 
 }
 
 //-----------------------------------------------------------------------------------------------------------------
 void loop()
 {
+log_stepper();
     if(commands_queued() < (BUFSIZE-1))
         get_command();
 #ifdef SDSUPPORT

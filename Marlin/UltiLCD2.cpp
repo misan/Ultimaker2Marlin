@@ -270,7 +270,12 @@ void lcd_menu_main()
             return;
         }
     lcd_menu_clear_back();
-    if (!lcd_lib_update_ready()) return;
+    if (!lcd_lib_update_ready()) 
+		{
+		SERIAL_ECHO_START;
+		SERIAL_ECHOLNPGM("LCD NOT READY, NOT DRAWING MAIN MENU");
+		return;
+		}
     lcd_lib_clear();
 //     lcd_lib_update_screen();
 //     lcd_lib_wait_for_screen_ready();

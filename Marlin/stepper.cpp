@@ -41,7 +41,7 @@
 // gives the accleration an S-curve profile.  The sinusoidal jerk is a close approximation to the fifth
 // order motion and superior to second order (constant acceleration) or third order  (constant jerk)
 // in terms of optimal path, speed, and reduced vibration, machinee stress
-#define SINUSOIDAL_JERK 0
+#define SINUSOIDAL_JERK 1
 //===========================================================================
 //=============================public variables  ============================
 //===========================================================================
@@ -270,10 +270,16 @@ void step_wait()
 }
 
 
+unsigned short current_speed=0;
+unsigned long block_start;
+
 FORCE_INLINE unsigned short calc_timer(unsigned short step_rate)
 {
     unsigned short timer;
     if(step_rate > MAX_STEP_FREQUENCY) step_rate = MAX_STEP_FREQUENCY;
+
+
+ 	current_speed = step_rate;
 
     if(step_rate > 20000)   // If steprate > 20kHz >> step 4 times
         {
@@ -337,11 +343,12 @@ FORCE_INLINE void trapezoid_generator_reset()
     velocity_accel_phase = current_block->initial_velocity;
     acceleration_time = calc_timer(velocity_accel_phase);
     OCR1A = acceleration_time;
-    delta_v_during_acc =(current_block->peak_velocity_in_steps_per_sec - current_block->initial_velocity) >>4;
+ #if SINUSOIDAL_JERK
+	delta_v_during_acc =(current_block->peak_velocity_in_steps_per_sec - current_block->initial_velocity) >>8;
     delta_v_during_dec = 0;
-
-
-
+	//	block_start = micros();
+	//SERIAL_ECHOLNPGM("-");
+#endif
 //    SERIAL_ECHO_START;
 //    SERIAL_ECHOPGM("advance :");
 //    SERIAL_ECHO(current_block->advance/256.0);
@@ -356,12 +363,21 @@ FORCE_INLINE void trapezoid_generator_reset()
 
 // this is a precalculated adjustment to acceleration vs time based on a sinusoidal jerk function.  These values will take the normalized 0-1.0 range of acceleration in the accel or decell phases
 // and shift them into an s-curve.  These values are shifted left by 8 for fixed point math
-static const unsigned short  SCurveTable[16] = { 7,	26,	55,	93,	136,	179	,220,	256,	284,	302,	311,	310,	302,	289,	273,	256};
+// static const unsigned short  SCurveTable[16] = { 7,	26,	55,	93,	136,	179	,220,	256,	284,	302,	311,	310,	302,	289,	273,	256};
+static const short  SCurveTable[256] = {0,0,0,0,1,1,1,2,2,3,3,4,4,5,6,7,7,8,9,10,11,12,13,15,16,17,18,20,21,23,24,26,27,29,\
+	30,32,34,36,37,39,41,43,45,47,49,51,53,55,57,60,62,64,66,69,71,73,76,78,81,83,85,88,90,93,96,98,101,103,106,109,111,114,117,119,\
+	122,125,127,130,133,136,138,141,144,146,149,152,155,157,160,163,166,168,171,174,176,179,182,185,187,190,192,195,198,200,203,205,\
+	208,210,213,215,218,220,223,225,228,230,232,235,237,239,241,243,246,248,250,252,254,256,258,260,262,264,266,267,269,271,273,274,\
+	276,278,279,281,282,284,285,287,288,289,291,292,293,294,295,296,297,298,299,300,301,302,303,304,304,305,306,306,307,308,308,309,\
+	309,309,310,310,310,311,311,311,311,311,312,312,312,312,312,311,311,311,311,311,311,310,310,310,309,309,309,308,308,307,307,306,\
+	306,305,304,304,303,302,302,301,300,299,299,298,297,296,295,294,294,293,292,291,290,289,288,287,286,285,284,283,282,281,280,279,\
+	278,277,276,275,274,273,272,271,269,268,267,266,265,264,263,262,261,260,259,258,257,256};
 
 unsigned long bins_a[16];
 unsigned long bins_d[16];
-
-
+short  curve_index = 0;
+short cur_lin_acc = 0;
+short cur_lin_acc_raw = 0;
 
 // "The Stepper Driver Interrupt" - This timer interrupt is the workhorse.
 // It pops blocks from the block_buffer and executes them by pulsing the stepper pins appropriately.
@@ -642,22 +658,27 @@ ISR(TIMER1_COMPA_vect)
         }
     // Calculare new timer value
     unsigned short delay_time;
-    short velocity;
-    short cumulative_linear_acceleration;
+    short velocity=0;
+    short cumulative_linear_acceleration=0;
     if (steps_completed <= (unsigned long int)current_block->accelerate_until)
 		{
 			// ACCELERATING PHASE 
 
             MultiU24X24toH16(cumulative_linear_acceleration, acceleration_time, current_block->acceleration_rate);
-#if SINUSOIDAL_JERK
+		//	cur_lin_acc_raw = cumulative_linear_acceleration;
+	//		curve_index = (steps_completed << 8 ) / current_block->accelerate_until;
+	//		int index = ( cumulative_linear_acceleration /  delta_v_during_acc);
+	//		curve_index = index;
 
+#if SINUSOIDAL_JERK
             // from linear acceleration, let's figure out time of accel phase by taking the change in velocity divided by accel)
             int index = ( cumulative_linear_acceleration /  delta_v_during_acc);
-            if (index < 0 ) index = 15+index;
-            if (index > 15) index = 15;
-            if (index < 0 ) index = 0 ;
-            bins_a[index]++;
+//             if (index < 0 ) index = 255+index;
+//             if (index > 255) index = 255;
+//             if (index < 0 ) index = 0 ;
+           // bins_a[index]++;
             cumulative_linear_acceleration =( unsigned long )  ((unsigned long) cumulative_linear_acceleration * SCurveTable[index] ) >> 8;
+	//		cur_lin_acc = cumulative_linear_acceleration;
 #endif
 
             velocity_accel_phase = current_block->initial_velocity+cumulative_linear_acceleration;
@@ -687,15 +708,20 @@ ISR(TIMER1_COMPA_vect)
 			// DECELERATION PHASE
             {
                 MultiU24X24toH16(cumulative_linear_acceleration, deceleration_time, current_block->acceleration_rate);
-
-#if SINUSOIDAL_JERK
-                if (delta_v_during_dec==0) delta_v_during_dec = (velocity_accel_phase - current_block->final_velocity)/16;//>>4;
+		/////		cur_lin_acc_raw = cumulative_linear_acceleration;
+                if (delta_v_during_dec==0) delta_v_during_dec = (velocity_accel_phase - current_block->final_velocity) >>8 ;///16;//>>4;
+		//		curve_index = (steps_completed << 8 ) / (current_block->total_steps- current_block->decelerate_after);
                 int index = cumulative_linear_acceleration /delta_v_during_dec ;
-                if (index < 0 ) index = 15+index;
-                if (index > 15) index = 15;
-                if (index < 0 ) index = 0 ;
-                bins_d[index]++;
+		//		curve_index = index;
+#if SINUSOIDAL_JERK
+			//	index = 255-index;
+// 				if (index < 0 ) index =255+index;
+// 				if (index > 255) index = 255;
+// 				if (index < 0 ) index = 0 ;
+        //        bins_d[index]++;
                 cumulative_linear_acceleration=( unsigned long ) ( ( unsigned long ) cumulative_linear_acceleration * SCurveTable[index]  ) >> 8;
+// 				cur_lin_acc = cumulative_linear_acceleration;
+// 				curve_index = index;
 
 #endif
                 if(cumulative_linear_acceleration > velocity_accel_phase)   // Check step_rate stays positive
@@ -733,6 +759,8 @@ ISR(TIMER1_COMPA_vect)
                 // ensure we're running at the correct step rate, even if we just came off an acceleration
                 step_loops = step_loops_nominal;
                 //  velocity_accel_phase = current_block->peak_velocity_in_steps_per_sec;
+// 				curve_index = -1; 
+// 				cumulative_linear_acceleration=0;
             }
 
     // If current block is finished, reset pointer
