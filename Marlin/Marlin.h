@@ -40,6 +40,9 @@
 #include "CommandQ.h"
 #include "PeriodTimer.h"
 
+#define LOG_MOTION 0
+
+
 
 #ifndef cbi
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))

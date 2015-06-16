@@ -292,8 +292,8 @@ void spewHello()
     SERIAL_ECHOLNPGM(STRING_BIG_LINE);
 }
 
-extern unsigned long bins_a[16];
-extern unsigned long bins_d[16];
+// extern unsigned long bins_a[16];
+// extern unsigned long bins_d[16];
 
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -360,8 +360,8 @@ void setup()
     starttime =0;
     last_print_name[0]=0;
     estimatedTime=0;
-    memset (bins_a,0,sizeof (bins_a));
-    memset (bins_d,0,sizeof (bins_d));
+//     memset (bins_a,0,sizeof (bins_a));
+//     memset (bins_d,0,sizeof (bins_d));
 
     stoptime = 0;
 }
@@ -404,40 +404,49 @@ PeriodTimer mobo_cooling_fan_timer (controllerFan,FAN_CHECK_INTERVAL);
 #endif
 
 
-
+#if LOG_MOTION
 
 extern unsigned short current_speed;
 extern unsigned long block_start;
 
 extern short  curve_index ;
-extern short cur_lin_acc ;
-extern short cur_lin_acc_raw ;
+extern unsigned  short cur_lin_acc ;
+extern unsigned  short cur_lin_acc_raw ;
+extern volatile  unsigned long steps_completed; // The number of step events executed in the current block
 void log_stepper2()
 	{
-	return;
-		if (current_speed==0) return;
-		SERIAL_ECHO ((micros() - block_start)>>7);
-		SERIAL_ECHOPGM("\t");
-		SERIAL_ECHO ((unsigned short) current_speed);
-		SERIAL_ECHOPGM("\t");
-		SERIAL_ECHO ((unsigned short) curve_index);
-		SERIAL_ECHOPGM("\t");
-		SERIAL_ECHO ((short) cur_lin_acc);
-		SERIAL_ECHOPGM("\t");
-		SERIAL_ECHO ((short) cur_lin_acc_raw);
-		SERIAL_ECHOLNPGM(" ");
-		current_speed =0 ;
+	if (current_speed==0) return;
+	unsigned short cs = current_speed;
+	current_speed =0 ;
+	SERIAL_ECHO ((micros() - block_start)>>7);
+	SERIAL_ECHOPGM("\t");
+	SERIAL_ECHO ((unsigned short) cs);
+	 		SERIAL_ECHOPGM("\t");
+	 		SERIAL_ECHO ((unsigned short) curve_index);
+	SERIAL_ECHOPGM("\t");
+	SERIAL_ECHO ((unsigned short) cur_lin_acc);
+	 		SERIAL_ECHOPGM("\t");
+	 		SERIAL_ECHO ((short) cur_lin_acc_raw);
+	
+			SERIAL_ECHOPGM("\t");
+			SERIAL_ECHO ((unsigned long) steps_completed);
+			
+
+			SERIAL_ECHOLNPGM(" ");
+	
+
 	}
 
-PeriodTimer motion_logger (log_stepper2,30000);
+PeriodTimer motion_logger (log_stepper2,1);
 
 //-----------------------------------------------------------------------------------------------------------------
 void log_stepper()
 	{
-	//motion_logger.tick();
-return;
-
+	log_stepper2();
+	//	motion_logger.tick();
 	}
+
+#endif
 
 //-----------------------------------------------------------------------------------------------------------------
 void runTasks(bool with_command_processing)
@@ -445,18 +454,35 @@ void runTasks(bool with_command_processing)
     if (with_command_processing)
         {
             manageBuffer();
+#if LOG_MOTION
 			log_stepper();
-            checkHitEndstops();
+#endif
+			checkHitEndstops();
         }
     ui_timer.tick();
+#if LOG_MOTION
+	log_stepper();
+#endif
     inactivity_timer.tick();
+#if LOG_MOTION
+	log_stepper();
+#endif
     bed_temp_timer.tick();
+#if LOG_MOTION
+	log_stepper();
+#endif
     extruder_temp_timer.tick();
 #if defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1
     head_cooling_fan_timer.tick();
 #endif
+#if LOG_MOTION
+	log_stepper();
+#endif
 
     stats_timer.tick();
+#if LOG_MOTION
+	log_stepper();
+#endif
     bed_light_timer.tick();
 #if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
     mobo_cooling_fan_timer.tick();
@@ -469,14 +495,17 @@ void runTasks(bool with_command_processing)
     ambient_timer.tick();
 
 
+#if LOG_MOTION
 	log_stepper();
-
+#endif
 }
 
 //-----------------------------------------------------------------------------------------------------------------
 void loop()
 {
-log_stepper();
+#if LOG_MOTION
+	log_stepper();
+#endif
     if(commands_queued() < (BUFSIZE-1))
         get_command();
 #ifdef SDSUPPORT

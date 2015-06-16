@@ -214,19 +214,45 @@ void calculate_trapezoid_for_block(block_t *block, float entry_factor, float exi
 
     // Calculate the size of Plateau of Nominal Rate.
     int32_t plateau_steps = block->total_steps-accelerate_steps-decelerate_steps;
-
+#if LOG_MOTION
+	//block->peak_velocity2 = (block->peak_velocity_in_steps_per_sec);
+	SERIAL_ECHOPAIR("MAX SPEED = ",block->peak_velocity2);
+#endif
     // Is the Plateau of Nominal Rate smaller than nothing? That means no cruising, and we will
     // have to use intersection_distance() to calculate when to abort acceleration and start braking
     // in order to reach the final_rate exactly at the end of this block.
     if (plateau_steps < 0)
         {
+			int32_t accelerate_steps_original = accelerate_steps;
+
             accelerate_steps = ceil(intersection_distance(initial_rate, final_rate, acceleration, block->total_steps));
             accelerate_steps = max(accelerate_steps,0); // Check limits due to numerical round-off
             accelerate_steps = min((uint32_t)accelerate_steps,block->total_steps);//(We can cast here to unsigned, because the above line ensures that we are above zero)
-            plateau_steps = 0;
-		// need to set peak velo here	
-        }
+			// need to set peak velo here b/c we use it to determine where in the acceleration phase we are for the s-curve (back converting linear accel to delta time) 
+			// d = 1/2 a t ^2 
+			// 2d/a = t^2
+			// t = sqrt (2d/a)
+ 			float  t = sqrt ((  (float) (accelerate_steps<<1) /(float) acceleration));
+ 			
+ 			block->peak_velocity2 =initial_rate+((float) acceleration*t);
+		//	block-> peak_velocity_in_steps_per_sec = block->peak_velocity2;
+//			block->peak_velocity2*= ;
+			plateau_steps = 0;
+#if LOG_MOTION
 
+			SERIAL_ECHOPAIR(",  TRIMMED_SPEED= ",block->peak_velocity2);
+			SERIAL_ECHOPAIR(",  TRIMMED_RATIO= ", (float) accelerate_steps / accelerate_steps_original  );
+			SERIAL_ECHOPAIR(",  acc_steps= ",(unsigned long) accelerate_steps  );
+			SERIAL_ECHOPAIR(",  dec_after= ",  (unsigned long) accelerate_steps+plateau_steps);
+			SERIAL_ECHOPAIR(",  total_steps= ",(unsigned long) block->total_steps  );
+#endif 
+
+        }
+//		block->peak_velocity2 = (block->peak_velocity_in_steps_per_sec);
+
+#if LOG_MOTION
+	SERIAL_ECHOLN(" ");
+#endif
 #ifdef ADVANCE
     volatile long initial_advance = block->advance*entry_factor*entry_factor;
     volatile long final_advance = block->advance*exit_factor*exit_factor;
@@ -839,6 +865,7 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
 
     block->nominal_speed_in_mm_s = block->millimeters * inverse_second; // (mm/sec) Always > 0
     block->peak_velocity_in_steps_per_sec = ceil(block->total_steps * inverse_second); // (step/sec) Always > 0
+	block->peak_velocity2 = (block->peak_velocity_in_steps_per_sec);
 
     // Calculate and limit speed in mm/sec for each axis
     float current_speed[4];
@@ -894,6 +921,7 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
                 }
             block->nominal_speed_in_mm_s *= speed_factor;
             block->peak_velocity_in_steps_per_sec *= speed_factor;
+            block->peak_velocity2 *= speed_factor;
         }
 
     // Compute and limit the acceleration rate for the trapezoid generator.

@@ -725,12 +725,17 @@ void process_commands()
 
 #ifdef SDSUPPORT
                         case 20: // M20 - list SD card
-                            watchdog_stop();
+#ifdef USE_WATCHDOG
+							watchdog_stop();
+#endif 
                             SERIAL_PROTOCOLLNPGM(MSG_BEGIN_FILE_LIST);
                             card.ls();
                             SERIAL_PROTOCOLLNPGM(MSG_END_FILE_LIST);
-                            watchdog_start();
-                            break;
+#ifdef USE_WATCHDOG
+							watchdog_start();
+
+#endif // USE_WATCHDOG
+							break;
                         case 21: // M21 - init SD card
 
                             card.initsd();

@@ -58,6 +58,7 @@ typedef struct {
 
   // Settings for the trapezoid generator
   unsigned long peak_velocity_in_steps_per_sec;                        // The nominal step rate for this block in step_events/sec 
+  unsigned long peak_velocity2;                        // The nominal step rate for this block in step_events/sec 
   unsigned long initial_velocity;                        // The jerk-adjusted step rate at start of block  
   unsigned long final_velocity;                          // The minimal rate at exit
   unsigned long acceleration_steps_per_sec2;                     // acceleration steps/sec^2

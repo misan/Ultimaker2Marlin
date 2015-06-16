@@ -18,7 +18,7 @@
 #include "stringHelpers.h"
 
 
-#define MAINTENANCE_FUNCTION_TIMEOUT 0 
+#define MAINTENANCE_FUNCTION_TIMEOUT 0
 
 //void lcd_menu_maintenance_advanced_heatup();
 void lcd_menu_maintenance_advanced_bed_heatup();
@@ -37,7 +37,7 @@ float extruded_amount;
 extern unsigned char  LED_DIM_TIME;
 // byte adjust_axis = 0;
 
-
+#define MAINTENANCE_FEED_RATE "F40000"
 
 
 enum MAINTENANCE_MENU
@@ -45,7 +45,8 @@ enum MAINTENANCE_MENU
     MAINTENANCE_MENU_RETURN=0,
     MAINTENANCE_MENU_HOME_HEAD,
     MAINTENANCE_MENU_CENTER_HEAD,
-	MAINTENANCE_MENU_LIMITS_HEAD,
+    MAINTENANCE_MENU_LIMITS_HEAD,
+    MAINTENANCE_MENU_RANDOM_HEAD,
     MAINTENANCE_MENU_RELAX_MOTORS,
     MAINTENANCE_MENU_HEAT_EXTR,
 #if EXTRUDERS > 1
@@ -212,9 +213,13 @@ static char* lcd_menu_maintenance_getString(uint8_t nr)
             case MAINTENANCE_MENU_COOL_FAN:
                 strcpy_P(c, PSTR("Turn on cooling fan"));
                 break;
-			case MAINTENANCE_MENU_LIMITS_HEAD:
-				strcpy_P(c, PSTR("Run head through XY limits"));
-				break;
+            case MAINTENANCE_MENU_LIMITS_HEAD:
+                strcpy_P(c, PSTR("Run head through XY limits"));
+                break;
+
+            case MAINTENANCE_MENU_RANDOM_HEAD:
+                strcpy_P(c, PSTR("Move head randomly"));
+                break;
 
         }
     return c;
@@ -301,23 +306,23 @@ void lcd_menu_maintenance_doAction()
 
             case MAINTENANCE_MENU_COOL_FAN:
                 fanSpeedOverride = 255;
-				analogWrite(FAN_PIN,fanSpeedOverride);
+                analogWrite(FAN_PIN,fanSpeedOverride);
                 break;
             case MAINTENANCE_MENU_CASE_FAN:
                 WRITE (MOTHERBOARD_FAN,1);
-				mobo_cooling_fan_timer.pause();
+                mobo_cooling_fan_timer.pause();
                 break;
             case MAINTENANCE_MENU_HEAD_FAN:
-				head_cooling_fan_timer.pause();
+                head_cooling_fan_timer.pause();
                 setExtruderAutoFanState(EXTRUDER_0_AUTO_FAN_PIN, 1);
                 break;
             case MAINTENANCE_MENU_RETURN:
                 Config_StoreSettings();
                 fanSpeedOverride = -1;
-				head_cooling_fan_timer.resume();
-				mobo_cooling_fan_timer.resume();
+                head_cooling_fan_timer.resume();
+                mobo_cooling_fan_timer.resume();
                 checkExtruderAutoFans();
-				controllerFan();
+                controllerFan();
                 lcd_menu_go_back();
                 return;
                 //lcd_change_to_menu(lcd_menu_main);
@@ -363,33 +368,70 @@ void lcd_menu_maintenance_doAction()
             case MAINTENANCE_MENU_CENTER_HEAD:
                 {
                     lcd_lib_beep();
-                    enquecommand_P(PSTR("G1 X100 Y20 F25000"));
+                    enquecommand_P(PSTR("G1 X100 Y20" MAINTENANCE_FEED_RATE));
                 }
                 break;
-			case MAINTENANCE_MENU_LIMITS_HEAD:
-				{
-				lcd_lib_beep();
-				enquecommand_P(PSTR("G28 X0 Y0"));
-				enquecommand_P(PSTR("G1 X0 Y0 F25000"));
-				char buffer[20];
-				memset (buffer,0,sizeof(buffer));
-				sprintf_P(buffer, PSTR("G1 Y%i"), int(max_pos[Y_AXIS]));
-				enquecommand(buffer);
-				sprintf_P(buffer, PSTR("G1 X%i"), int(max_pos[X_AXIS]));
-				enquecommand(buffer);
-				enquecommand_P(PSTR("G1 Y0 F25000"));
-				enquecommand_P(PSTR("G28 X0 Y0"));
-				while( blocks_queued())
-					{
-					manageBuffer();
-					log_stepper();
-					checkHitEndstops();
-						log_stepper();
 
-					}
+            case MAINTENANCE_MENU_RANDOM_HEAD:
+                {
+                    lcd_lib_beep();
+                    int a;
+                    char buffer[20];
+                    memset (buffer,0,sizeof(buffer));
+                    for (a=0; a<10; a++)
+                        {
+                            sprintf_P(buffer, PSTR("G1 X%i Y%i " MAINTENANCE_FEED_RATE), (int) random((int)max_pos[X_AXIS]),(int) random((int)max_pos[Y_AXIS]));
+                            enquecommand(buffer);
+                            manageBuffer();
+                        }
+#if LOG_MOTION
+                    /// do a dedicated motion loop -- no UI updates or temp updates., so we get a good motion log
+                    do
+                        {
+                            manageBuffer();
+                            log_stepper();
+                            checkHitEndstops();
+                            log_stepper();
 
-				}
-				break;
+                        }
+                    while( blocks_queued());
+#endif
+                }
+                break;
+
+            case MAINTENANCE_MENU_LIMITS_HEAD:
+                {
+                    lcd_lib_beep();
+                    enquecommand_P(PSTR("G28 X0 Y0"));
+                    manageBuffer();
+                    enquecommand_P(PSTR("G1 X0 Y0" MAINTENANCE_FEED_RATE));
+                    manageBuffer();
+                    char buffer[20];
+                    memset (buffer,0,sizeof(buffer));
+                    sprintf_P(buffer, PSTR("G1 Y%i"), int(max_pos[Y_AXIS]));
+                    enquecommand(buffer);
+                    manageBuffer();
+                    sprintf_P(buffer, PSTR("G1 X%i"), int(max_pos[X_AXIS]));
+                    enquecommand(buffer);
+                    manageBuffer();
+                    enquecommand_P(PSTR("G1 Y0 " MAINTENANCE_FEED_RATE));
+                    manageBuffer();
+                    enquecommand_P(PSTR("G28 X0 Y0"));
+                    manageBuffer();
+#if LOG_MOTION
+                    /// do a dedicated motion loop -- no UI updates or temp updates., so we get a good motion log
+                    do
+                        {
+                            manageBuffer();
+                            log_stepper();
+                            checkHitEndstops();
+                            log_stepper();
+
+                        }
+                    while( blocks_queued());
+#endif
+                }
+                break;
 
             case MAINTENANCE_MENU_LOWER_BED:
                 {
@@ -497,10 +539,10 @@ void lcd_menu_maintenance_adjust_max_Y()
                     lcd_lib_encoder_pos = 0;
                 }
         }
-	// do we want a timeout here?
+    // do we want a timeout here?
 #if MAINTENANCE_FUNCTION_TIMEOUT
-	if (millis() - last_user_interaction > MENU_TIMEOUT) {  enquecommand_P(PSTR("G28 X0 Y0"));  lcd_menu_go_back(); }
-#endif 
+    if (millis() - last_user_interaction > MENU_TIMEOUT) {  enquecommand_P(PSTR("G28 X0 Y0"));  lcd_menu_go_back(); }
+#endif
 
     if (lcd_lib_button_pressed())		// exit
         {
@@ -537,10 +579,10 @@ void lcd_menu_maintenance_adjust_max_X()
                 }
         }
 
-	// do we want a timeout here?
+    // do we want a timeout here?
 #if MAINTENANCE_FUNCTION_TIMEOUT
-	if (millis() - last_user_interaction > MENU_TIMEOUT) {  enquecommand_P(PSTR("G28 X0 Y0"));  lcd_menu_go_back(); }
-#endif 
+    if (millis() - last_user_interaction > MENU_TIMEOUT) {  enquecommand_P(PSTR("G28 X0 Y0"));  lcd_menu_go_back(); }
+#endif
 
     if (lcd_lib_button_pressed())		// exit
         {
@@ -819,7 +861,10 @@ static char* lcd_motion_item(uint8_t nr)
                         if (nr == 5)
                             strcpy_P(c, PSTR("Max speed Z"));
                         else
-                            strcpy_P(c, PSTR("???"));
+                            if (nr == 6)
+                                strcpy_P(c, PSTR("Max speed E"));
+                            else
+                                strcpy_P(c, PSTR("???"));
     return c;
 }
 
@@ -845,12 +890,15 @@ void lcd_motion_details(uint8_t nr)
                     else
                         if(nr == 5)
                             int_to_string(max_feedrate[Z_AXIS], buffer, PSTR("mm" PER_SECOND_SYMBOL ));
+                        else
+                            if(nr == 6)
+                                int_to_string(max_feedrate[E_AXIS], buffer, PSTR("mm" PER_SECOND_SYMBOL ));
     lcd_lib_draw_string(5, 53, buffer);
 }
 
 void lcd_menu_maintenance_motion()
 {
-    lcd_scroll_menu(PSTR("MOTION"), 6, lcd_motion_item, lcd_motion_details);
+    lcd_scroll_menu(PSTR("MOTION"), 7, lcd_motion_item, lcd_motion_details);
     LED_NORMAL();
     if (millis() - last_user_interaction > MENU_TIMEOUT) {   lcd_menu_go_back(); return; }
     if (lcd_lib_button_pressed())
@@ -863,19 +911,22 @@ void lcd_menu_maintenance_motion()
                 }
             else
                 if (IS_SELECTED_SCROLL(1))
-                    LCD_EDIT_SETTING_FLOAT100(acceleration, "Acceleration", "mm" PER_SECOND_SYMBOL  SQUARED_SYMBOL , 0, 20000);
+                    LCD_EDIT_SETTING_FLOAT100(acceleration, "Acceleration", "mm" PER_SECOND_SYMBOL  SQUARED_SYMBOL , 0, 50000);
                 else
                     if (IS_SELECTED_SCROLL(2))
                         LCD_EDIT_SETTING_FLOAT1(max_xy_jerk, "X/Y Jerk", "mm" PER_SECOND_SYMBOL , 0, 100);
                     else
                         if (IS_SELECTED_SCROLL(3))
-                            LCD_EDIT_SETTING_FLOAT1(max_feedrate[X_AXIS], "Max speed X", "mm" PER_SECOND_SYMBOL , 0, 1000);
+                            LCD_EDIT_SETTING_FLOAT1(max_feedrate[X_AXIS], "Max speed X", "mm" PER_SECOND_SYMBOL , 0, 600);
                         else
                             if (IS_SELECTED_SCROLL(4))
-                                LCD_EDIT_SETTING_FLOAT1(max_feedrate[Y_AXIS], "Max speed Y", "mm" PER_SECOND_SYMBOL , 0, 1000);
+                                LCD_EDIT_SETTING_FLOAT1(max_feedrate[Y_AXIS], "Max speed Y", "mm" PER_SECOND_SYMBOL , 0, 600);
                             else
                                 if (IS_SELECTED_SCROLL(5))
-                                    LCD_EDIT_SETTING_FLOAT1(max_feedrate[Z_AXIS], "Max speed Z", "mm" PER_SECOND_SYMBOL , 0, 1000);
+                                    LCD_EDIT_SETTING_FLOAT1(max_feedrate[Z_AXIS], "Max speed Z", "mm" PER_SECOND_SYMBOL , 0, 200);
+                                else
+                                    if (IS_SELECTED_SCROLL(6))
+                                        LCD_EDIT_SETTING_FLOAT1(max_feedrate[E_AXIS], "Max speed E", "mm" PER_SECOND_SYMBOL , 0, 200);
         }
 }
 
