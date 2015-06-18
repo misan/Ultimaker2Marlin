@@ -376,7 +376,7 @@ void process_commands()
                                 c = int_to_string((int) (codenum-millis()/1000),c,PSTR(" sec"));
                                 *c++=0;
                                 lcd_setstatus (buffer);
-								runTasks();
+								runTasks(false,true);
 
                             }
                         clear_message();
@@ -694,7 +694,7 @@ void process_commands()
                                                 lcd_setstatus (buffer);
 												last_user_interaction = millis();
                                                 lcd_lib_update_screen();
-												runTasks();
+													runTasks(false,true);
                                             }
                                     }
                                 else
@@ -702,7 +702,7 @@ void process_commands()
                                         while(!lcd_lib_button_pressed())
                                             {
                                                 LCD_MESSAGEPGM (PSTR("CLICK TO CONTINUE!"));
-												runTasks();
+													runTasks(false,true);
                                                 last_user_interaction = millis();
                                             }
                                         clear_message();
@@ -994,7 +994,7 @@ void process_commands()
 #endif
                                                 codenum = millis();
                                             }
-                                       runTasks();
+                                       	runTasks(false,true);
 #ifdef TEMP_RESIDENCY_TIME
                                         /* start/restart the TEMP_RESIDENCY_TIME timer whenever we reach target temp for the first time
                                         or when current temp falls outside the hysteresis after target temp was reached */
@@ -1033,7 +1033,7 @@ void process_commands()
                                             SERIAL_PROTOCOLLN("");
                                             codenum = millis();
                                         }
-                                    runTasks();
+                                 	runTasks(false,true);
                                 }
                             LCD_MESSAGEPGM(MSG_BED_DONE);
                             previous_millis_cmd = millis();
@@ -1735,7 +1735,7 @@ void process_commands()
                             while(card.pause)
                                 {
                                     if (!is_message_shown) LCD_MESSAGEPGM ("PAUSED");
-									runTasks();
+										runTasks(false,true);
                                 }
                             clear_message();
                             resumeFromPausePosition();

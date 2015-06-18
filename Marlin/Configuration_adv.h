@@ -177,7 +177,7 @@
 #define DEFAULT_MINTRAVELFEEDRATE     0.0
 
 // minimum time in microseconds that a movement needs to take if the buffer is emptied.
-#define DEFAULT_MINSEGMENTTIME        20000
+#define DEFAULT_MINSEGMENTTIME        40000
 
 // If defined the movements slow down when the look ahead buffer is only half full
 #define SLOWDOWN
@@ -254,8 +254,7 @@
 #define MM_PER_ARC_SEGMENT 1
 #define N_ARC_CORRECTION 25
 
-// todo make this adjustable
-const unsigned int dropsegments=20; //everything with less than this number of steps will be ignored as move and joined with the next movement
+extern unsigned int dropsegments; //everything with less than this number of steps will be ignored as move and joined with the next movement
 
 // If you are using a RAMPS board or cheap E-bay purchased boards that do not detect when an SD card is inserted
 // You can get round this by connecting a push button or single throw switch to the pin defined as SDCARDCARDDETECT 

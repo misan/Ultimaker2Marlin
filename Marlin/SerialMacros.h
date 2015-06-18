@@ -48,4 +48,10 @@ inline void serial_echopair_P(const char *s_P, double v)
 	{ serialprintPGM(s_P); SERIAL_ECHO(v); }
 inline void serial_echopair_P(const char *s_P, unsigned long v)
 	{ serialprintPGM(s_P); SERIAL_ECHO(v); }
+inline void serial_echopair_P(const char *s_P, int  v)
+	{ serialprintPGM(s_P); SERIAL_ECHO(v); }
+inline void serial_echopair_P(const char *s_P, byte  v)
+	{ serialprintPGM(s_P); SERIAL_ECHO(v); }
+inline void serial_echopair_P(const char *s_P, long  v)
+	{ serialprintPGM(s_P); SERIAL_ECHO(v); }
 

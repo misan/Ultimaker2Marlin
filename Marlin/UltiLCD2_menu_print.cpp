@@ -790,6 +790,15 @@ void lcd_menu_print_printing()
 {
     if (!lcd_lib_update_ready()) return;
 
+	// show pink or red if the movement buffer is low / dry
+	if (movesplanned() < 2)							lcd_lib_led_color(255,0,0);
+	else
+		if (movesplanned() < BLOCK_BUFFER_SIZE/4)	lcd_lib_led_color(255,0,160);
+		else
+			if (movesplanned() < BLOCK_BUFFER_SIZE/2)  lcd_lib_led_color(192,32,192);
+	
+	lcd_lib_update_RGB_LED();
+
 	if (inhibitDrawOnSlowdowns()) return;
     run_history = true;
     bool draw_filename = true;
@@ -876,12 +885,7 @@ void lcd_menu_print_printing()
                     lcd_lib_draw_string_right(ROW3,buffer,DISPLAY_RIGHT-(3+2+32));
                     drawMiniBargraph (DISPLAY_RIGHT-(3+2+32),ROW3,DISPLAY_RIGHT,ROW4-2,(float) movesplanned() / (BLOCK_BUFFER_SIZE-1));
 
-                    // show pink or red if the movement buffer is low / dry
-                    if (movesplanned() < 2)							lcd_lib_led_color(255,0,0);
-                    else
-                        if (movesplanned() < BLOCK_BUFFER_SIZE/4)	lcd_lib_led_color(255,0,160);
-                        else
-                            if (movesplanned() < BLOCK_BUFFER_SIZE/2)  lcd_lib_led_color(192,32,192);
+                  
                 }
                 break;
             case PRINT_STATE_WAIT_USER:

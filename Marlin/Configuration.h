@@ -559,6 +559,12 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
   #endif
 #endif
 
+ // I2C has a flexible clocking scheme, unlike serial comm.
+// many devices can be clocked at 1Mbit or more
+// 400Khz is the default.  You can increase that here, testing higher values.
+// If the device fails, simply lower the overclocking.
+#define I2C_OVERCLOCK 1.5
+
 // Increase the FAN pwm frequency. Removes the PWM noise but increases heating in the FET/Arduino
 //#define FAST_PWM_FAN
 

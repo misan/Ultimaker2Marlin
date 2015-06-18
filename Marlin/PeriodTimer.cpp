@@ -11,6 +11,7 @@ PeriodTimer::PeriodTimer( PeriodicTimerFunction pf, unsigned long interval )
     
     p_function = pf;
 	rollover = false;
+	last_action=random(interval);
 }
 
 //-----------------------------------------------------------------------------------------------------------------

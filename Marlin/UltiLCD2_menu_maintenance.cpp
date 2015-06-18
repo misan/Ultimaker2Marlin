@@ -16,7 +16,9 @@
 #include "gcode.h"
 #include "MenuUseful.h"
 #include "stringHelpers.h"
-
+#include "stepper.h"
+#include "planner.h"
+#include "CommandQ.h"
 
 #define MAINTENANCE_FUNCTION_TIMEOUT 0
 
@@ -39,14 +41,14 @@ extern unsigned char  LED_DIM_TIME;
 
 #define MAINTENANCE_FEED_RATE "F40000"
 
-
 enum MAINTENANCE_MENU
 {
-    MAINTENANCE_MENU_RETURN=0,
+    MAINTENANCE_MENU_RETURN = 0,
     MAINTENANCE_MENU_HOME_HEAD,
     MAINTENANCE_MENU_CENTER_HEAD,
     MAINTENANCE_MENU_LIMITS_HEAD,
     MAINTENANCE_MENU_RANDOM_HEAD,
+    MAINTENANCE_MENU_MOVE_TEST,
     MAINTENANCE_MENU_RELAX_MOTORS,
     MAINTENANCE_MENU_HEAT_EXTR,
 #if EXTRUDERS > 1
@@ -88,566 +90,536 @@ enum MAINTENANCE_MENU
 
 //#define DEBUG_INFO
 
-
-static char* lcd_menu_maintenance_getString(uint8_t nr)
+static char* lcd_menu_maintenance_getString (uint8_t nr)
 {
 #ifdef DEBUG_INFO
     SERIAL_ECHO_START ;
-    SERIAL_ECHOPAIR(("MENU "),(unsigned long) nr);
-
+    SERIAL_ECHOPAIR (("MENU "), (unsigned long) nr);
 
 #endif
 
-    char* c = lcd_cache_new.getData(LCD_CACHE::RAWSTRING).rawstring	;
-
+    char* c = lcd_cache_new.getData (LCD_CACHE::RAWSTRING).rawstring	;
 
     //  char * c = menu_temporary_string_buffer;
     switch (nr)
-        {
-            case MAINTENANCE_MENU_RETURN:
-                strcpy_P(c, PSTR("< RETURN"));
-                break;
-            case MAINTENANCE_MENU_ADJ_BED:
-                strcpy_P(c, PSTR("Adjust Bed Height"));
-                break;
+    {
+        case MAINTENANCE_MENU_RETURN:
+            strcpy_P (c, PSTR ("< RETURN"));
+            break;
+        case MAINTENANCE_MENU_ADJ_BED:
+            strcpy_P (c, PSTR ("Adjust Bed Height"));
+            break;
 
-            case MAINTENANCE_MENU_LED:
-                strcpy_P(c, PSTR("LED settings"));
-                break;
-            case MAINTENANCE_MENU_HEAT_EXTR:
+        case MAINTENANCE_MENU_LED:
+            strcpy_P (c, PSTR ("LED settings"));
+            break;
+        case MAINTENANCE_MENU_HEAT_EXTR:
 #if EXTRUDERS > 1
-            case MAINTENANCE_MENU_HEAT_EXTR1:
+        case MAINTENANCE_MENU_HEAT_EXTR1:
 #if EXTRUDERS > 2
-            case MAINTENANCE_MENU_HEAT_EXTR2:
+        case MAINTENANCE_MENU_HEAT_EXTR2:
 #endif
 #endif
-                strcpy_P(c, PSTR("Heatup extr "));
+            strcpy_P (c, PSTR ("Heatup extr "));
 
 #if EXTRUDERS > 1
-                c += strlen (c);
-                c = int_to_string(nr -MAINTENANCE_MENU_HEAT_EXTR + 1, c );
-                *c++=0;
+            c += strlen (c);
+            c = int_to_string (nr - MAINTENANCE_MENU_HEAT_EXTR + 1, c );
+            *c++ = 0;
 #endif
 
-                break;
-            case MAINTENANCE_MENU_HEAT_BED:
-                strcpy_P(c, PSTR("Heatup buildplate"));
-                break;
-            case MAINTENANCE_MENU_HOME_HEAD:
-                strcpy_P(c, PSTR("Home head"));
-                break;
+            break;
+        case MAINTENANCE_MENU_HEAT_BED:
+            strcpy_P (c, PSTR ("Heatup buildplate"));
+            break;
+        case MAINTENANCE_MENU_HOME_HEAD:
+            strcpy_P (c, PSTR ("Home head"));
+            break;
 
-            case MAINTENANCE_MENU_CENTER_HEAD:
-                strcpy_P(c, PSTR("Center head"));
-                break;
-            case MAINTENANCE_MENU_RELAX_MOTORS:
-                strcpy_P(c, PSTR("Release motors"));
-                break;
-            case MAINTENANCE_MENU_LOWER_BED:
-                strcpy_P(c, PSTR("Lower buildplate"));
-                break;
-            case MAINTENANCE_MENU_RAISE_BED:
-                strcpy_P(c, PSTR("Raise buildplate"));
-                break;
+        case MAINTENANCE_MENU_CENTER_HEAD:
+            strcpy_P (c, PSTR ("Center head"));
+            break;
+        case MAINTENANCE_MENU_RELAX_MOTORS:
+            strcpy_P (c, PSTR ("Release motors"));
+            break;
+        case MAINTENANCE_MENU_LOWER_BED:
+            strcpy_P (c, PSTR ("Lower buildplate"));
+            break;
+        case MAINTENANCE_MENU_RAISE_BED:
+            strcpy_P (c, PSTR ("Raise buildplate"));
+            break;
 #if EXTRUDERS > 1
-            case MAINTENANCE_MENU_EXTRUDE1:
+        case MAINTENANCE_MENU_EXTRUDE1:
 #if EXTRUDERS > 2
-            case MAINTENANCE_MENU_EXTRUDE2:
+        case MAINTENANCE_MENU_EXTRUDE2:
 #endif
 #endif
-            case MAINTENANCE_MENU_EXTRUDE:
-                c =  strcpy_P(c, PSTR("Extrude material "));
+        case MAINTENANCE_MENU_EXTRUDE:
+            c =  strcpy_P (c, PSTR ("Extrude material "));
 
 #if EXTRUDERS > 1
-                c += strlen (c);
-                c = int_to_string(nr -MAINTENANCE_MENU_EXTRUDE + 1, c );
-                *c++=0;
+            c += strlen (c);
+            c = int_to_string (nr - MAINTENANCE_MENU_EXTRUDE + 1, c );
+            *c++ = 0;
 #endif
-                break;
-            case MAINTENANCE_MENU_RETRACTION:
-                strcpy_P(c, PSTR("Retraction settings"));
-                break;
-            case MAINTENANCE_MENU_MOVEMENT:
-                strcpy_P(c, PSTR("Motion settings"));
-                break;
-            case MAINTENANCE_MENU_SHOW_VERSION:
-                strcpy_P(c, PSTR("Version"));
-                break;
-            case MAINTENANCE_MENU_SHOW_STATS:
-                strcpy_P(c, PSTR("Runtime stats"));
-                break;
-            case MAINTENANCE_MENU_FACTORY_RESET:
-                strcpy_P(c, PSTR("Factory reset"));
-                break;
-            case MAINTENANCE_MENU_RESET_MATERIALS:
-                strcpy_P(c, PSTR("Reset Materials"));
-                break;
-            case MAINTENANCE_MENU_ZLIFT:
-                strcpy_P(c, PSTR("Adjust Z Lift"));
-                break;
-            case MAINTENANCE_MENU_IDLE_TIMEOUT:
-                strcpy_P(c, PSTR("Adjust idle timeout"));
-                break;
-            case MAINTENANCE_MENU_WRAP:
-                if (NOWRAP_MENUS)
-                    strcpy_P(c, PSTR("Enable Menu wrap"));
-                else
-                    strcpy_P(c, PSTR("Disable Menu wrap"));
-                break;
+            break;
+        case MAINTENANCE_MENU_RETRACTION:
+            strcpy_P (c, PSTR ("Retraction settings"));
+            break;
+        case MAINTENANCE_MENU_MOVEMENT:
+            strcpy_P (c, PSTR ("Motion settings"));
+            break;
+        case MAINTENANCE_MENU_SHOW_VERSION:
+            strcpy_P (c, PSTR ("Version"));
+            break;
+        case MAINTENANCE_MENU_SHOW_STATS:
+            strcpy_P (c, PSTR ("Runtime stats"));
+            break;
+        case MAINTENANCE_MENU_FACTORY_RESET:
+            strcpy_P (c, PSTR ("Factory reset"));
+            break;
+        case MAINTENANCE_MENU_RESET_MATERIALS:
+            strcpy_P (c, PSTR ("Reset Materials"));
+            break;
+        case MAINTENANCE_MENU_ZLIFT:
+            strcpy_P (c, PSTR ("Adjust Z Lift"));
+            break;
+        case MAINTENANCE_MENU_IDLE_TIMEOUT:
+            strcpy_P (c, PSTR ("Adjust idle timeout"));
+            break;
+        case MAINTENANCE_MENU_WRAP:
+            if (NOWRAP_MENUS)
+                strcpy_P (c, PSTR ("Enable Menu wrap"));
+            else
+                strcpy_P (c, PSTR ("Disable Menu wrap"));
+            break;
 
-            default:
-                strcpy_P(c, PSTR("???"));
-                break;
-            case MAINTENANCE_MENU_XMAX:
-                strcpy_P(c, PSTR("Adjust X Maximum"));
-                break;
-            case MAINTENANCE_MENU_YMAX:
-                strcpy_P(c, PSTR("Adjust Y Maximum"));
-                break;
-            case MAINTENANCE_MENU_HEAD_FAN:
-                strcpy_P(c, PSTR("Turn on head fan"));
-                break;
-            case MAINTENANCE_MENU_CASE_FAN:
-                strcpy_P(c, PSTR("Turn on case fan"));
-                break;
-            case MAINTENANCE_MENU_COOL_FAN:
-                strcpy_P(c, PSTR("Turn on cooling fan"));
-                break;
-            case MAINTENANCE_MENU_LIMITS_HEAD:
-                strcpy_P(c, PSTR("Run head through XY limits"));
-                break;
+        default:
+            strcpy_P (c, PSTR ("???"));
+            break;
+        case MAINTENANCE_MENU_XMAX:
+            strcpy_P (c, PSTR ("Adjust X Maximum"));
+            break;
+        case MAINTENANCE_MENU_YMAX:
+            strcpy_P (c, PSTR ("Adjust Y Maximum"));
+            break;
+        case MAINTENANCE_MENU_HEAD_FAN:
+            strcpy_P (c, PSTR ("Turn on head fan"));
+            break;
+        case MAINTENANCE_MENU_CASE_FAN:
+            strcpy_P (c, PSTR ("Turn on case fan"));
+            break;
+        case MAINTENANCE_MENU_COOL_FAN:
+            strcpy_P (c, PSTR ("Turn on cooling fan"));
+            break;
+        case MAINTENANCE_MENU_LIMITS_HEAD:
+            strcpy_P (c, PSTR ("Run head through XY limits"));
+            break;
 
-            case MAINTENANCE_MENU_RANDOM_HEAD:
-                strcpy_P(c, PSTR("Move head randomly"));
-                break;
-
-        }
+        case MAINTENANCE_MENU_RANDOM_HEAD:
+            strcpy_P (c, PSTR ("Move head randomly"));
+            break;
+        case MAINTENANCE_MENU_MOVE_TEST:
+            strcpy_P (c, PSTR ("Head move/spd test"));
+            break;
+    }
     return c;
 }
 
-void lcd_menu_maintenance_getDetails(uint8_t nr)
+void lcd_menu_maintenance_getDetails (uint8_t nr)
 {
-//    char* c = (char*)lcd_cache;
+    //    char* c = (char*)lcd_cache;
     char temporary_string_buffer[24];
-    memset (temporary_string_buffer,0,sizeof(temporary_string_buffer));
+    memset (temporary_string_buffer, 0, sizeof (temporary_string_buffer));
 
-    char  * c = temporary_string_buffer;
+    char*   c = temporary_string_buffer;
 
     switch (nr)
-        {
-            case MAINTENANCE_MENU_SHOW_VERSION:
-                strcpy_P (c,PSTR(STRING_VERSION_CONFIG_H));
-                break;
-            case MAINTENANCE_MENU_IDLE_TIMEOUT:
-                c= int_to_string((int) LED_DIM_TIME, c, PSTR(" minutes"));
-                *c++=0;
-                break;
-            case MAINTENANCE_MENU_ZLIFT:
-                c= float_to_string(retract_zlift, c, PSTR("mm"));
-                *c++=0;
-                break;
-            case MAINTENANCE_MENU_RETRACTION:
-                c= float_to_string1(retract_length, c, PSTR(" @ "));
-                c= int_to_string((int) retract_feedrate/60, c, PSTR("mm" PER_SECOND_SYMBOL "="));
-                c= float_to_string1(retract_length / (retract_feedrate/60), c, PSTR("s"));
-                *c++=0;
-                break;
+    {
+        case MAINTENANCE_MENU_SHOW_VERSION:
+            strcpy_P (c, PSTR (STRING_VERSION_CONFIG_H));
+            break;
+        case MAINTENANCE_MENU_IDLE_TIMEOUT:
+            c = int_to_string ((int) LED_DIM_TIME, c, PSTR (" minutes"));
+            *c++ = 0;
+            break;
+        case MAINTENANCE_MENU_ZLIFT:
+            c = float_to_string (retract_zlift, c, PSTR ("mm"));
+            *c++ = 0;
+            break;
+        case MAINTENANCE_MENU_RETRACTION:
+            c = float_to_string1 (retract_length, c, PSTR (" @ "));
+            c = int_to_string ((int) retract_feedrate / 60, c, PSTR ("mm" PER_SECOND_SYMBOL "="));
+            c = float_to_string1 (retract_length / (retract_feedrate / 60), c, PSTR ("s"));
+            *c++ = 0;
+            break;
 #if EXTRUDERS > 2
-            case MAINTENANCE_MENU_HEAT_EXTR2:
+        case MAINTENANCE_MENU_HEAT_EXTR2:
 #endif
 #if EXTRUDERS > 1
-            case MAINTENANCE_MENU_HEAT_EXTR1:
+        case MAINTENANCE_MENU_HEAT_EXTR1:
 #endif
-            case MAINTENANCE_MENU_HEAT_EXTR:
-                c = int_to_string(current_temperature[nr-MAINTENANCE_MENU_HEAT_EXTR], c /*,PSTR( DEGREE_C_SYMBOL )*/);
-                *c++ = TEMPERATURE_SEPARATOR;
-                c = int_to_string(target_temperature[nr-MAINTENANCE_MENU_HEAT_EXTR], c, PSTR( DEGREE_C_SYMBOL ));
-                *c++=0;
-                break;
-            case MAINTENANCE_MENU_HEAT_BED:
-                c = int_to_string(current_temperature_bed, c/*, PSTR( DEGREE_C_SYMBOL )*/);
-                *c++ = TEMPERATURE_SEPARATOR;
-                c = int_to_string(target_temperature_bed, c, PSTR( DEGREE_C_SYMBOL ));
-                *c++=0;
-                break;
+        case MAINTENANCE_MENU_HEAT_EXTR:
+            c = int_to_string (current_temperature[nr - MAINTENANCE_MENU_HEAT_EXTR], c /*,PSTR( DEGREE_C_SYMBOL )*/);
+            *c++ = TEMPERATURE_SEPARATOR;
+            c = int_to_string (target_temperature[nr - MAINTENANCE_MENU_HEAT_EXTR], c, PSTR ( DEGREE_C_SYMBOL ));
+            *c++ = 0;
+            break;
+        case MAINTENANCE_MENU_HEAT_BED:
+            c = int_to_string (current_temperature_bed, c/*, PSTR( DEGREE_C_SYMBOL )*/);
+            *c++ = TEMPERATURE_SEPARATOR;
+            c = int_to_string (target_temperature_bed, c, PSTR ( DEGREE_C_SYMBOL ));
+            *c++ = 0;
+            break;
 
-
-            case MAINTENANCE_MENU_XMAX:
-                c = float_to_string(max_pos[X_AXIS],c, PSTR("mm"));
-                break;
-            case MAINTENANCE_MENU_YMAX:
-                c = float_to_string(max_pos[Y_AXIS],c, PSTR("mm"));
-                break;
-            default: return;
-        }
-    lcd_lib_draw_string(5, 53, temporary_string_buffer);
+        case MAINTENANCE_MENU_XMAX:
+            c = float_to_string (max_pos[X_AXIS], c, PSTR ("mm"));
+            break;
+        case MAINTENANCE_MENU_YMAX:
+            c = float_to_string (max_pos[Y_AXIS], c, PSTR ("mm"));
+            break;
+        case MAINTENANCE_MENU_MOVE_TEST:
+            c =  int_to_string (max_feedrate[X_AXIS], c, PSTR ("mm" PER_SECOND_SYMBOL ));
+            break;
+        default: return;
+    }
+    lcd_lib_draw_string (5, 53, temporary_string_buffer);
 }
 
 void log_stepper();
 
+// show a message until they click or 10 seconds elapses
+void lcd_messagescreen (const char*   msg)
+{
+    unsigned long start_time = millis();
+    lcd_lib_clear();
+    lcd_lib_draw_string_centerP (20, msg);
+    lcd_lib_update_screen();
+    do
+    {
+        lcd_lib_buttons_update();
+        LED_FLASH();
+        //     runTasks();
+    }
+    while (!lcd_lib_button_pressed() && (millis() - start_time < 10000UL ));
+}
+
 void lcd_menu_maintenance_doAction()
 {
-    lcd_scroll_menu(PSTR("SYSTEM"),MAINTENANCE_MENU_MAX, lcd_menu_maintenance_getString, lcd_menu_maintenance_getDetails);
+    lcd_scroll_menu (PSTR ("SYSTEM"), MAINTENANCE_MENU_MAX, lcd_menu_maintenance_getString, lcd_menu_maintenance_getDetails);
     LED_NORMAL();
     if (millis() - last_user_interaction > MENU_TIMEOUT) lcd_menu_go_back();
 
     if (!lcd_lib_button_pressed()) return;
     SERIAL_ECHO_START;
-    SERIAL_ECHOLNPGM("MAIN MENU BUTTON");
+    SERIAL_ECHOLNPGM ("MAIN MENU BUTTON");
 
-    byte index =0;
+    byte index = 0;
     switch (SELECTED_SCROLL_MENU_ITEM())
-        {
-            default:
-                SERIAL_ECHO_START;
-                SERIAL_ECHOLNPGM("UNKNOWN MENU ITEM");
-                SERIAL_ECHOLN((unsigned long) (SELECTED_SCROLL_MENU_ITEM()));
-                break;
+    {
+        default:
+            SERIAL_ECHO_START;
+            SERIAL_ECHOLNPGM ("UNKNOWN MENU ITEM");
+            SERIAL_ECHOLN ((unsigned long) (SELECTED_SCROLL_MENU_ITEM()));
+            break;
 
-            case MAINTENANCE_MENU_COOL_FAN:
-                fanSpeedOverride = 255;
-                analogWrite(FAN_PIN,fanSpeedOverride);
-                break;
-            case MAINTENANCE_MENU_CASE_FAN:
-                WRITE (MOTHERBOARD_FAN,1);
-                mobo_cooling_fan_timer.pause();
-                break;
-            case MAINTENANCE_MENU_HEAD_FAN:
-                head_cooling_fan_timer.pause();
-                setExtruderAutoFanState(EXTRUDER_0_AUTO_FAN_PIN, 1);
-                break;
-            case MAINTENANCE_MENU_RETURN:
-                Config_StoreSettings();
-                fanSpeedOverride = -1;
-                head_cooling_fan_timer.resume();
-                mobo_cooling_fan_timer.resume();
-                checkExtruderAutoFans();
-                controllerFan();
-                lcd_menu_go_back();
-                return;
-                //lcd_change_to_menu(lcd_menu_main);
-                break;
-            case MAINTENANCE_MENU_ADJ_BED:
-                lcd_change_to_menu ( lcd_menu_first_run_start_bed_leveling) ;
-                break;
+        case MAINTENANCE_MENU_COOL_FAN:
+            fanSpeedOverride = 255;
+            analogWrite (FAN_PIN, fanSpeedOverride);
+            break;
+        case MAINTENANCE_MENU_CASE_FAN:
+            WRITE (MOTHERBOARD_FAN, 1);
+            mobo_cooling_fan_timer.pause();
+            break;
+        case MAINTENANCE_MENU_HEAD_FAN:
+            head_cooling_fan_timer.pause();
+            setExtruderAutoFanState (EXTRUDER_0_AUTO_FAN_PIN, 1);
+            break;
+        case MAINTENANCE_MENU_RETURN:
+            Config_StoreSettings();
+            fanSpeedOverride = -1;
+            head_cooling_fan_timer.resume();
+            mobo_cooling_fan_timer.resume();
+            checkExtruderAutoFans();
+            controllerFan();
+            lcd_menu_go_back();
+            return;
+            //lcd_change_to_menu(lcd_menu_main);
+            break;
+        case MAINTENANCE_MENU_ADJ_BED:
+            lcd_change_to_menu ( lcd_menu_first_run_start_bed_leveling) ;
+            break;
 
-            case MAINTENANCE_MENU_LED:
-                lcd_change_to_menu(lcd_menu_maintenance_led, 0);
-                break;
+        case MAINTENANCE_MENU_LED:
+            lcd_change_to_menu (lcd_menu_maintenance_led, 0);
+            break;
 #if EXTRUDERS > 1
-            case MAINTENANCE_MENU_HEAT_EXTR1:
-                index++;
+        case MAINTENANCE_MENU_HEAT_EXTR1:
+            index++;
 #if EXTRUDERS > 2
-            case MAINTENANCE_MENU_HEAT_EXTR2:
-                index++;
+        case MAINTENANCE_MENU_HEAT_EXTR2:
+            index++;
 #endif
 #endif
-            case MAINTENANCE_MENU_HEAT_EXTR:
-                clearHistory();
-                nozzle_adjust_id = index;
-                if (target_temperature[nozzle_adjust_id] ==0) target_temperature[nozzle_adjust_id] = material[nozzle_adjust_id].temperature;
-                lcd_change_to_menu(lcd_menu_print_tune_heatup_nozzle, 0);
-                break;
-            case MAINTENANCE_MENU_HEAT_BED:
-                clearHistory();
-                if (target_temperature_bed ==0) target_temperature_bed = material[active_extruder].bed_temperature;
-                lcd_change_to_menu(lcd_menu_maintenance_advanced_bed_heatup, 0);
-                break;
-            case MAINTENANCE_MENU_HOME_HEAD:
-                {
-                    lcd_lib_beep();
-                    enquecommand_P(PSTR("G28 X0 Y0"));
-                }
-                break;
-            case MAINTENANCE_MENU_RELAX_MOTORS:
-                {
-                    lcd_lib_beep();
-                    enquecommand_P(PSTR("M84"));
-                }
-                break;
-            case MAINTENANCE_MENU_CENTER_HEAD:
-                {
-                    lcd_lib_beep();
-                    enquecommand_P(PSTR("G1 X100 Y20" MAINTENANCE_FEED_RATE));
-                }
-                break;
-
-            case MAINTENANCE_MENU_RANDOM_HEAD:
-                {
-                    lcd_lib_beep();
-                    int a;
-                    char buffer[20];
-                    memset (buffer,0,sizeof(buffer));
-                    for (a=0; a<10; a++)
-                        {
-                            sprintf_P(buffer, PSTR("G1 X%i Y%i " MAINTENANCE_FEED_RATE), (int) random((int)max_pos[X_AXIS]),(int) random((int)max_pos[Y_AXIS]));
-                            enquecommand(buffer);
-                            manageBuffer();
-                        }
-#if LOG_MOTION
-                    /// do a dedicated motion loop -- no UI updates or temp updates., so we get a good motion log
-                    do
-                        {
-                            manageBuffer();
-                            log_stepper();
-                            checkHitEndstops();
-                            log_stepper();
-
-                        }
-                    while( blocks_queued());
-#endif
-                }
-                break;
-
-            case MAINTENANCE_MENU_LIMITS_HEAD:
-                {
-                    lcd_lib_beep();
-                    enquecommand_P(PSTR("G28 X0 Y0"));
-                    manageBuffer();
-                    enquecommand_P(PSTR("G1 X0 Y0" MAINTENANCE_FEED_RATE));
-                    manageBuffer();
-                    char buffer[20];
-                    memset (buffer,0,sizeof(buffer));
-                    sprintf_P(buffer, PSTR("G1 Y%i"), int(max_pos[Y_AXIS]));
-                    enquecommand(buffer);
-                    manageBuffer();
-                    sprintf_P(buffer, PSTR("G1 X%i"), int(max_pos[X_AXIS]));
-                    enquecommand(buffer);
-                    manageBuffer();
-                    enquecommand_P(PSTR("G1 Y0 " MAINTENANCE_FEED_RATE));
-                    manageBuffer();
-                    enquecommand_P(PSTR("G28 X0 Y0"));
-                    manageBuffer();
-#if LOG_MOTION
-                    /// do a dedicated motion loop -- no UI updates or temp updates., so we get a good motion log
-                    do
-                        {
-                            manageBuffer();
-                            log_stepper();
-                            checkHitEndstops();
-                            log_stepper();
-
-                        }
-                    while( blocks_queued());
-#endif
-                }
-                break;
-
-            case MAINTENANCE_MENU_LOWER_BED:
-                {
-                    lcd_lib_beep();
-                    enquecommand_P(PSTR("G28 Z0"));
-                }
-                break;
-            case MAINTENANCE_MENU_RAISE_BED:
-                {
-                    lcd_lib_beep();
-                    enquecommand_P(PSTR("G28 Z0"));
-                    enquecommand_P(PSTR("G1 Z60"));
-                }
-                break;
-#if EXTRUDERS > 1
-            case MAINTENANCE_MENU_EXTRUDE1
-                    index++;
-#if EXTRUDERS > 2
-            case MAINTENANCE_MENU_EXTRUDE2:
-                index++;
-#endif
-#endif
-            case MAINTENANCE_MENU_EXTRUDE:
-                {
-                    clearHistory();
-                    set_extrude_min_temp(0);
-                    active_extruder =index;
-                    target_temperature[active_extruder] = material[active_extruder].temperature;
-                    extruded_amount=0;
-                    lcd_change_to_menu(lcd_menu_maintenance_extrude, 0);
-                }
-                break;
-
-            case MAINTENANCE_MENU_RETRACTION:
-                lcd_change_to_menu(lcd_menu_retraction_doAction, SCROLL_MENU_ITEM_POS(0));
-                break;
-
-            case MAINTENANCE_MENU_MOVEMENT:
-                lcd_change_to_menu(lcd_menu_maintenance_motion, SCROLL_MENU_ITEM_POS(0));
-                break;
-            case MAINTENANCE_MENU_SHOW_VERSION:
-                lcd_change_to_menu(lcd_menu_advanced_version, SCROLL_MENU_ITEM_POS(0));
-                break;
-
-            case MAINTENANCE_MENU_SHOW_STATS:
-                lcd_change_to_menu(lcd_menu_advanced_stats, SCROLL_MENU_ITEM_POS(0)); break;
-
-            case MAINTENANCE_MENU_FACTORY_RESET:
-                lcd_change_to_menu(lcd_menu_advanced_factory_reset, SCROLL_MENU_ITEM_POS(1));
-                break;
-            case MAINTENANCE_MENU_RESET_MATERIALS:
-                lcd_change_to_menu(lcd_menu_advanced_materials_reset, SCROLL_MENU_ITEM_POS(1));
-                break;
-
-            case MAINTENANCE_MENU_IDLE_TIMEOUT:
-                LCD_EDIT_SETTING(LED_DIM_TIME, "Idle timeout", " minutes", 0, 250);
-                break;
-            case MAINTENANCE_MENU_ZLIFT:
-                LCD_EDIT_SETTING_FLOAT001(retract_zlift, "Retract ZLift", "mm", 0, 5);
-                break;
-            case MAINTENANCE_MENU_WRAP:
-                NOWRAP_MENUS = !NOWRAP_MENUS;
+        case MAINTENANCE_MENU_HEAT_EXTR:
+            clearHistory();
+            nozzle_adjust_id = index;
+            if (target_temperature[nozzle_adjust_id] == 0) target_temperature[nozzle_adjust_id] = material[nozzle_adjust_id].temperature;
+            lcd_change_to_menu (lcd_menu_print_tune_heatup_nozzle, 0);
+            break;
+        case MAINTENANCE_MENU_HEAT_BED:
+            clearHistory();
+            if (target_temperature_bed == 0) target_temperature_bed = material[active_extruder].bed_temperature;
+            lcd_change_to_menu (lcd_menu_maintenance_advanced_bed_heatup, 0);
+            break;
+        case MAINTENANCE_MENU_HOME_HEAD:
+            {
                 lcd_lib_beep();
-                break;
-            case MAINTENANCE_MENU_XMAX:
-                {
-                    max_pos[X_AXIS] = BASELINE_XLIMIT;
-                    X_MAX_LENGTH = max_pos[0] - X_MIN_POS;
-                    enquecommand_P(PSTR("G28 X0 Y0"));
-                    char buffer[20];
-                    memset (buffer,0,sizeof(buffer));
-                    sprintf_P(buffer, PSTR("G1 F%i X%i Y%i"), int(homing_feedrate[0]), int(max_pos[X_AXIS]-MAX_ADJ_OFFSET), int(max_pos[Y_AXIS]/2) );
-                    enquecommand(buffer);
-                    lcd_change_to_menu(lcd_menu_maintenance_adjust_max_X, 0);
-                }
-                break;
-            case MAINTENANCE_MENU_YMAX:
-                {
-                    max_pos[Y_AXIS] = BASELINE_YLIMIT;
-                    Y_MAX_LENGTH = max_pos[1] - Y_MIN_POS;
-                    enquecommand_P(PSTR("G28 X0 Y0"));
-                    char buffer[20];
-                    memset (buffer,0,sizeof(buffer));
-                    sprintf_P(buffer, PSTR("G1 F%i X%i Y%i"), int(homing_feedrate[0]), int(max_pos[X_AXIS]/2), int(MAX_ADJ_OFFSET) );
-                    enquecommand(buffer);
-                    lcd_change_to_menu(lcd_menu_maintenance_adjust_max_Y, 0);
-                }
-                break;
+                enquecommand_P (PSTR ("G28 X0 Y0"));
+            }
+            break;
+        case MAINTENANCE_MENU_RELAX_MOTORS:
+            {
+                lcd_lib_beep();
+                enquecommand_P (PSTR ("M84"));
+            }
+            break;
+        case MAINTENANCE_MENU_CENTER_HEAD:
+            {
+                lcd_lib_beep();
+                enquecommand_P (PSTR ("G1 X100 Y20" MAINTENANCE_FEED_RATE));
+            }
+            break;
 
+        case MAINTENANCE_MENU_RANDOM_HEAD:
+            {
+                lcd_lib_beep();
+                randomMotion (12);
+            }
+            break;
+        case MAINTENANCE_MENU_MOVE_TEST:
 
-        }
+            movementTest();
+
+            break;
+
+        case MAINTENANCE_MENU_LIMITS_HEAD:
+            {
+                lcd_lib_beep();
+                enquecommand_P (PSTR ("G28 X0 Y0"));
+                moveXYLimits();
+            }
+            break;
+
+        case MAINTENANCE_MENU_LOWER_BED:
+            {
+                lcd_lib_beep();
+                enquecommand_P (PSTR ("G28 Z0"));
+            }
+            break;
+        case MAINTENANCE_MENU_RAISE_BED:
+            {
+                lcd_lib_beep();
+                enquecommand_P (PSTR ("G28 Z0"));
+                enquecommand_P (PSTR ("G1 Z60"));
+            }
+            break;
+#if EXTRUDERS > 1
+        case MAINTENANCE_MENU_EXTRUDE1
+                index++;
+#if EXTRUDERS > 2
+        case MAINTENANCE_MENU_EXTRUDE2:
+            index++;
+#endif
+#endif
+        case MAINTENANCE_MENU_EXTRUDE:
+            {
+                clearHistory();
+                set_extrude_min_temp (0);
+                active_extruder = index;
+                target_temperature[active_extruder] = material[active_extruder].temperature;
+                extruded_amount = 0;
+                lcd_change_to_menu (lcd_menu_maintenance_extrude, 0);
+            }
+            break;
+
+        case MAINTENANCE_MENU_RETRACTION:
+            lcd_change_to_menu (lcd_menu_retraction_doAction, SCROLL_MENU_ITEM_POS (0));
+            break;
+
+        case MAINTENANCE_MENU_MOVEMENT:
+            lcd_change_to_menu (lcd_menu_maintenance_motion, SCROLL_MENU_ITEM_POS (0));
+            break;
+        case MAINTENANCE_MENU_SHOW_VERSION:
+            lcd_change_to_menu (lcd_menu_advanced_version, SCROLL_MENU_ITEM_POS (0));
+            break;
+
+        case MAINTENANCE_MENU_SHOW_STATS:
+            lcd_change_to_menu (lcd_menu_advanced_stats, SCROLL_MENU_ITEM_POS (0)); break;
+
+        case MAINTENANCE_MENU_FACTORY_RESET:
+            lcd_change_to_menu (lcd_menu_advanced_factory_reset, SCROLL_MENU_ITEM_POS (1));
+            break;
+        case MAINTENANCE_MENU_RESET_MATERIALS:
+            lcd_change_to_menu (lcd_menu_advanced_materials_reset, SCROLL_MENU_ITEM_POS (1));
+            break;
+
+        case MAINTENANCE_MENU_IDLE_TIMEOUT:
+            LCD_EDIT_SETTING (LED_DIM_TIME, "Idle timeout", " minutes", 0, 250);
+            break;
+        case MAINTENANCE_MENU_ZLIFT:
+            LCD_EDIT_SETTING_FLOAT001 (retract_zlift, "Retract ZLift", "mm", 0, 5);
+            break;
+        case MAINTENANCE_MENU_WRAP:
+            NOWRAP_MENUS = !NOWRAP_MENUS;
+            lcd_lib_beep();
+            break;
+        case MAINTENANCE_MENU_XMAX:
+            {
+                max_pos[X_AXIS] = BASELINE_XLIMIT;
+                X_MAX_LENGTH = max_pos[0] - X_MIN_POS;
+                enquecommand_P (PSTR ("G28 X0 Y0"));
+                char buffer[20];
+                memset (buffer, 0, sizeof (buffer));
+                sprintf_P (buffer, PSTR ("G1 F%i X%i Y%i"), int (homing_feedrate[0]), int (max_pos[X_AXIS] - MAX_ADJ_OFFSET), int (max_pos[Y_AXIS] / 2) );
+                enquecommand (buffer);
+                lcd_change_to_menu (lcd_menu_maintenance_adjust_max_X, 0);
+            }
+            break;
+        case MAINTENANCE_MENU_YMAX:
+            {
+                max_pos[Y_AXIS] = BASELINE_YLIMIT;
+                Y_MAX_LENGTH = max_pos[1] - Y_MIN_POS;
+                enquecommand_P (PSTR ("G28 X0 Y0"));
+                char buffer[20];
+                memset (buffer, 0, sizeof (buffer));
+                sprintf_P (buffer, PSTR ("G1 F%i X%i Y%i"), int (homing_feedrate[0]), int (max_pos[X_AXIS] / 2), int (MAX_ADJ_OFFSET) );
+                enquecommand (buffer);
+                lcd_change_to_menu (lcd_menu_maintenance_adjust_max_Y, 0);
+            }
+            break;
+    }
 }
 //-----------------------------------------------------------------------------------------------------------------
-
 
 void lcd_menu_maintenance_adjust_max_Y()
 {
     if (lcd_lib_encoder_pos / ENCODER_TICKS_PER_SCROLL_MENU_ITEM != 0)
+    {
+        if (printing_state == PRINT_STATE_NORMAL && movesplanned() < 3)
         {
-            if (printing_state == PRINT_STATE_NORMAL && movesplanned() < 3)
-                {
-                    max_pos[1] += lcd_lib_encoder_pos * 0.1;
-                    current_position[1]  -= lcd_lib_encoder_pos * 0.1;
-                    plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 10, active_extruder);
-                    lcd_lib_encoder_pos = 0;
-                }
+            max_pos[1] += lcd_lib_encoder_pos * 0.1;
+            current_position[1]  -= lcd_lib_encoder_pos * 0.1;
+            plan_buffer_line (current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 10, active_extruder);
+            lcd_lib_encoder_pos = 0;
         }
+    }
     // do we want a timeout here?
 #if MAINTENANCE_FUNCTION_TIMEOUT
-    if (millis() - last_user_interaction > MENU_TIMEOUT) {  enquecommand_P(PSTR("G28 X0 Y0"));  lcd_menu_go_back(); }
+    if (millis() - last_user_interaction > MENU_TIMEOUT) {  enquecommand_P (PSTR ("G28 X0 Y0"));  lcd_menu_go_back(); }
 #endif
 
     if (lcd_lib_button_pressed())		// exit
-        {
-            Y_MAX_LENGTH = max_pos[1] - Y_MIN_POS;
-            //	base_home_pos[1] = max_pos[1];
-            Config_StoreSettings();
-            enquecommand_P(PSTR("G28 X0 Y0"));
-            lcd_menu_go_back();
-        }
-    lcd_lib_enable_encoder_acceleration(false);
+    {
+        Y_MAX_LENGTH = max_pos[1] - Y_MIN_POS;
+        //	base_home_pos[1] = max_pos[1];
+        Config_StoreSettings();
+        enquecommand_P (PSTR ("G28 X0 Y0"));
+        lcd_menu_go_back();
+    }
+    lcd_lib_enable_encoder_acceleration (false);
     lcd_lib_clear();
-    lcd_lib_draw_string_centerP(ROW2, PSTR ("Move head with knob"));
-    lcd_lib_draw_string_centerP(ROW3, PSTR ("to Y limit"));
+    lcd_lib_draw_string_centerP (ROW2, PSTR ("Move head with knob"));
+    lcd_lib_draw_string_centerP (ROW3, PSTR ("to Y limit"));
 
     LED_GLOW();
     char buffer[10];
-    memset (buffer,0,sizeof(buffer));
-    float_to_string( max_pos[1],buffer,PSTR(" mm") );
-    lcd_lib_draw_string_center(ROW5, buffer);
-    lcd_lib_draw_string_centerP(ROW7, PSTR("Click to return"));
+    memset (buffer, 0, sizeof (buffer));
+    float_to_string ( max_pos[1], buffer, PSTR (" mm") );
+    lcd_lib_draw_string_center (ROW5, buffer);
+    lcd_lib_draw_string_centerP (ROW7, PSTR ("Click to return"));
     lcd_lib_update_screen();
 }
 
 void lcd_menu_maintenance_adjust_max_X()
 {
     if (lcd_lib_encoder_pos / ENCODER_TICKS_PER_SCROLL_MENU_ITEM != 0)
+    {
+        if (printing_state == PRINT_STATE_NORMAL && movesplanned() < 3)
         {
-            if (printing_state == PRINT_STATE_NORMAL && movesplanned() < 3)
-                {
-                    max_pos[0] += lcd_lib_encoder_pos * 0.1;
-                    current_position[0]  = max_pos[0];
-                    plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 10, active_extruder);
-                    lcd_lib_encoder_pos = 0;
-                }
+            max_pos[0] += lcd_lib_encoder_pos * 0.1;
+            current_position[0]  = max_pos[0];
+            plan_buffer_line (current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 10, active_extruder);
+            lcd_lib_encoder_pos = 0;
         }
+    }
 
     // do we want a timeout here?
 #if MAINTENANCE_FUNCTION_TIMEOUT
-    if (millis() - last_user_interaction > MENU_TIMEOUT) {  enquecommand_P(PSTR("G28 X0 Y0"));  lcd_menu_go_back(); }
+    if (millis() - last_user_interaction > MENU_TIMEOUT) {  enquecommand_P (PSTR ("G28 X0 Y0"));  lcd_menu_go_back(); }
 #endif
 
     if (lcd_lib_button_pressed())		// exit
-        {
-            X_MAX_LENGTH = max_pos[0] - X_MIN_POS;
-            Config_StoreSettings();
-            enquecommand_P(PSTR("G28 X0 Y0"));
-            lcd_menu_go_back();
-        }
-    lcd_lib_enable_encoder_acceleration(false);
+    {
+        X_MAX_LENGTH = max_pos[0] - X_MIN_POS;
+        Config_StoreSettings();
+        enquecommand_P (PSTR ("G28 X0 Y0"));
+        lcd_menu_go_back();
+    }
+    lcd_lib_enable_encoder_acceleration (false);
     lcd_lib_clear();
-    lcd_lib_draw_string_centerP(ROW2, PSTR ("Move head with knob"));
-    lcd_lib_draw_string_centerP(ROW3, PSTR ("to X limit"));
-
+    lcd_lib_draw_string_centerP (ROW2, PSTR ("Move head with knob"));
+    lcd_lib_draw_string_centerP (ROW3, PSTR ("to X limit"));
 
     LED_GLOW();
     char buffer[10];
-    memset (buffer,0,sizeof(buffer));
-    float_to_string( max_pos[0],buffer,PSTR(" mm") );
-    lcd_lib_draw_string_center(ROW5, buffer);
-    lcd_lib_draw_string_centerP(ROW7, PSTR("Click to return"));
+    memset (buffer, 0, sizeof (buffer));
+    float_to_string ( max_pos[0], buffer, PSTR (" mm") );
+    lcd_lib_draw_string_center (ROW5, buffer);
+    lcd_lib_draw_string_centerP (ROW7, PSTR ("Click to return"));
     lcd_lib_update_screen();
 }
-
-
 
 void lcd_menu_maintenance_extrude()
 {
     run_history = true;
 
     if (lcd_lib_encoder_pos / ENCODER_TICKS_PER_SCROLL_MENU_ITEM != 0)
+    {
+        if (printing_state == PRINT_STATE_NORMAL && movesplanned() < 3)
         {
-            if (printing_state == PRINT_STATE_NORMAL && movesplanned() < 3)
-                {
-                    extruded_amount+= (lcd_lib_encoder_pos * 0.1) * axis_steps_per_unit[E_AXIS] / 1000.0;
-                    current_position[E_AXIS] += lcd_lib_encoder_pos * 0.1;
-                    plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 10, active_extruder);
-                    lcd_lib_encoder_pos = 0;
-                }
+            extruded_amount += (lcd_lib_encoder_pos * 0.1) * axis_steps_per_unit[E_AXIS] / 1000.0;
+            current_position[E_AXIS] += lcd_lib_encoder_pos * 0.1;
+            plan_buffer_line (current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 10, active_extruder);
+            lcd_lib_encoder_pos = 0;
         }
-// do we want a timeout here?
+    }
+    // do we want a timeout here?
 #if MAINTENANCE_FUNCTION_TIMEOUT
     if (millis() - last_user_interaction > MENU_TIMEOUT) {   lcd_menu_go_back(); return }
 #endif
 
     if (lcd_lib_button_pressed())		// exit
-        {
-            set_extrude_min_temp(EXTRUDE_MINTEMP);
-            target_temperature[active_extruder] = 0;
-            lcd_menu_go_back();
-            return;
-        }
-    lcd_lib_enable_encoder_acceleration(false);
+    {
+        set_extrude_min_temp (EXTRUDE_MINTEMP);
+        target_temperature[active_extruder] = 0;
+        lcd_menu_go_back();
+        return;
+    }
+    lcd_lib_enable_encoder_acceleration (false);
     lcd_lib_clear();
     LED_GLOW();
     char buffer[20];
-    memset (buffer,0,sizeof(buffer));
-    float_to_string1(extruded_amount,buffer,PSTR(" mm") );
+    memset (buffer, 0, sizeof (buffer));
+    float_to_string1 (extruded_amount, buffer, PSTR (" mm") );
 
-    lcd_lib_draw_string_center(ROW2, buffer);
-    lcd_lib_draw_string_centerP(ROW7, PSTR("Click to return"));
-    int_to_string(int(current_temperature[active_extruder]), buffer, PSTR( TEMPERATURE_SEPARATOR_S));
-    int_to_string(int(target_temperature[active_extruder]), buffer+strlen(buffer), PSTR( DEGREE_C_SYMBOL ));
-    lcd_lib_draw_string_center(ROW3, buffer);
+    lcd_lib_draw_string_center (ROW2, buffer);
+    lcd_lib_draw_string_centerP (ROW7, PSTR ("Click to return"));
+    int_to_string (int (current_temperature[active_extruder]), buffer, PSTR ( TEMPERATURE_SEPARATOR_S));
+    int_to_string (int (target_temperature[active_extruder]), buffer + strlen (buffer), PSTR ( DEGREE_C_SYMBOL ));
+    lcd_lib_draw_string_center (ROW3, buffer);
 
-    drawTempHistory (DISPLAY_RIGHT/3,ROW4+2,2*DISPLAY_RIGHT/3,ROW7-3,lcd_cache_new.getData(LCD_CACHE::TEMPERATURE_HISTORY).temphist.temp_history);
+    drawTempHistory (DISPLAY_RIGHT / 3, ROW4 + 2, 2 * DISPLAY_RIGHT / 3, ROW7 - 3, lcd_cache_new.getData (LCD_CACHE::TEMPERATURE_HISTORY).temphist.temp_history);
 
     lcd_lib_update_screen();
 }
@@ -657,95 +629,92 @@ void lcd_menu_maintenance_advanced_bed_heatup()
     run_history = true;
 
     if (lcd_lib_encoder_pos / ENCODER_TICKS_PER_SCROLL_MENU_ITEM != 0)
-        {
-            target_temperature_bed = int(target_temperature_bed) + (lcd_lib_encoder_pos / ENCODER_TICKS_PER_SCROLL_MENU_ITEM);
-            if (target_temperature_bed < 0)
-                target_temperature_bed = 0;
-            if (target_temperature_bed > BED_MAXTEMP - 15)
-                target_temperature_bed = BED_MAXTEMP - 15;
-            lcd_lib_encoder_pos = 0;
-        }
+    {
+        target_temperature_bed = int (target_temperature_bed) + (lcd_lib_encoder_pos / ENCODER_TICKS_PER_SCROLL_MENU_ITEM);
+        if (target_temperature_bed < 0)
+            target_temperature_bed = 0;
+        if (target_temperature_bed > BED_MAXTEMP - 15)
+            target_temperature_bed = BED_MAXTEMP - 15;
+        lcd_lib_encoder_pos = 0;
+    }
     LED_HEAT();
     // do we want a timeout here?
 #if MAINTENANCE_FUNCTION_TIMEOUT
     if (millis() - last_user_interaction > MENU_TIMEOUT) {   lcd_menu_go_back(); return }
 #endif
     if (lcd_lib_button_pressed())
-        {
-            lcd_menu_go_back();
-            return;
-        }
-    lcd_lib_enable_encoder_acceleration(true);
+    {
+        lcd_menu_go_back();
+        return;
+    }
+    lcd_lib_enable_encoder_acceleration (true);
     lcd_lib_clear();
-    lcd_lib_draw_string_centerP(ROW2, PSTR("Bed temperature"));
-    lcd_lib_draw_string_centerP(ROW7, PSTR("Click to return"));
+    lcd_lib_draw_string_centerP (ROW2, PSTR ("Bed temperature"));
+    lcd_lib_draw_string_centerP (ROW7, PSTR ("Click to return"));
     char buffer[20];
-    memset (buffer,0,sizeof(buffer));
-    char *c = buffer;
-    c=int_to_string(int(current_temperature_bed), c, PSTR( TEMPERATURE_SEPARATOR_S));
-    c= int_to_string(int(target_temperature_bed),c, PSTR( DEGREE_C_SYMBOL ));
-    *c++=0;
-    lcd_lib_draw_string_center(ROW3, buffer);
-    drawTempHistory (DISPLAY_RIGHT/3,ROW4+2,2*DISPLAY_RIGHT/3,ROW7-3,lcd_cache_new.getData(LCD_CACHE::TEMPERATURE_HISTORY).temphist.temp_history);
-
+    memset (buffer, 0, sizeof (buffer));
+    char* c = buffer;
+    c = int_to_string (int (current_temperature_bed), c, PSTR ( TEMPERATURE_SEPARATOR_S));
+    c = int_to_string (int (target_temperature_bed), c, PSTR ( DEGREE_C_SYMBOL ));
+    *c++ = 0;
+    lcd_lib_draw_string_center (ROW3, buffer);
+    drawTempHistory (DISPLAY_RIGHT / 3, ROW4 + 2, 2 * DISPLAY_RIGHT / 3, ROW7 - 3, lcd_cache_new.getData (LCD_CACHE::TEMPERATURE_HISTORY).temphist.temp_history);
 
     lcd_lib_update_screen();
 }
 
 void lcd_menu_advanced_version()
 {
-    lcd_info_screen(NULL, NULL, PSTR("Return"));
-    lcd_lib_draw_string_centerP(10, PSTR(STRING_VERSION_CONFIG_H));
-    lcd_lib_draw_string_centerP(30, PSTR(STRING_CONFIG_H_AUTHOR));
+    lcd_info_screen (NULL, NULL, PSTR ("Return"));
+    lcd_lib_draw_string_centerP (10, PSTR (STRING_VERSION_CONFIG_H));
+    lcd_lib_draw_string_centerP (30, PSTR (STRING_CONFIG_H_AUTHOR));
     lcd_lib_update_screen();
     LED_FLASH();
-
 }
 
 void lcd_menu_advanced_stats()
 {
-    lcd_info_screen(NULL, NULL, PSTR("Return"));
-    lcd_lib_draw_string_centerP(10, PSTR("Machine on for:"));
+    lcd_info_screen (NULL, NULL, PSTR ("Return"));
+    lcd_lib_draw_string_centerP (10, PSTR ("Machine on for:"));
     char buffer[20];
-    memset (buffer,0,sizeof(buffer));
-    char* c = int_to_string(lifetime_minutes / 60, buffer, PSTR(":"));
+    memset (buffer, 0, sizeof (buffer));
+    char* c = int_to_string (lifetime_minutes / 60, buffer, PSTR (":"));
     if (lifetime_minutes % 60 < 10)
         *c++ = '0';
-    c = int_to_string(lifetime_minutes % 60, c);
-    lcd_lib_draw_string_center(20, buffer);
+    c = int_to_string (lifetime_minutes % 60, c);
+    lcd_lib_draw_string_center (20, buffer);
 
-    lcd_lib_draw_string_centerP(30, PSTR("Printing:"));
-    c = int_to_string(lifetime_print_minutes / 60, buffer, PSTR(":"));
+    lcd_lib_draw_string_centerP (30, PSTR ("Printing:"));
+    c = int_to_string (lifetime_print_minutes / 60, buffer, PSTR (":"));
     if (lifetime_print_minutes % 60 < 10)
         *c++ = '0';
-    c = int_to_string(lifetime_print_minutes % 60, c);
+    c = int_to_string (lifetime_print_minutes % 60, c);
     *c++ = ' ';
     *c++ = ' ';
-    c = int_to_string(lifetime_print_centimeters / 100, c, PSTR("m"));
-    lcd_lib_draw_string_center(40, buffer);
+    c = int_to_string (lifetime_print_centimeters / 100, c, PSTR ("m"));
+    lcd_lib_draw_string_center (40, buffer);
     lcd_lib_update_screen();
     LED_NORMAL();
-
 }
 void doMaterialsReset()
 {
     lcd_material_reset_defaults();
-    lcd_lib_beep_ext(500,200);
-    lcd_lib_beep_ext(700,350);
+    lcd_lib_beep_ext (500, 200);
+    lcd_lib_beep_ext (700, 350);
     lcd_material_read_current_material();
     lcd_menu_go_back();
-//    lcd_change_to_menu(lcd_menu_maintenance_doAction);
+    //    lcd_change_to_menu(lcd_menu_maintenance_doAction);
 }
 
 void doFactoryReset()
 {
-    lcd_lib_beep_ext(50,200);
+    lcd_lib_beep_ext (50, 200);
     //Clear the EEPROM settings so they get read from default.
-    eeprom_write_byte((uint8_t*)100, 0);
-    eeprom_write_byte((uint8_t*)101, 0);
-    eeprom_write_byte((uint8_t*)102, 0);
-    eeprom_write_byte((uint8_t*)EEPROM_FIRST_RUN_DONE_OFFSET, 0);
-    eeprom_write_byte(EEPROM_MATERIAL_COUNT_OFFSET(), 0);
+    eeprom_write_byte ((uint8_t*)100, 0);
+    eeprom_write_byte ((uint8_t*)101, 0);
+    eeprom_write_byte ((uint8_t*)102, 0);
+    eeprom_write_byte ((uint8_t*)EEPROM_FIRST_RUN_DONE_OFFSET, 0);
+    eeprom_write_byte (EEPROM_MATERIAL_COUNT_OFFSET(), 0);
 
     cli();
     //NOTE: Jumping to address 0 is not a fully proper way to reset.
@@ -753,7 +722,7 @@ void doFactoryReset()
     // So we disable interrupts and hope for the best!
     //Jump to address 0x0000
 #ifdef __AVR__
-    asm volatile(
+    asm volatile (
         "clr	r30		\n\t"
         "clr	r31		\n\t"
         "ijmp	\n\t"
@@ -765,19 +734,19 @@ void doFactoryReset()
 
 void lcd_menu_advanced_factory_reset()
 {
-    lcd_question_screen(NULL, doFactoryReset, PSTR("YES"), NULL, NULL, PSTR("NO"));
-    lcd_lib_beep_ext(110,500);
-    lcd_lib_beep_ext(50,500);
-    lcd_lib_draw_string_centerP(10, PSTR("Reset everything"));
-    lcd_lib_draw_string_centerP(20, PSTR("to default?"));
+    lcd_question_screen (NULL, doFactoryReset, PSTR ("YES"), NULL, NULL, PSTR ("NO"));
+    lcd_lib_beep_ext (110, 500);
+    lcd_lib_beep_ext (50, 500);
+    lcd_lib_draw_string_centerP (10, PSTR ("Reset everything"));
+    lcd_lib_draw_string_centerP (20, PSTR ("to default?"));
     lcd_lib_update_screen();
 }
 
 void lcd_menu_advanced_materials_reset()
 {
-    lcd_question_screen(NULL, doMaterialsReset, PSTR("YES"), NULL, NULL, PSTR("NO"));
-    lcd_lib_draw_string_centerP(10, PSTR("Reset materials"));
-    lcd_lib_draw_string_centerP(20, PSTR("to default?"));
+    lcd_question_screen (NULL, doMaterialsReset, PSTR ("YES"), NULL, NULL, PSTR ("NO"));
+    lcd_lib_draw_string_centerP (10, PSTR ("Reset materials"));
+    lcd_lib_draw_string_centerP (20, PSTR ("to default?"));
     lcd_lib_update_screen();
 }
 #if 0
@@ -822,211 +791,552 @@ void lcd_menu_maintenance_retraction()
 {
     LED_NORMAL();
 
-    lcd_scroll_menu(PSTR("RETRACTION"), 3, lcd_menu_retraction_getString, lcd_menu_retraction_getDetails);
+    lcd_scroll_menu (PSTR ("RETRACTION"), 3, lcd_menu_retraction_getString, lcd_menu_retraction_getDetails);
     if (lcd_lib_button_pressed())
+    {
+        if (IS_SELECTED_SCROLL (0))
         {
-            if (IS_SELECTED_SCROLL(0))
-                {
-                    Config_StoreSettings();
-                    lcd_change_to_menu(lcd_menu_maintenance_doAction, SCROLL_MENU_ITEM_POS(6 + EXTRUDERS * 2));
-                }
-            else
-                if (IS_SELECTED_SCROLL(1))
-                    LCD_EDIT_SETTING_FLOAT001(retract_length, "Retract length", "mm", 0, 50);
-                else
-                    if (IS_SELECTED_SCROLL(2))
-                        LCD_EDIT_SETTING_SPEED(retract_feedrate, "Retract speed", "mm" PER_SECOND_SYMBOL , 0, max_feedrate[E_AXIS] * 60);
+            Config_StoreSettings();
+            lcd_change_to_menu (lcd_menu_maintenance_doAction, SCROLL_MENU_ITEM_POS (6 + EXTRUDERS * 2));
         }
+        else
+            if (IS_SELECTED_SCROLL (1))
+                LCD_EDIT_SETTING_FLOAT001 (retract_length, "Retract length", "mm", 0, 50);
+            else
+                if (IS_SELECTED_SCROLL (2))
+                    LCD_EDIT_SETTING_SPEED (retract_feedrate, "Retract speed", "mm" PER_SECOND_SYMBOL , 0, max_feedrate[E_AXIS] * 60);
+    }
 }
 #endif
 
-static char* lcd_motion_item(uint8_t nr)
+
+enum MOTION_MENU
 {
-    char* c = lcd_cache_new.getData(LCD_CACHE::RAWSTRING).rawstring	;
-    if (nr == 0)
-        strcpy_P(c, PSTR("< RETURN"));
-    else
-        if (nr == 1)
-            strcpy_P(c, PSTR("Acceleration"));
-        else
-            if (nr == 2)
-                strcpy_P(c, PSTR("X/Y Jerk"));
-            else
-                if (nr == 3)
-                    strcpy_P(c, PSTR("Max speed X"));
+    MOTION_MENU_RETURN,
+    MOTION_MENU_XY_JERK,
+    MOTION_MENU_XY_ACC,
+    MOTION_MENU_MAX_SPD_X,
+    MOTION_MENU_MAX_SPD_Y,
+    MOTION_MENU_MOTORPOWER_XY,
+    MOTION_MENU_Z_JERK,
+//   MOTION_MENU_Z_ACC,
+    MOTION_MENU_MAX_SPD_Z,
+    MOTION_MENU_MOTORPOWER_Z,
+    MOTION_MENU_E_JERK,
+    MOTION_MENU_E_ACC,
+    MOTION_MENU_MAX_SPD_E,
+    MOTION_MENU_MOTORPOWER_E,
+    MOTION_MENU_SINUSOIDAL,
+    MOTION_MENU_MIN_SEG_TIME,
+    MOTION_MENU_MIN_STEPS,
+    MOTION_MENU_MAX
+};
+
+static char* lcd_motion_item (uint8_t nr)
+{
+    char* c = lcd_cache_new.getData (LCD_CACHE::RAWSTRING).rawstring	;
+    switch (nr)
+    {
+        case MOTION_MENU_RETURN:
+            strcpy_P (c, PSTR ("< RETURN"));
+            break;
+        case MOTION_MENU_XY_JERK:
+            strcpy_P (c, PSTR ("X/Y Jerk"));
+            break;
+        case MOTION_MENU_Z_JERK:
+            strcpy_P (c, PSTR ("Z Jerk"));
+            break;
+        case MOTION_MENU_E_JERK:
+            strcpy_P (c, PSTR ("E Jerk"));
+            break;
+        /*      case MOTION_MENU_Z_ACC:
+                  strcpy_P (c, PSTR ("Z Acceleration"));
+                  break;
+        */
+        case MOTION_MENU_E_ACC:
+            strcpy_P (c, PSTR ("E Acceleration"));
+            break;
+        case MOTION_MENU_MIN_STEPS:
+            strcpy_P (c, PSTR ("Min segment length"));
+            break;
+        case MOTION_MENU_MIN_SEG_TIME:
+            strcpy_P (c, PSTR ("Min segment time"));
+            break;
+        case MOTION_MENU_MOTORPOWER_E:
+            strcpy_P (c, PSTR ("E Motor Power"));
+            break;
+        case MOTION_MENU_MOTORPOWER_Z:
+            strcpy_P (c, PSTR ("Z Motor Power"));
+            break;
+        case MOTION_MENU_MOTORPOWER_XY:
+            strcpy_P (c, PSTR ("XY Motor Power"));
+            break;
+        case MOTION_MENU_XY_ACC:
+            strcpy_P (c, PSTR ("XY Acceleration"));
+            break;
+        case MOTION_MENU_MAX_SPD_X:
+            strcpy_P (c, PSTR ("Max speed X"));
+            break;
+        case MOTION_MENU_MAX_SPD_Y:
+            strcpy_P (c, PSTR ("Max speed Y"));
+            break;
+        case MOTION_MENU_MAX_SPD_Z:
+            strcpy_P (c, PSTR ("Max speed Z"));
+            break;
+        case MOTION_MENU_MAX_SPD_E:
+            strcpy_P (c, PSTR ("Max speed E"));
+            break;
+        case MOTION_MENU_SINUSOIDAL:
+            {
+                if (SINUSOIDAL_JERK)
+                    strcpy_P (c, PSTR ("Disable Sinusoidal Jerk"));
                 else
-                    if (nr == 4)
-                        strcpy_P(c, PSTR("Max speed Y"));
-                    else
-                        if (nr == 5)
-                            strcpy_P(c, PSTR("Max speed Z"));
-                        else
-                            if (nr == 6)
-                                strcpy_P(c, PSTR("Max speed E"));
-                            else
-                                strcpy_P(c, PSTR("???"));
+
+                    strcpy_P (c, PSTR ("Enable Sinusoidal Jerk"));
+            }
+            break;
+        default:
+            strcpy_P (c, PSTR ("???"));
+            break;
+    }
     return c;
 }
 
-void lcd_motion_details(uint8_t nr)
+void lcd_motion_details (uint8_t nr)
 {
     char buffer[16];
-    memset (buffer,0,sizeof(buffer));
-
-    if (nr == 0)
-        return;
-    else
-        if(nr == 1)
-            int_to_string(acceleration, buffer, PSTR("mm" PER_SECOND_SYMBOL "" SQUARED_SYMBOL ));
-        else
-            if(nr == 2)
-                int_to_string(max_xy_jerk, buffer, PSTR("mm" PER_SECOND_SYMBOL ));
-            else
-                if(nr == 3)
-                    int_to_string(max_feedrate[X_AXIS], buffer, PSTR("mm" PER_SECOND_SYMBOL ));
-                else
-                    if(nr == 4)
-                        int_to_string(max_feedrate[Y_AXIS], buffer, PSTR("mm" PER_SECOND_SYMBOL ));
-                    else
-                        if(nr == 5)
-                            int_to_string(max_feedrate[Z_AXIS], buffer, PSTR("mm" PER_SECOND_SYMBOL ));
-                        else
-                            if(nr == 6)
-                                int_to_string(max_feedrate[E_AXIS], buffer, PSTR("mm" PER_SECOND_SYMBOL ));
-    lcd_lib_draw_string(5, 53, buffer);
+    memset (buffer, 0, sizeof (buffer));
+    switch (nr)
+    {
+        case MOTION_MENU_RETURN       : return;
+        case MOTION_MENU_XY_ACC       : int_to_string (acceleration, buffer, PSTR ("mm" PER_SECOND_SYMBOL "" SQUARED_SYMBOL )); break;
+        case MOTION_MENU_XY_JERK      : float_to_string (max_xy_jerk, buffer, PSTR ("mm" PER_SECOND_SYMBOL )); break;
+//		case MOTION_MENU_Z_ACC        : int_to_string (max_feedrate[Z_AXIS], buffer, PSTR ("mm" PER_SECOND_SYMBOL )); break;
+        case MOTION_MENU_E_ACC        : int_to_string (retract_acceleration, buffer, PSTR ("mm" PER_SECOND_SYMBOL "" SQUARED_SYMBOL)); break;
+        case MOTION_MENU_E_JERK       : float_to_string (max_e_jerk, buffer, PSTR ("mm" PER_SECOND_SYMBOL"" SQUARED_SYMBOL )); break;
+        case MOTION_MENU_Z_JERK       : float_to_string (max_z_jerk, buffer, PSTR ("mm" PER_SECOND_SYMBOL "" SQUARED_SYMBOL));  break;
+        case MOTION_MENU_SINUSOIDAL   : break;
+        case MOTION_MENU_MOTORPOWER_XY: int_to_string (motor_current_setting[0] , buffer, PSTR ("mA")); break;
+        case MOTION_MENU_MOTORPOWER_Z : int_to_string (motor_current_setting[1] , buffer, PSTR ("mA")); break;
+        case MOTION_MENU_MOTORPOWER_E : int_to_string (motor_current_setting[2] , buffer, PSTR ("mA")); break;
+        case MOTION_MENU_MIN_SEG_TIME : int_to_string (minsegmenttime / 1000UL, buffer, PSTR ("mSec"  )); break;
+        case MOTION_MENU_MIN_STEPS    : int_to_string (dropsegments, buffer, PSTR ("steps" )); break;
+        case MOTION_MENU_MAX_SPD_X    : int_to_string (max_feedrate[X_AXIS], buffer, PSTR ("mm" PER_SECOND_SYMBOL )); break;
+        case MOTION_MENU_MAX_SPD_Y    : int_to_string (max_feedrate[Y_AXIS], buffer, PSTR ("mm" PER_SECOND_SYMBOL )); break;
+        case MOTION_MENU_MAX_SPD_Z    : int_to_string (max_feedrate[Z_AXIS], buffer, PSTR ("mm" PER_SECOND_SYMBOL )); break;
+        case MOTION_MENU_MAX_SPD_E    : int_to_string (max_feedrate[E_AXIS], buffer, PSTR ("mm" PER_SECOND_SYMBOL )); break;
+    }
+    lcd_lib_draw_string (5, 53, buffer);
 }
+
+
+
 
 void lcd_menu_maintenance_motion()
 {
-    lcd_scroll_menu(PSTR("MOTION"), 7, lcd_motion_item, lcd_motion_details);
+    lcd_scroll_menu (PSTR ("MOTION"), MOTION_MENU_MAX, lcd_motion_item, lcd_motion_details);
     LED_NORMAL();
     if (millis() - last_user_interaction > MENU_TIMEOUT) {   lcd_menu_go_back(); return; }
     if (lcd_lib_button_pressed())
+    {
+        switch (SELECTED_SCROLL_MENU_ITEM())
         {
-            if (IS_SELECTED_SCROLL(0))
-                {
-                    //                   Config_StoreSettings();
-                    lcd_menu_go_back();
-//                     lcd_change_to_menu(lcd_menu_maintenance_doAction, SCROLL_MENU_ITEM_POS(7));
-                }
-            else
-                if (IS_SELECTED_SCROLL(1))
-                    LCD_EDIT_SETTING_FLOAT100(acceleration, "Acceleration", "mm" PER_SECOND_SYMBOL  SQUARED_SYMBOL , 0, 50000);
-                else
-                    if (IS_SELECTED_SCROLL(2))
-                        LCD_EDIT_SETTING_FLOAT1(max_xy_jerk, "X/Y Jerk", "mm" PER_SECOND_SYMBOL , 0, 100);
-                    else
-                        if (IS_SELECTED_SCROLL(3))
-                            LCD_EDIT_SETTING_FLOAT1(max_feedrate[X_AXIS], "Max speed X", "mm" PER_SECOND_SYMBOL , 0, 600);
-                        else
-                            if (IS_SELECTED_SCROLL(4))
-                                LCD_EDIT_SETTING_FLOAT1(max_feedrate[Y_AXIS], "Max speed Y", "mm" PER_SECOND_SYMBOL , 0, 600);
-                            else
-                                if (IS_SELECTED_SCROLL(5))
-                                    LCD_EDIT_SETTING_FLOAT1(max_feedrate[Z_AXIS], "Max speed Z", "mm" PER_SECOND_SYMBOL , 0, 200);
-                                else
-                                    if (IS_SELECTED_SCROLL(6))
-                                        LCD_EDIT_SETTING_FLOAT1(max_feedrate[E_AXIS], "Max speed E", "mm" PER_SECOND_SYMBOL , 0, 200);
+            case MOTION_MENU_RETURN           :   lcd_menu_go_back(); break;
+            case MOTION_MENU_XY_ACC           :   LCD_EDIT_SETTING_FLOAT100 (acceleration, "Acceleration", "mm" PER_SECOND_SYMBOL  SQUARED_SYMBOL , 0, 50000); break;
+            case MOTION_MENU_XY_JERK          :   LCD_EDIT_SETTING_FLOAT1 (max_xy_jerk, "X/Y Jerk", "mm" PER_SECOND_SYMBOL , 0, 200); break;
+            //	case MOTION_MENU_Z_ACC        :
+            case MOTION_MENU_E_ACC            :   LCD_EDIT_SETTING_FLOAT100 (retract_acceleration, "E Acceleration", "mm" PER_SECOND_SYMBOL SQUARED_SYMBOL, 0, 50000); break;
+            case MOTION_MENU_E_JERK           :   LCD_EDIT_SETTING_FLOAT1 (max_e_jerk, "E Jerk", "mm" PER_SECOND_SYMBOL SQUARED_SYMBOL, 0, 25.0); break;
+            case MOTION_MENU_Z_JERK           :   LCD_EDIT_SETTING_FLOAT1 (max_z_jerk, "Z Jerk", "mm" PER_SECOND_SYMBOL SQUARED_SYMBOL, 0, 4.0); break;
+            case MOTION_MENU_SINUSOIDAL       :   SINUSOIDAL_JERK = !SINUSOIDAL_JERK; break;
+            case MOTION_MENU_MOTORPOWER_XY    :   LCD_EDIT_SETTING (motor_current_setting[0] , "XY Motor Power", "mA", 100, MOTOR_CURRENT_PWM_RANGE); digipot_current(0, motor_current_setting[0]);  break;
+            case MOTION_MENU_MOTORPOWER_Z     :   LCD_EDIT_SETTING (motor_current_setting[1] , "Z Motor Power", "mA" , 100, MOTOR_CURRENT_PWM_RANGE); digipot_current(1, motor_current_setting[1]);  break;
+            case MOTION_MENU_MOTORPOWER_E     :   LCD_EDIT_SETTING (motor_current_setting[2] , "E Motor Power", "mA" , 100, MOTOR_CURRENT_PWM_RANGE); digipot_current(2, motor_current_setting[2]);  break;
+            case MOTION_MENU_MIN_SEG_TIME     :  
+				{
+				unsigned short mst = minsegmenttime / 1000;  
+				LCD_EDIT_SETTING (mst , "Min Segment Time", "mS" , 0, 999UL); 
+				minsegmenttime = mst * 1000UL;
+				}
+				break;
+            case MOTION_MENU_MIN_STEPS        :   LCD_EDIT_SETTING (dropsegments , "Min Steps", "steps" , 0, 500); break;
+            case MOTION_MENU_MAX_SPD_X        :   LCD_EDIT_SETTING_FLOAT1 (max_feedrate[X_AXIS], "Max speed X", "mm" PER_SECOND_SYMBOL , 0, 600); break;
+            case MOTION_MENU_MAX_SPD_Y        :   LCD_EDIT_SETTING_FLOAT1 (max_feedrate[Y_AXIS], "Max speed Y", "mm" PER_SECOND_SYMBOL , 0, 600); break;
+            case MOTION_MENU_MAX_SPD_Z        :   LCD_EDIT_SETTING_FLOAT1 (max_feedrate[Z_AXIS], "Max speed Z", "mm" PER_SECOND_SYMBOL , 0, 200); break;
+            case MOTION_MENU_MAX_SPD_E        :   LCD_EDIT_SETTING_FLOAT1 (max_feedrate[E_AXIS], "Max speed E", "mm" PER_SECOND_SYMBOL , 0, 500); break;
         }
+
+    }
 }
 
-static char* lcd_led_item(uint8_t nr)
+
+static char* lcd_led_item (uint8_t nr)
 {
-    char* c = lcd_cache_new.getData(LCD_CACHE::RAWSTRING).rawstring	;
+    char* c = lcd_cache_new.getData (LCD_CACHE::RAWSTRING).rawstring	;
     if (nr == 0)
-        strcpy_P(c, PSTR("< RETURN"));
+        strcpy_P (c, PSTR ("< RETURN"));
     else
         if (nr == 1)
-            strcpy_P(c, PSTR("Brightness"));
+            strcpy_P (c, PSTR ("Brightness"));
         else
             if (nr == 2)
-                strcpy_P(c, PSTR(" Always On"));
+                strcpy_P (c, PSTR (" Always On"));
             else
                 if (nr == 3)
-                    strcpy_P(c, PSTR(" Always Off"));
+                    strcpy_P (c, PSTR (" Always Off"));
                 else
                     if (nr == 4)
-                        strcpy_P(c, PSTR(" On while printing"));
+                        strcpy_P (c, PSTR (" On while printing"));
                     else
                         if (nr == 5)
-                            strcpy_P(c, PSTR(" Glow when done"));
+                            strcpy_P (c, PSTR (" Glow when done"));
                         else
-                            strcpy_P(c, PSTR("???"));
+                            strcpy_P (c, PSTR ("???"));
     if (nr - 2 == led_mode)
         c[0] = '>';
     return c;
 }
 
-void lcd_led_details(uint8_t nr)
+void lcd_led_details (uint8_t nr)
 {
-    analogWrite(LED_PIN, 255 * int(led_brightness_level) / 100);
+    analogWrite (LED_PIN, 255 * int (led_brightness_level) / 100);
 
     if (nr == 0)
         return;
     else
-        if(nr == 1)
-            {
-                char buffer[16];
-                memset (buffer,0,sizeof(buffer));
-                lcd_lib_enable_encoder_acceleration(true);
-                int_to_string(led_brightness_level, buffer, PSTR("%"));
-                lcd_lib_draw_string(5, 53, buffer);
-            }
-
+        if (nr == 1)
+        {
+            char buffer[16];
+            memset (buffer, 0, sizeof (buffer));
+            lcd_lib_enable_encoder_acceleration (true);
+            int_to_string (led_brightness_level, buffer, PSTR ("%"));
+            lcd_lib_draw_string (5, 53, buffer);
+        }
 }
 
 void lcd_menu_maintenance_led()
 {
     if (millis() - last_user_interaction > MENU_TIMEOUT) {   lcd_menu_go_back(); return; }
     LED_NORMAL();
-    analogWrite(LED_PIN, 255 * int(led_brightness_level) / 100);
-    lcd_scroll_menu(PSTR("LED"), 6, lcd_led_item, lcd_led_details);
+    analogWrite (LED_PIN, 255 * int (led_brightness_level) / 100);
+    lcd_scroll_menu (PSTR ("LED"), 6, lcd_led_item, lcd_led_details);
     if (lcd_lib_button_pressed())
+    {
+        if (IS_SELECTED_SCROLL (0))
         {
-            if (IS_SELECTED_SCROLL(0))
-                {
-                    if (led_mode != LED_MODE_ALWAYS_ON)
-                        analogWrite(LED_PIN, 0);
-                    Config_StoreSettings();
-                    lcd_menu_go_back();
-                    return;
-//                    lcd_change_to_menu(lcd_menu_maintenance_doAction, SCROLL_MENU_ITEM_POS(1));
-                }
-            else
-                if (IS_SELECTED_SCROLL(1))
-                    LCD_EDIT_SETTING(led_brightness_level, "Brightness", "%", 0, 100);
-                else
-                    if (IS_SELECTED_SCROLL(2))
-                        led_mode = LED_MODE_ALWAYS_ON;
-                    else
-                        if (IS_SELECTED_SCROLL(3))
-                            led_mode = LED_MODE_ALWAYS_OFF;
-                        else
-                            if (IS_SELECTED_SCROLL(4))
-                                led_mode = LED_MODE_WHILE_PRINTING;
-                            else
-                                if (IS_SELECTED_SCROLL(5))
-                                    led_mode = LED_MODE_BLINK_ON_DONE;
+            if (led_mode != LED_MODE_ALWAYS_ON)
+                analogWrite (LED_PIN, 0);
+            Config_StoreSettings();
+            lcd_menu_go_back();
+            return;
+            //                    lcd_change_to_menu(lcd_menu_maintenance_doAction, SCROLL_MENU_ITEM_POS(1));
         }
+        else
+            if (IS_SELECTED_SCROLL (1))
+                LCD_EDIT_SETTING (led_brightness_level, "Brightness", "%", 0, 100);
+            else
+                if (IS_SELECTED_SCROLL (2))
+                    led_mode = LED_MODE_ALWAYS_ON;
+                else
+                    if (IS_SELECTED_SCROLL (3))
+                        led_mode = LED_MODE_ALWAYS_OFF;
+                    else
+                        if (IS_SELECTED_SCROLL (4))
+                            led_mode = LED_MODE_WHILE_PRINTING;
+                        else
+                            if (IS_SELECTED_SCROLL (5))
+                                led_mode = LED_MODE_BLINK_ON_DONE;
+    }
 }
 //-----------------------------------------------------------------------------------------------------------------
 void lcd_menu_draw_temp_adj_screen()
 {
     run_history = true;
 
-    lcd_lib_enable_encoder_acceleration(true);
+    lcd_lib_enable_encoder_acceleration (true);
     LED_HEAT();
     lcd_lib_clear();
-    lcd_lib_draw_string_centerP(ROW2, PSTR("Nozzle temperature:"));
-    lcd_lib_draw_string_centerP(ROW7, PSTR("Click to return"));
+    lcd_lib_draw_string_centerP (ROW2, PSTR ("Nozzle temperature:"));
+    lcd_lib_draw_string_centerP (ROW7, PSTR ("Click to return"));
     char buffer[16];
-    memset (buffer,0,sizeof(buffer));
-    char *c = buffer;
-    c=int_to_string(int(current_temperature[active_extruder]), c, PSTR( TEMPERATURE_SEPARATOR_S));
-    c=int_to_string(int(target_temperature[active_extruder]), c, PSTR( DEGREE_C_SYMBOL ));
-    *c++=0;
-    lcd_lib_draw_string_center(ROW3, buffer);
-    drawTempHistory (DISPLAY_RIGHT/3,ROW4+2,2*DISPLAY_RIGHT/3,ROW7-3,lcd_cache_new.getData(LCD_CACHE::TEMPERATURE_HISTORY).temphist.temp_history);
+    memset (buffer, 0, sizeof (buffer));
+    char* c = buffer;
+    c = int_to_string (int (current_temperature[active_extruder]), c, PSTR ( TEMPERATURE_SEPARATOR_S));
+    c = int_to_string (int (target_temperature[active_extruder]), c, PSTR ( DEGREE_C_SYMBOL ));
+    *c++ = 0;
+    lcd_lib_draw_string_center (ROW3, buffer);
+    drawTempHistory (DISPLAY_RIGHT / 3, ROW4 + 2, 2 * DISPLAY_RIGHT / 3, ROW7 - 3, lcd_cache_new.getData (LCD_CACHE::TEMPERATURE_HISTORY).temphist.temp_history);
     lcd_lib_update_screen();
 }
 #endif//ENABLE_ULTILCD2
+
+#if LOG_MOTION
+void log_stepper();
+#endif
+
+//-----------------------------------------------------------------------------------------------------------------
+inline void waitForMovesDone()
+{
+    do
+    {
+        manageBuffer();
+        checkHitEndstops();
+#if LOG_MOTION
+        log_stepper();
+#endif
+    }
+    while ( blocks_queued() || current_block != NULL);
+}
+
+//-----------------------------------------------------------------------------------------------------------------
+void moveXYLimits()
+{
+    SERIAL_ECHO_START;
+    SERIAL_ECHOLNPGM ("STARTING MOVE TO LIMITS TEST");
+
+    lcd_lib_clear();
+    lcd_lib_draw_string_centerP (20, PSTR ("Moving to limits"));
+    lcd_lib_update_screen();
+    lcd_lib_wait_for_screen_ready();
+
+    enquecommand_P (PSTR ("G1 X0 Y0 " MAINTENANCE_FEED_RATE));
+    manageBuffer();
+    delay (50);
+    char buffer[20];
+    memset (buffer, 0, sizeof (buffer));
+    sprintf_P (buffer, PSTR ("G1 Y%i"), int (max_pos[Y_AXIS]));
+    enquecommand (buffer);
+    manageBuffer();
+    delay (50);
+    sprintf_P (buffer, PSTR ("G1 X%i"), int (max_pos[X_AXIS]));
+    enquecommand (buffer);
+    manageBuffer();
+    delay (50);
+    enquecommand_P (PSTR ("G1 Y0 " MAINTENANCE_FEED_RATE));
+    manageBuffer();
+    //#if LOG_MOTION
+    /// do a dedicated motion loop -- no UI updates or temp updates., so we get a good motion log
+    waitForMovesDone();
+    delay (100);
+    //#endif
+}
+//-----------------------------------------------------------------------------------------------------------------
+void randomMotion (int count)
+{
+    int a;
+    SERIAL_ECHO_START;
+    SERIAL_ECHOLNPGM ("STARTING RANDOM MOVES TEST");
+
+    char buffer[20];
+    memset (buffer, 0, sizeof (buffer));
+    lcd_lib_clear();
+    lcd_lib_draw_string_centerP (20, PSTR ("Random Moves"));
+    int_to_string ( count, buffer);
+    lcd_lib_draw_string_center (30, buffer);
+    lcd_lib_update_screen();
+    lcd_lib_wait_for_screen_ready();
+
+    for (a = 0; a < count; a++)
+    {
+        sprintf_P (buffer, PSTR ("G1 X%i Y%i " MAINTENANCE_FEED_RATE), (int) random (10, (int)max_pos[X_AXIS] - 10), (int) random (10, (int)max_pos[Y_AXIS]) - 10);
+        enquecommand (buffer);
+        manageBuffer();
+    }
+    // #if LOG_MOTION
+    waitForMovesDone();
+    delay (300);
+    //#endif
+}
+
+//-----------------------------------------------------------------------------------------------------------------
+void moveTestScreen ( const char* str, int value, char* buffer )
+{
+    lcd_lib_clear();
+    lcd_lib_draw_string_centerP (20, str );
+    int_to_string (value, buffer, PSTR ("mm"));
+    lcd_lib_draw_string_center (35, buffer);
+    lcd_lib_update_screen();
+    lcd_lib_wait_for_screen_ready();
+}
+
+//-----------------------------------------------------------------------------------------------------------------
+// test movement for skips
+// home the head, then move away slowly until we see the end stop switches clear
+// then move around for a while, then move back to near the end stop position
+// then creep towards home position until we see end stops.
+// we compare position before and after and see if they match
+void movementTest()
+{
+    SERIAL_ECHO_START;
+    SERIAL_ECHOLNPGM ("STARTING SPEED TEST");
+    lcd_lib_clear();
+    lcd_lib_draw_string_centerP (20, PSTR ("Homing..."));
+    lcd_lib_update_screen();
+    endstops_hit_on_purpose();
+    enquecommand_P (PSTR ("G28 X0 Y0"));
+
+    waitForMovesDone();
+    enable_endstops (true);
+    delay (200);
+
+    lcd_lib_wait_for_screen_ready();
+    lcd_lib_clear();
+    if (raw_xmin_estop() && raw_ymax_estop())
+        lcd_lib_draw_string_centerP (10, PSTR ("Endstops hit..."));
+    else
+    {
+        lcd_messagescreen (  PSTR ("No Endstops?"));
+        return;
+    }
+    lcd_lib_update_screen();
+    delay (200);
+
+    char buffer[30];
+    memset (buffer, 0, sizeof (buffer));
+
+    int x = 1;
+    do
+    {
+        endstops_hit_on_purpose();
+
+        sprintf_P (buffer, PSTR ("G1 X%i F15000"), x);
+        enquecommand (buffer);
+        waitForMovesDone();
+        x++;
+        if (x >= (int) max_pos[X_AXIS])
+        {
+            lcd_messagescreen (  PSTR ("X endstop broken?"));
+            return;
+        }
+
+    }
+    while (raw_xmin_estop()  );
+
+    SERIAL_ECHOPAIR ("X_STOP = ",  x);
+    SERIAL_ECHOLN (" ");
+    moveTestScreen (PSTR ("Endstop X clear at "), x, buffer);
+    x--;
+    delay (300);
+
+    int y = (int) max_pos[Y_AXIS];
+    do
+    {
+        endstops_hit_on_purpose();
+        sprintf_P (buffer, PSTR ("G1 Y%i F1500"), y);
+        enquecommand (buffer);
+        waitForMovesDone();
+        y--;
+        if (y <= 0)
+        {
+            lcd_messagescreen (  PSTR ("Y endstop broken?"));
+            return;
+        }
+    }
+    while (raw_ymax_estop() );
+
+    SERIAL_ECHOPAIR ("  Y_STOP = ", y);
+    SERIAL_ECHOLN (" ");
+    moveTestScreen (PSTR ("Endstop Y clear at "), y, buffer);
+    y++;
+    delay (300);
+
+    lcd_lib_clear();
+    lcd_lib_draw_string_centerP (20, PSTR ("Testing"));
+    lcd_lib_update_screen();
+    lcd_lib_wait_for_screen_ready();
+
+    SERIAL_ECHOLN (" ");
+    SERIAL_ECHOLNPGM ("TESTING");
+
+    enquecommand_P (PSTR ("G28 X0 Y0"));
+    randomMotion (10);
+    moveXYLimits();
+    randomMotion (10);
+    waitForMovesDone();
+    randomMotion (10);
+    waitForMovesDone();
+    randomMotion (10);
+    waitForMovesDone();
+    delay (100);
+    sprintf_P (buffer, PSTR ("G1 X%i Y0 F15000"), int (max_pos[X_AXIS]));
+    enquecommand (buffer);
+    waitForMovesDone();
+
+    lcd_lib_clear();
+    lcd_lib_draw_string_centerP (30, PSTR ("Done, finding e-stops"));
+    lcd_lib_update_screen();
+
+    int y_off = -30;
+    int x_off =  30;
+    sprintf_P (buffer, PSTR ("G1 X%i F10000"), x + x_off );
+    enquecommand (buffer);
+    waitForMovesDone();
+    do
+    {
+        moveTestScreen (PSTR ("X offset is "), x_off, buffer);
+        endstops_hit_on_purpose();
+        enquecommand_P ( PSTR ("G92 X2"));
+        x_off--;
+        enquecommand_P (PSTR ("G1 X1 F1500"));
+        waitForMovesDone();
+    }
+    while (!raw_xmin_estop());
+    SERIAL_ECHOPAIR ("  X_STOP = ",  x_off);
+    SERIAL_ECHOLN (" ");
+
+
+    sprintf_P (buffer, PSTR ("G1 Y%i F10000"), y + y_off );
+    enquecommand (buffer);
+    waitForMovesDone();
+    do
+    {
+        moveTestScreen (PSTR ("Y offset is "), y_off, buffer);
+        endstops_hit_on_purpose();
+        enquecommand_P ( PSTR ("G92 Y1"));
+        y_off++;
+        enquecommand_P (PSTR ("G1 Y2 F1500"));
+        waitForMovesDone();
+    }
+    while (!raw_ymax_estop());
+    SERIAL_ECHOPAIR ("  Y_STOP = ",  y_off);
+    SERIAL_ECHOLN (" ");
+
+    memset (buffer, 0, sizeof (buffer));
+
+    lcd_lib_clear();
+    lcd_lib_draw_string_centerP (10, PSTR ("Final offset is "));
+    char* c = buffer;
+
+    c = int_to_string (x_off, c , PSTR ("mm "));
+    *c++ = 0;
+    *c++ = 0;
+    c = buffer;
+    lcd_lib_draw_string_center (25, buffer );
+    //  strcpy_P (buffer, "Y =    ");
+    c = int_to_string (y_off, c , PSTR ("mm "));
+    *c++ = 0;
+    *c++ = 0;
+
+    lcd_lib_draw_string_center (35, buffer );
+//     if ( (x_off == 0 && y_off == 0 ))
+//     {   lcd_lib_draw_string_centerP (50, PSTR ("PASS!"));
+//         lcd_lib_beep_ext ( 600, 250);
+//     }
+//     else
+//     {   lcd_lib_draw_string_centerP (50, PSTR ("FAIL!"));
+//         lcd_lib_beep_ext ( 200, 250);
+//     }
+
+
+    lcd_lib_update_screen();
+    enquecommand_P (PSTR ("G28 X0 Y0"));
+    waitForMovesDone();
+    unsigned long start_time = millis();
+    do
+    {
+        lcd_lib_buttons_update();
+        LED_FLASH();
+        //            runTasks();
+    }
+    while (!lcd_lib_button_pressed() && (millis() - start_time < 10000UL ));
+}

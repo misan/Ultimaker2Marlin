@@ -369,7 +369,7 @@ void setup()
 
 #define BED_PID_CHECK_INTERVAL 100
 #define EXTRUDER_PID_CHECK_INTERVAL 100
-#define UI_UPDATE_INTERVAL 20
+#define UI_UPDATE_INTERVAL (1000/15)
 
 PeriodTimer ui_timer (lcd_update,UI_UPDATE_INTERVAL);
 
@@ -378,7 +378,7 @@ PeriodTimer temp_log_timer (updateTempHistory,1000);
 PeriodTimer inactivity_timer (manage_inactivity,1000);
 PeriodTimer bed_light_timer (manage_Bed_Lights,100);
 PeriodTimer stats_timer (lifetime_stats_tick,60000);
-PeriodTimer ambient_timer (updateAmbientSensor,10000);
+PeriodTimer ambient_timer (updateAmbientSensor,15000);
 
 
 
@@ -414,74 +414,77 @@ extern unsigned  short cur_lin_acc ;
 extern unsigned  short cur_lin_acc_raw ;
 extern volatile  unsigned long steps_completed; // The number of step events executed in the current block
 void log_stepper2()
-	{
-	if (current_speed==0) return;
-	unsigned short cs = current_speed;
-	current_speed =0 ;
-	SERIAL_ECHO ((micros() - block_start)>>7);
-	SERIAL_ECHOPGM("\t");
-	SERIAL_ECHO ((unsigned short) cs);
-	 		SERIAL_ECHOPGM("\t");
-	 		SERIAL_ECHO ((unsigned short) curve_index);
-	SERIAL_ECHOPGM("\t");
-	SERIAL_ECHO ((unsigned short) cur_lin_acc);
-	 		SERIAL_ECHOPGM("\t");
-	 		SERIAL_ECHO ((short) cur_lin_acc_raw);
-	
-			SERIAL_ECHOPGM("\t");
-			SERIAL_ECHO ((unsigned long) steps_completed);
-			
+{
+    if (current_speed==0) return;
+    unsigned short cs = current_speed;
+    current_speed =0 ;
+    SERIAL_ECHO ((micros() - block_start)>>7);
+    SERIAL_ECHOPGM("\t");
+    SERIAL_ECHO ((unsigned short) cs);
+    SERIAL_ECHOPGM("\t");
+    SERIAL_ECHO ((unsigned short) curve_index);
+    SERIAL_ECHOPGM("\t");
+    SERIAL_ECHO ((unsigned short) cur_lin_acc);
+    SERIAL_ECHOPGM("\t");
+    SERIAL_ECHO ((short) cur_lin_acc_raw);
 
-			SERIAL_ECHOLNPGM(" ");
-	
+    SERIAL_ECHOPGM("\t");
+    SERIAL_ECHO ((unsigned long) steps_completed);
 
-	}
+
+    SERIAL_ECHOLNPGM(" ");
+
+
+}
 
 PeriodTimer motion_logger (log_stepper2,1);
 
 //-----------------------------------------------------------------------------------------------------------------
 void log_stepper()
-	{
-	log_stepper2();
-	//	motion_logger.tick();
-	}
+{
+    log_stepper2();
+    //	motion_logger.tick();
+}
 
 #endif
 
 //-----------------------------------------------------------------------------------------------------------------
-void runTasks(bool with_command_processing)
+void runTasks(bool with_command_processing,bool with_ui)
 {
     if (with_command_processing)
         {
             manageBuffer();
 #if LOG_MOTION
-			log_stepper();
+            log_stepper();
 #endif
-			checkHitEndstops();
+            checkHitEndstops();
         }
-    ui_timer.tick();
+
+	if (with_ui) 
+		 ui_timer.tick();
+
 #if LOG_MOTION
-	log_stepper();
+    log_stepper();
 #endif
     inactivity_timer.tick();
 #if LOG_MOTION
-	log_stepper();
+    log_stepper();
 #endif
     bed_temp_timer.tick();
 #if LOG_MOTION
-	log_stepper();
+    log_stepper();
 #endif
     extruder_temp_timer.tick();
 #if defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1
     head_cooling_fan_timer.tick();
 #endif
 #if LOG_MOTION
-	log_stepper();
+    log_stepper();
 #endif
 
     stats_timer.tick();
 #if LOG_MOTION
-	log_stepper();
+    log_stepper();
 #endif
     bed_light_timer.tick();
 #if defined(CONTROLLERFAN_PIN) && CONTROLLERFAN_PIN > -1
@@ -496,7 +499,7 @@ void runTasks(bool with_command_processing)
 
 
 #if LOG_MOTION
-	log_stepper();
+    log_stepper();
 #endif
 }
 
@@ -504,14 +507,16 @@ void runTasks(bool with_command_processing)
 void loop()
 {
 #if LOG_MOTION
-	log_stepper();
+    log_stepper();
 #endif
     if(commands_queued() < (BUFSIZE-1))
         get_command();
 #ifdef SDSUPPORT
     card.checkautostart(false);
 #endif
-    runTasks(true);
+    runTasks(true,true);
+
+	   
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

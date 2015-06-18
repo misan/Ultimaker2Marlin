@@ -19,22 +19,22 @@
 */
 
 #ifndef stepper_h
-#define stepper_h 
+#define stepper_h
 
 #include "planner.h"
 
 #if EXTRUDERS > 2
-  #define WRITE_E_STEP(v) { if(current_block->active_extruder == 2) { WRITE(E2_STEP_PIN, v); } else { if(current_block->active_extruder == 1) { WRITE(E1_STEP_PIN, v); } else { WRITE(E0_STEP_PIN, v); }}}
-  #define NORM_E_DIR() { if(current_block->active_extruder == 2) { WRITE(E2_DIR_PIN, !INVERT_E2_DIR); } else { if(current_block->active_extruder == 1) { WRITE(E1_DIR_PIN, !INVERT_E1_DIR); } else { WRITE(E0_DIR_PIN, !INVERT_E0_DIR); }}}
-  #define REV_E_DIR() { if(current_block->active_extruder == 2) { WRITE(E2_DIR_PIN, INVERT_E2_DIR); } else { if(current_block->active_extruder == 1) { WRITE(E1_DIR_PIN, INVERT_E1_DIR); } else { WRITE(E0_DIR_PIN, INVERT_E0_DIR); }}}
+#define WRITE_E_STEP(v) { if(current_block->active_extruder == 2) { WRITE(E2_STEP_PIN, v); } else { if(current_block->active_extruder == 1) { WRITE(E1_STEP_PIN, v); } else { WRITE(E0_STEP_PIN, v); }}}
+#define NORM_E_DIR() { if(current_block->active_extruder == 2) { WRITE(E2_DIR_PIN, !INVERT_E2_DIR); } else { if(current_block->active_extruder == 1) { WRITE(E1_DIR_PIN, !INVERT_E1_DIR); } else { WRITE(E0_DIR_PIN, !INVERT_E0_DIR); }}}
+#define REV_E_DIR() { if(current_block->active_extruder == 2) { WRITE(E2_DIR_PIN, INVERT_E2_DIR); } else { if(current_block->active_extruder == 1) { WRITE(E1_DIR_PIN, INVERT_E1_DIR); } else { WRITE(E0_DIR_PIN, INVERT_E0_DIR); }}}
 #elif EXTRUDERS > 1
-  #define WRITE_E_STEP(v) { if(current_block->active_extruder == 1) { WRITE(E1_STEP_PIN, v); } else { WRITE(E0_STEP_PIN, v); }}
-  #define NORM_E_DIR() { if(current_block->active_extruder == 1) { WRITE(E1_DIR_PIN, !INVERT_E1_DIR); } else { WRITE(E0_DIR_PIN, !INVERT_E0_DIR); }}
-  #define REV_E_DIR() { if(current_block->active_extruder == 1) { WRITE(E1_DIR_PIN, INVERT_E1_DIR); } else { WRITE(E0_DIR_PIN, INVERT_E0_DIR); }}
+#define WRITE_E_STEP(v) { if(current_block->active_extruder == 1) { WRITE(E1_STEP_PIN, v); } else { WRITE(E0_STEP_PIN, v); }}
+#define NORM_E_DIR() { if(current_block->active_extruder == 1) { WRITE(E1_DIR_PIN, !INVERT_E1_DIR); } else { WRITE(E0_DIR_PIN, !INVERT_E0_DIR); }}
+#define REV_E_DIR() { if(current_block->active_extruder == 1) { WRITE(E1_DIR_PIN, INVERT_E1_DIR); } else { WRITE(E0_DIR_PIN, INVERT_E0_DIR); }}
 #else
-  #define WRITE_E_STEP(v) WRITE(E0_STEP_PIN, v)
-  #define NORM_E_DIR() WRITE(E0_DIR_PIN, !INVERT_E0_DIR)
-  #define REV_E_DIR() WRITE(E0_DIR_PIN, INVERT_E0_DIR)
+#define WRITE_E_STEP(v) WRITE(E0_STEP_PIN, v)
+#define NORM_E_DIR() WRITE(E0_DIR_PIN, !INVERT_E0_DIR)
+#define REV_E_DIR() WRITE(E0_DIR_PIN, INVERT_E0_DIR)
 #endif
 
 #if MOTOR_CURRENT_PWM_XY_PIN > -1
@@ -62,7 +62,7 @@ long st_get_position(uint8_t axis);
 // to notify the subsystem that it is time to go to work.
 void st_wake_up();
 
-  
+
 void checkHitEndstops(); //call from somwhere to create an serial error message with the locations the endstops where hit, in case they were triggered
 void endstops_hit_on_purpose(); //avoid creation of the message, i.e. after homeing and before a routine call of checkHitEndstops();
 
@@ -83,5 +83,57 @@ void digipot_init();
 void digipot_current(uint8_t driver, int current);
 void microstep_init();
 void microstep_readings();
+
+extern bool SINUSOIDAL_JERK ;
+
+
+inline bool raw_xmin_estop ()
+{
+#if defined(X_MIN_PIN) && X_MIN_PIN > -1
+    return READ(X_MIN_PIN)^X_ENDSTOPS_INVERTING;
+#endif
+    return false;
+}
+
+inline bool raw_ymin_estop ()
+{
+#if defined(Y_MIN_PIN) && Y_MIN_PIN > -1
+    return READ(Y_MIN_PIN)^Y_ENDSTOPS_INVERTING;
+#endif
+    return false;
+}
+
+inline bool raw_zmin_estop ()
+{
+#if defined(ZMIN_PIN) && ZMIN_PIN > -1
+    return READ(Z_MIN_PIN)^Z_ENDSTOPS_INVERTING;
+#endif
+    return false;
+}
+
+inline bool raw_xmax_estop ()
+{
+#if defined(X_MAX_PIN) && X_MAX_PIN > -1
+    return READ(X_MAX_PIN)^X_ENDSTOPS_INVERTING;
+#endif
+    return false;
+}
+
+inline bool raw_ymax_estop ()
+{
+#if defined(Y_MAX_PIN) && Y_MAX_PIN > -1
+    return READ(Y_MAX_PIN)^Y_ENDSTOPS_INVERTING;
+#endif
+    return false;
+}
+
+inline bool raw_zmax_estop ()
+{
+#if defined(ZMAX_PIN) && ZMAX_PIN > -1
+    return READ(Z_MAX_PIN)^Z_ENDSTOPS_INVERTING;
+#endif
+    return false;
+}
+
 
 #endif

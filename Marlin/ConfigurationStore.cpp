@@ -5,6 +5,7 @@
 #include "UltiLCD2.h"
 #include "ConfigurationStore.h"
 #include "gcode.h"
+#include "UltiLCD2_menu_print.h"
 
 void _EEPROM_writeData(int &pos, uint8_t* value, uint8_t size)
 {
@@ -99,6 +100,9 @@ void Config_StoreSettings()
     EEPROM_WRITE_VAR(i,retract_zlift);
     EEPROM_WRITE_VAR(i,LED_DIM_TIME);
     EEPROM_WRITE_VAR(i,NOWRAP_MENUS);
+    EEPROM_WRITE_VAR(i,old_retraction);
+    EEPROM_WRITE_VAR(i,old_zlift);
+    EEPROM_WRITE_VAR(i,dropsegments);
 
 
     char ver2[4]=EEPROM_VERSION;
@@ -275,7 +279,9 @@ void Config_RetrieveSettings()
             EEPROM_READ_VAR(i,LED_DIM_TIME);
             EEPROM_READ_VAR(i,NOWRAP_MENUS);
 
-
+ 			EEPROM_READ_VAR(i,old_retraction);
+ 			EEPROM_READ_VAR(i,old_zlift);
+ 			EEPROM_READ_VAR(i,dropsegments);
             // Call updatePID (similar to when we have processed M301)
             updatePID();
             SERIAL_ECHO_START;

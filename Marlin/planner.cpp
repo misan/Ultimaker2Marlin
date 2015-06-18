@@ -96,9 +96,7 @@ long position[4];   //rescaled from extern when axis_steps_per_unit are changed 
 static float previous_speed[4]; // Speed of previous path line segment
 static float previous_nominal_speed; // Nominal speed of previous path line segment
 
-extern unsigned long bins_a[16];
-extern unsigned long bins_d[16];
-
+ unsigned int dropsegments=20;
 
 #ifdef AUTOTEMP
 float autotemp_max=250;
@@ -739,7 +737,7 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
     block->total_steps = max(block->steps_x, max(block->steps_y, max(block->steps_z, block->steps_e)));
 
     // Bail if this is a zero-length block
-    if (block->total_steps <= dropsegments)
+    if (block->total_steps <= dropsegments/q)
         {
             return;
         }
@@ -847,13 +845,15 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
 
 #ifdef SLOWDOWN
     //  segment time im micro seconds
-    unsigned long segment_time = lround(1000000.0/inverse_second);
-    if ((moves_queued > 1) && (moves_queued < (BLOCK_BUFFER_SIZE /2)))
+	unsigned long segment_time;
+//    if ((moves_queued > 1) && (moves_queued < (BLOCK_BUFFER_SIZE /2)))
+	if ((current_block!=NULL) && (moves_queued < (BLOCK_BUFFER_SIZE /2)))
         {
+			segment_time = lround(1000000.0/inverse_second);
             if (segment_time < minsegmenttime)
                 {
                     // buffer is draining, add extra time.  The amount of time added increases if the buffer is still emptied more.
-                    inverse_second=1000000.0/(segment_time+lround(2*(minsegmenttime-segment_time)/moves_queued));
+                    inverse_second=1000000.0/(segment_time+lround(2*(minsegmenttime-segment_time)/(max(1,moves_queued))));
 #ifdef XY_FREQUENCY_LIMIT
                     segment_time = lround(1000000.0/inverse_second);
 #endif

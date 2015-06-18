@@ -66,7 +66,8 @@
 
 #include "SerialMacros.h"
 
-void runTasks(bool with_command_processing=false);
+
+void runTasks(bool with_command_processing=false,bool with_ui=false);
 void FlushSerialRequestResend();
 void ClearToSend();
 

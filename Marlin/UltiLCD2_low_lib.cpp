@@ -12,12 +12,15 @@
  * Implementation of the LCD display routines for a SSD1309 OLED graphical display connected with i2c.
  **/
 
+
+
 #define LCD_RESET_PIN 5
 #define LCD_CS_PIN    6
 #define I2C_SDA_PIN   20
 #define I2C_SCL_PIN   21
 
-#define I2C_FREQ 400000
+#define I2C_FREQ ((unsigned long) (400000*I2C_OVERCLOCK))
+//#define I2C_FREQ 1000000
 
 //The TWI interrupt routine conflicts with an interrupt already defined by Arduino, if you are using the Arduino IDE.
 // Not running the screen update from interrupts causes a 25ms delay each screen refresh. Which will cause issues during printing.
