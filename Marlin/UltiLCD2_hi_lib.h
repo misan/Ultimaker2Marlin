@@ -60,7 +60,7 @@ extern menuFunc_t postMenuCheck;
 extern int16_t previousEncoderPos[MENU_DEPTH];
 extern uint8_t minProgress;
 
-#define LCD_EDIT_SETTING(_setting, _name, _postfix, _min, _max) do { \
+#define LCD_EDIT_SETTING_INT(_setting, _name, _postfix, _min, _max) do { \
             lcd_change_to_menu(lcd_menu_edit_setting); \
             lcd_setting_name = PSTR(_name); \
             lcd_setting_postfix = PSTR(_postfix); \
@@ -90,7 +90,7 @@ extern uint8_t minProgress;
 	lcd_setting_min = _min; \
      lcd_setting_max = _max; \
 	} while(0)
-#define LCD_EDIT_SETTING_FLOAT01(_setting, _name, _postfix, _min, _max) do { \
+#define LCD_EDIT_SETTING_FLOATx01(_setting, _name, _postfix, _min, _max) do { \
 	lcd_change_to_menu(lcd_menu_edit_setting); \
 	lcd_setting_name = PSTR(_name); \
 	lcd_setting_postfix = PSTR(_postfix); \
@@ -100,7 +100,7 @@ extern uint8_t minProgress;
 	lcd_setting_min = (_min) * 10; \
 	lcd_setting_max = (_max) * 10; \
 	} while(0)
-#define LCD_EDIT_SETTING_FLOAT001(_setting, _name, _postfix, _min, _max) do { \
+#define LCD_EDIT_SETTING_FLOATx001(_setting, _name, _postfix, _min, _max) do { \
             lcd_change_to_menu(lcd_menu_edit_setting); \
             lcd_setting_name = PSTR(_name); \
             lcd_setting_postfix = PSTR(_postfix); \
@@ -110,17 +110,27 @@ extern uint8_t minProgress;
             lcd_setting_min = (_min) * 100; \
             lcd_setting_max = (_max) * 100; \
         } while(0)
-#define LCD_EDIT_SETTING_FLOAT100(_setting, _name, _postfix, _min, _max) do { \
+#define LCD_EDIT_SETTING_INTx1000(_setting, _name, _postfix, _min, _max) do { \
             lcd_change_to_menu(lcd_menu_edit_setting); \
             lcd_setting_name = PSTR(_name); \
-            lcd_setting_postfix = PSTR("00" _postfix); \
+            lcd_setting_postfix = PSTR( _postfix); \
             lcd_setting_ptr = &(_setting); \
-            lcd_setting_type = 7; \
-            lcd_lib_encoder_pos = (_setting) / 100 + 0.5; \
-            lcd_setting_min = (_min) / 100 + 0.5; \
-            lcd_setting_max = (_max) / 100 + 0.5; \
+            lcd_setting_type = sizeof(_setting);; \
+            lcd_lib_encoder_pos = (_setting) / 1000UL; \
+            lcd_setting_min = (_min) / 1000UL; \
+            lcd_setting_max = (_max) / 1000UL; \
         } while(0)
-#define LCD_EDIT_SETTING_FLOAT1(_setting, _name, _postfix, _min, _max) do { \
+#define LCD_EDIT_SETTING_FLOATx100(_setting, _name, _postfix, _min, _max) do { \
+	lcd_change_to_menu(lcd_menu_edit_setting); \
+	lcd_setting_name = PSTR(_name); \
+	lcd_setting_postfix = PSTR("00" _postfix); \
+	lcd_setting_ptr = &(_setting); \
+	lcd_setting_type = 7; \
+	lcd_lib_encoder_pos = (_setting) / 100 + 0.5; \
+	lcd_setting_min = (_min) / 100 + 0.5; \
+	lcd_setting_max = (_max) / 100 + 0.5; \
+	} while(0)
+#define LCD_EDIT_SETTING_FLOAT(_setting, _name, _postfix, _min, _max) do { \
             lcd_change_to_menu(lcd_menu_edit_setting); \
             lcd_setting_name = PSTR(_name); \
             lcd_setting_postfix = PSTR(_postfix); \

@@ -22,6 +22,7 @@ extern float PI_R2;
 //-----------------------------------------------------------------------------------------------------------------
 void clearHistory();
 void togglePausePrinting();
+unsigned isqrt(unsigned long val);
 //-----------------------------------------------------------------------------------------------------------------
 extern bool did_beep;
 void Nudge( unsigned char axis, float offset );

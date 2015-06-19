@@ -230,9 +230,10 @@ void calculate_trapezoid_for_block(block_t *block, float entry_factor, float exi
 			// d = 1/2 a t ^2 
 			// 2d/a = t^2
 			// t = sqrt (2d/a)
- 			float  t = sqrt ((  (float) (accelerate_steps<<1) /(float) acceleration));
+ 			float  t = acceleration * sqrt ((  (float) (accelerate_steps<<1) /(float) acceleration));
+//  			unsigned long  t = acceleration * isqrt (((accelerate_steps<<1) /acceleration));
  			
- 			block->peak_velocity2 =initial_rate+((float) acceleration*t);
+ 			block->peak_velocity2 =initial_rate+t;
 		//	block-> peak_velocity_in_steps_per_sec = block->peak_velocity2;
 //			block->peak_velocity2*= ;
 			plateau_steps = 0;
@@ -678,8 +679,10 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
     // Rest here until there is room in the buffer.
     while(block_buffer_tail == next_buffer_head)
         {
-            runTasks();
+            runTasks(false, true);
         }
+
+	unsigned long calc_start = millis();
 
     // The target position of the tool in absolute steps
     // Calculate target position in absolute steps
@@ -839,8 +842,8 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
 
     // slow down when de buffer starts to empty, rather than wait at the corner for a buffer refill
 #ifdef OLD_SLOWDOWN
-    if(moves_queued < (BLOCK_BUFFER_SIZE * 0.5) && moves_queued > 1)
-        feed_rate = feed_rate*moves_queued / (BLOCK_BUFFER_SIZE * 0.5);
+    if(moves_queued < (BLOCK_BUFFER_SIZE/2) && (current_block!=NULL)) 
+        feed_rate *= (max(2,moves_queued)) / (BLOCK_BUFFER_SIZE/2);
 #endif
 
 #ifdef SLOWDOWN
@@ -850,10 +853,10 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
 	if ((current_block!=NULL) && (moves_queued < (BLOCK_BUFFER_SIZE /2)))
         {
 			segment_time = lround(1000000.0/inverse_second);
-            if (segment_time < minsegmenttime)
+            if (segment_time < (minsegmenttime>>10) )
                 {
                     // buffer is draining, add extra time.  The amount of time added increases if the buffer is still emptied more.
-                    inverse_second=1000000.0/(segment_time+lround(2*(minsegmenttime-segment_time)/(max(1,moves_queued))));
+                    inverse_second=1000000.0/(segment_time+lround(2*((minsegmenttime>>10)-segment_time)/(max(1,moves_queued))));
 #ifdef XY_FREQUENCY_LIMIT
                     segment_time = lround(1000000.0/inverse_second);
 #endif
@@ -1097,6 +1100,15 @@ void plan_buffer_line(const float &x, const float &y, const float &z, const floa
     planner_recalculate();
 
     st_wake_up();
+#ifdef LOG_PLANNER_TIME
+
+
+	SERIAL_ECHOPGM("\t\t\t\tPLAN LINE TOOK \t");
+	SERIAL_ECHO (millis() - calc_start);
+	SERIAL_ECHOPGM("\t MS WITH \t");
+	SERIAL_ECHO(block->total_steps);
+	SERIAL_ECHOLNPGM("\t STEPS");
+#endif
 }
 
 void plan_set_position(const float &x, const float &y, const float &z, const float &e)

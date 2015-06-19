@@ -282,17 +282,20 @@ unsigned short cur_lin_acc_raw = 0;
 #endif
 
 // #define TOP_GEAR 10000
-#define MID_GEAR 2000  // frequency at which we double our steps per loop -- each doubling of this, doubles the steps per loop (5000,10000,20000, etc) 
+#define MID_GEAR 2550  // frequency at which we double our steps per loop -- each doubling of this, doubles the steps per loop (5000,10000,20000, etc) 
 // lower values will cause more steps per loop and lower interrupt freq -- keeping in mind the maximum step rate
 // this helps keep the interrupt frequency from getting too high and overloading the CPU at high motion rates
 // we can only do this a maximum of 7 times before we overflow!
-// 0-2000 = 1 step per loop
-// 1001-2000 = 2 step per loop
-// 2001-4000 = 4 steps per loop
-// 4001-8000 = 8 steps per loop
-// 8001-16000 = 16 steps per loop
-// 16001-32000 = 32 steps per loop
-// 32001-MAX_FREQ = 64 steps per loop
+// in practice, 16x is the highest we can support, otherwise we're hitting too many steps in a shot and the motors can't keep up.
+// also you may need to boost the current a little bit.  I found 1400mA to work well -- only 100mA aboce 1300 default -- if it's too high, the motors will stutter
+/*
+0	2500	1	31.25
+2501	5000	2	62.5
+5001	10000	4	125
+10001	20000	8	250
+20001	40000	16	500
+*/
+
 
 FORCE_INLINE unsigned short calc_timer (unsigned short step_rate)
 {

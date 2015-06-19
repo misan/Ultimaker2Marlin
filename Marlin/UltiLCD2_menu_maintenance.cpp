@@ -465,10 +465,10 @@ void lcd_menu_maintenance_doAction()
             break;
 
         case MAINTENANCE_MENU_IDLE_TIMEOUT:
-            LCD_EDIT_SETTING (LED_DIM_TIME, "Idle timeout", " minutes", 0, 250);
+            LCD_EDIT_SETTING_INT (LED_DIM_TIME, "Idle timeout", " minutes", 0, 250);
             break;
         case MAINTENANCE_MENU_ZLIFT:
-            LCD_EDIT_SETTING_FLOAT001 (retract_zlift, "Retract ZLift", "mm", 0, 5);
+            LCD_EDIT_SETTING_FLOATx001 (retract_zlift, "Retract ZLift", "mm", 0, 5);
             break;
         case MAINTENANCE_MENU_WRAP:
             NOWRAP_MENUS = !NOWRAP_MENUS;
@@ -919,7 +919,7 @@ void lcd_motion_details (uint8_t nr)
         case MOTION_MENU_MOTORPOWER_XY: int_to_string (motor_current_setting[0] , buffer, PSTR ("mA")); break;
         case MOTION_MENU_MOTORPOWER_Z : int_to_string (motor_current_setting[1] , buffer, PSTR ("mA")); break;
         case MOTION_MENU_MOTORPOWER_E : int_to_string (motor_current_setting[2] , buffer, PSTR ("mA")); break;
-        case MOTION_MENU_MIN_SEG_TIME : int_to_string (minsegmenttime / 1000UL, buffer, PSTR ("mSec"  )); break;
+        case MOTION_MENU_MIN_SEG_TIME : int_to_string (minsegmenttime, buffer, PSTR ("mSec"  )); break;
         case MOTION_MENU_MIN_STEPS    : int_to_string (dropsegments, buffer, PSTR ("steps" )); break;
         case MOTION_MENU_MAX_SPD_X    : int_to_string (max_feedrate[X_AXIS], buffer, PSTR ("mm" PER_SECOND_SYMBOL )); break;
         case MOTION_MENU_MAX_SPD_Y    : int_to_string (max_feedrate[Y_AXIS], buffer, PSTR ("mm" PER_SECOND_SYMBOL )); break;
@@ -942,28 +942,22 @@ void lcd_menu_maintenance_motion()
         switch (SELECTED_SCROLL_MENU_ITEM())
         {
             case MOTION_MENU_RETURN           :   lcd_menu_go_back(); break;
-            case MOTION_MENU_XY_ACC           :   LCD_EDIT_SETTING_FLOAT100 (acceleration, "Acceleration", "mm" PER_SECOND_SYMBOL  SQUARED_SYMBOL , 0, 50000); break;
-            case MOTION_MENU_XY_JERK          :   LCD_EDIT_SETTING_FLOAT1 (max_xy_jerk, "X/Y Jerk", "mm" PER_SECOND_SYMBOL , 0, 200); break;
+            case MOTION_MENU_XY_ACC           :   LCD_EDIT_SETTING_FLOATx100 (acceleration, "Acceleration", "mm" PER_SECOND_SYMBOL  SQUARED_SYMBOL , 0, 50000); break;
+            case MOTION_MENU_XY_JERK          :   LCD_EDIT_SETTING_FLOAT (max_xy_jerk, "X/Y Jerk", "mm" PER_SECOND_SYMBOL , 0, 200); break;
             //	case MOTION_MENU_Z_ACC        :
-            case MOTION_MENU_E_ACC            :   LCD_EDIT_SETTING_FLOAT100 (retract_acceleration, "E Acceleration", "mm" PER_SECOND_SYMBOL SQUARED_SYMBOL, 0, 50000); break;
-            case MOTION_MENU_E_JERK           :   LCD_EDIT_SETTING_FLOAT1 (max_e_jerk, "E Jerk", "mm" PER_SECOND_SYMBOL SQUARED_SYMBOL, 0, 25.0); break;
-            case MOTION_MENU_Z_JERK           :   LCD_EDIT_SETTING_FLOAT1 (max_z_jerk, "Z Jerk", "mm" PER_SECOND_SYMBOL SQUARED_SYMBOL, 0, 4.0); break;
+            case MOTION_MENU_E_ACC            :   LCD_EDIT_SETTING_FLOATx100 (retract_acceleration, "E Acceleration", "mm" PER_SECOND_SYMBOL SQUARED_SYMBOL, 0, 50000); break;
+            case MOTION_MENU_E_JERK           :   LCD_EDIT_SETTING_FLOATx01 (max_e_jerk, "E Jerk", "mm" PER_SECOND_SYMBOL SQUARED_SYMBOL, 0, 25.0); break;
+            case MOTION_MENU_Z_JERK           :   LCD_EDIT_SETTING_FLOATx001 (max_z_jerk, "Z Jerk", "mm" PER_SECOND_SYMBOL SQUARED_SYMBOL, 0, 4.0); break;
             case MOTION_MENU_SINUSOIDAL       :   SINUSOIDAL_JERK = !SINUSOIDAL_JERK; break;
-            case MOTION_MENU_MOTORPOWER_XY    :   LCD_EDIT_SETTING (motor_current_setting[0] , "XY Motor Power", "mA", 100, MOTOR_CURRENT_PWM_RANGE); digipot_current(0, motor_current_setting[0]);  break;
-            case MOTION_MENU_MOTORPOWER_Z     :   LCD_EDIT_SETTING (motor_current_setting[1] , "Z Motor Power", "mA" , 100, MOTOR_CURRENT_PWM_RANGE); digipot_current(1, motor_current_setting[1]);  break;
-            case MOTION_MENU_MOTORPOWER_E     :   LCD_EDIT_SETTING (motor_current_setting[2] , "E Motor Power", "mA" , 100, MOTOR_CURRENT_PWM_RANGE); digipot_current(2, motor_current_setting[2]);  break;
-            case MOTION_MENU_MIN_SEG_TIME     :  
-				{
-				unsigned short mst = minsegmenttime / 1000;  
-				LCD_EDIT_SETTING (mst , "Min Segment Time", "mS" , 0, 999UL); 
-				minsegmenttime = mst * 1000UL;
-				}
-				break;
-            case MOTION_MENU_MIN_STEPS        :   LCD_EDIT_SETTING (dropsegments , "Min Steps", "steps" , 0, 500); break;
-            case MOTION_MENU_MAX_SPD_X        :   LCD_EDIT_SETTING_FLOAT1 (max_feedrate[X_AXIS], "Max speed X", "mm" PER_SECOND_SYMBOL , 0, 600); break;
-            case MOTION_MENU_MAX_SPD_Y        :   LCD_EDIT_SETTING_FLOAT1 (max_feedrate[Y_AXIS], "Max speed Y", "mm" PER_SECOND_SYMBOL , 0, 600); break;
-            case MOTION_MENU_MAX_SPD_Z        :   LCD_EDIT_SETTING_FLOAT1 (max_feedrate[Z_AXIS], "Max speed Z", "mm" PER_SECOND_SYMBOL , 0, 200); break;
-            case MOTION_MENU_MAX_SPD_E        :   LCD_EDIT_SETTING_FLOAT1 (max_feedrate[E_AXIS], "Max speed E", "mm" PER_SECOND_SYMBOL , 0, 500); break;
+            case MOTION_MENU_MOTORPOWER_XY    :   LCD_EDIT_SETTING_INT (motor_current_setting[0] , "XY Motor Power", "mA", 100, MOTOR_CURRENT_PWM_RANGE); digipot_current(0, motor_current_setting[0]);  break;
+            case MOTION_MENU_MOTORPOWER_Z     :   LCD_EDIT_SETTING_INT (motor_current_setting[1] , "Z Motor Power", "mA" , 100, MOTOR_CURRENT_PWM_RANGE); digipot_current(1, motor_current_setting[1]);  break;
+            case MOTION_MENU_MOTORPOWER_E     :   LCD_EDIT_SETTING_INT (motor_current_setting[2] , "E Motor Power", "mA" , 100, MOTOR_CURRENT_PWM_RANGE); digipot_current(2, motor_current_setting[2]);  break;
+            case MOTION_MENU_MIN_SEG_TIME     :   LCD_EDIT_SETTING_INT (minsegmenttime , "Min Segment Time", "mS" , 1, 999); break;
+            case MOTION_MENU_MIN_STEPS        :   LCD_EDIT_SETTING_INT (dropsegments , "Min Steps", "steps" , 0, 500); break;
+            case MOTION_MENU_MAX_SPD_X        :   LCD_EDIT_SETTING_FLOAT (max_feedrate[X_AXIS], "Max speed X", "mm" PER_SECOND_SYMBOL , 0, 500); break;
+            case MOTION_MENU_MAX_SPD_Y        :   LCD_EDIT_SETTING_FLOAT (max_feedrate[Y_AXIS], "Max speed Y", "mm" PER_SECOND_SYMBOL , 0, 500); break;
+            case MOTION_MENU_MAX_SPD_Z        :   LCD_EDIT_SETTING_FLOAT (max_feedrate[Z_AXIS], "Max speed Z", "mm" PER_SECOND_SYMBOL , 0, 200); break;
+            case MOTION_MENU_MAX_SPD_E        :   LCD_EDIT_SETTING_FLOAT (max_feedrate[E_AXIS], "Max speed E", "mm" PER_SECOND_SYMBOL , 0, 500); break;
         }
 
     }
@@ -1033,7 +1027,7 @@ void lcd_menu_maintenance_led()
         }
         else
             if (IS_SELECTED_SCROLL (1))
-                LCD_EDIT_SETTING (led_brightness_level, "Brightness", "%", 0, 100);
+                LCD_EDIT_SETTING_INT (led_brightness_level, "Brightness", "%", 0, 100);
             else
                 if (IS_SELECTED_SCROLL (2))
                     led_mode = LED_MODE_ALWAYS_ON;
@@ -1081,6 +1075,7 @@ inline void waitForMovesDone()
     {
         manageBuffer();
         checkHitEndstops();
+		lcd_lib_buttons_update();if (lcd_lib_button_down) return;
 #if LOG_MOTION
         log_stepper();
 #endif
@@ -1117,6 +1112,7 @@ void moveXYLimits()
     //#if LOG_MOTION
     /// do a dedicated motion loop -- no UI updates or temp updates., so we get a good motion log
     waitForMovesDone();
+	lcd_lib_buttons_update();if (lcd_lib_button_down) {  plan_discard_all_blocks(); enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
     delay (100);
     //#endif
 }
@@ -1144,6 +1140,7 @@ void randomMotion (int count)
     }
     // #if LOG_MOTION
     waitForMovesDone();
+	lcd_lib_buttons_update();if (lcd_lib_button_down) { plan_discard_all_blocks();  enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
     delay (300);
     //#endif
 }
@@ -1208,6 +1205,8 @@ void movementTest()
             lcd_messagescreen (  PSTR ("X endstop broken?"));
             return;
         }
+		lcd_lib_buttons_update();
+		if (lcd_lib_button_pressed()) return;
 
     }
     while (raw_xmin_estop()  );
@@ -1231,6 +1230,9 @@ void movementTest()
             lcd_messagescreen (  PSTR ("Y endstop broken?"));
             return;
         }
+		lcd_lib_buttons_update();
+		if (lcd_lib_button_pressed()) return;
+
     }
     while (raw_ymax_estop() );
 
@@ -1247,24 +1249,37 @@ void movementTest()
 
     SERIAL_ECHOLN (" ");
     SERIAL_ECHOLNPGM ("TESTING");
+	lcd_lib_buttons_update();
+	if (lcd_lib_button_pressed()) return;
 
     enquecommand_P (PSTR ("G28 X0 Y0"));
     randomMotion (10);
+	lcd_lib_buttons_update();if (lcd_lib_button_down) {   enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
+
+
     moveXYLimits();
-    randomMotion (10);
+	lcd_lib_buttons_update();if (lcd_lib_button_down) {   enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
+	randomMotion (10);
+	lcd_lib_buttons_update();if (lcd_lib_button_down) {   enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
     waitForMovesDone();
     randomMotion (10);
+	lcd_lib_buttons_update();if (lcd_lib_button_down) {   enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
     waitForMovesDone();
     randomMotion (10);
+	lcd_lib_buttons_update();if (lcd_lib_button_down) {   enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
     waitForMovesDone();
+	lcd_lib_buttons_update();if (lcd_lib_button_down) {   enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
     delay (100);
     sprintf_P (buffer, PSTR ("G1 X%i Y0 F15000"), int (max_pos[X_AXIS]));
     enquecommand (buffer);
+	lcd_lib_buttons_update();if (lcd_lib_button_down) {  plan_discard_all_blocks(); enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
+
     waitForMovesDone();
 
     lcd_lib_clear();
     lcd_lib_draw_string_centerP (30, PSTR ("Done, finding e-stops"));
     lcd_lib_update_screen();
+	lcd_lib_buttons_update();if (lcd_lib_button_down) {   plan_discard_all_blocks(); enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
 
     int y_off = -30;
     int x_off =  30;
@@ -1279,6 +1294,7 @@ void movementTest()
         x_off--;
         enquecommand_P (PSTR ("G1 X1 F1500"));
         waitForMovesDone();
+lcd_lib_buttons_update();if (lcd_lib_button_down) {   enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
     }
     while (!raw_xmin_estop());
     SERIAL_ECHOPAIR ("  X_STOP = ",  x_off);
@@ -1296,6 +1312,7 @@ void movementTest()
         y_off++;
         enquecommand_P (PSTR ("G1 Y2 F1500"));
         waitForMovesDone();
+		lcd_lib_buttons_update();if (lcd_lib_button_down) {  plan_discard_all_blocks();  enquecommand_P (PSTR ("G28 X0 Y0"));  return;} 
     }
     while (!raw_ymax_estop());
     SERIAL_ECHOPAIR ("  Y_STOP = ",  y_off);
@@ -1326,7 +1343,6 @@ void movementTest()
 //     {   lcd_lib_draw_string_centerP (50, PSTR ("FAIL!"));
 //         lcd_lib_beep_ext ( 200, 250);
 //     }
-
 
     lcd_lib_update_screen();
     enquecommand_P (PSTR ("G28 X0 Y0"));

@@ -571,19 +571,19 @@ static void lcd_menu_material_settings()
                 }
             else
                 if (IS_SELECTED_SCROLL(1))
-                    LCD_EDIT_SETTING(material[active_extruder].temperature, "Temperature", "C", 0, HEATER_0_MAXTEMP - 15);
+                    LCD_EDIT_SETTING_INT(material[active_extruder].temperature, "Temperature", "C", 0, HEATER_0_MAXTEMP - 15);
                 else
                     if (IS_SELECTED_SCROLL(2))
-                        LCD_EDIT_SETTING(material[active_extruder].bed_temperature, "Buildplate Temp.", "C", 0, BED_MAXTEMP - 15);
+                        LCD_EDIT_SETTING_INT(material[active_extruder].bed_temperature, "Buildplate Temp.", "C", 0, BED_MAXTEMP - 15);
                     else
                         if (IS_SELECTED_SCROLL(3))
-                            LCD_EDIT_SETTING_FLOAT001(material[active_extruder].diameter, "Material Diameter", "mm", 0, 100);
+                            LCD_EDIT_SETTING_FLOATx001(material[active_extruder].diameter, "Material Diameter", "mm", 0, 100);
                         else
                             if (IS_SELECTED_SCROLL(4))
-                                LCD_EDIT_SETTING(material[active_extruder].fan_speed, "Fan speed", "%", 0, 100);
+                                LCD_EDIT_SETTING_INT(material[active_extruder].fan_speed, "Fan speed", "%", 0, 100);
                             else
                                 if (IS_SELECTED_SCROLL(5))
-                                    LCD_EDIT_SETTING(material[active_extruder].flow, "Material flow", "%", 1, 1000);
+                                    LCD_EDIT_SETTING_INT(material[active_extruder].flow, "Material flow", "%", 1, 1000);
                                 else
                                     if (IS_SELECTED_SCROLL(6))
                                         lcd_change_to_menu(lcd_menu_material_settings_store);

@@ -161,7 +161,7 @@
 
 #define AXIS_RELATIVE_MODES {false, false, false, false}
 
-#define MAX_STEP_FREQUENCY 60000 // Max step frequency for Ultimaker (5000 pps / half step)
+#define MAX_STEP_FREQUENCY 40000 // Max step frequency for Ultimaker (5000 pps / half step)
 // was 40000
 
 //By default pololu step drivers require an active high signal. However, some high power drivers require an active low signal as step.
@@ -180,7 +180,8 @@
 #define DEFAULT_MINSEGMENTTIME        40000
 
 // If defined the movements slow down when the look ahead buffer is only half full
-#define SLOWDOWN
+// #define SLOWDOWN
+#define OLD_SLOWDOWN
 
 // Frequency limit
 // See nophead's blog for more info
