@@ -19,3 +19,4 @@ ArduinoAddons/Arduino_1.x.x/sanguino/bootloaders/atmega/ATmegaBOOT_168.c
 mega_atmega2560.lnk
 Marlin/enqueue_commands.cpp.x
 Marlin/Marlin.sdf.old
+Marlin/.localhistory/
