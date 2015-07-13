@@ -59,6 +59,7 @@
 #include "voltage.h"
 #include "gcode.h"
 #include "PeriodTimer.h"
+#include "UltiLCD2_low_lib.h"
 
 
 #define VERSION_STRING  "2.1.0"
@@ -379,7 +380,16 @@ PeriodTimer inactivity_timer (manage_inactivity,1000);
 PeriodTimer bed_light_timer (manage_Bed_Lights,100);
 PeriodTimer stats_timer (lifetime_stats_tick,60000);
 PeriodTimer ambient_timer (updateAmbientSensor,15000);
+PeriodTimer buttons (lcd_lib_buttons_update_interrupt,10);
 
+
+
+#if !TEMP_IRQ
+void readTemps();
+#define TEMP_READING_INTERVAL 24
+
+PeriodTimer temp_readings (readTemps,TEMP_READING_INTERVAL);
+#endif 
 
 
 #if defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1
@@ -451,6 +461,8 @@ void log_stepper()
 //-----------------------------------------------------------------------------------------------------------------
 void runTasks(bool with_command_processing,bool with_ui)
 {
+
+//	updateI2C();
     if (with_command_processing)
         {
             manageBuffer();
@@ -459,9 +471,28 @@ void runTasks(bool with_command_processing,bool with_ui)
 #endif
             checkHitEndstops();
         }
+	
+	buttons.tick();
+	if (high_speed) 
+		{ 
+	//	readTemps();		// do the temp management, but not as an IRQ while we are moving at high speed.
+		return;
+		}
 
 	if (with_ui) 
 		 ui_timer.tick();
+// 
+// 	if ((i2Ctimeout))
+// 		{
+// 		SERIAL_ECHO_START;
+// 		SERIAL_ECHOLNPGM("I2C TIMEOUT");
+// 		}
+
+#if !TEMP_IRQ
+	temp_readings.tick();
+#endif 
+	
+
 
 #if LOG_MOTION
     log_stepper();

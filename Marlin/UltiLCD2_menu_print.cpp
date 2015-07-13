@@ -766,7 +766,7 @@ bool skipDrawingUI()
     if (card.pause) return DONTSKIP;
 	byte moves = movesplanned() ;
     // show pink or red if the movement buffer is low / dry
-    if (current_block == NULL || moves < 1) { analogWrite(LED_PIN, 0); return SKIP ; }
+ //   if (current_block == NULL || moves < 1) { analogWrite(LED_PIN, 0); return SKIP ; }
     if (moves < 2) { slow_buffer_counter += 1; lcd_lib_led_color(255, 0, 0); lcd_lib_update_RGB_LED();}
     else
         if (moves < BLOCK_BUFFER_SIZE / 4) { slow_buffer_counter += 2; lcd_lib_led_color(255, 0, 160); lcd_lib_update_RGB_LED();}
@@ -1451,7 +1451,7 @@ void lcd_menu_print_tune_doAction()
 
         case MENU_PRINT_TUNE_PUSH_MATERIAL:
             lcd_lib_beep();
-            if (card.pause) Nudge(E_AXIS, 10);
+            if (card.pause) Nudge(E_AXIS, -10);
             else
                 lcd_lib_beep_ext(100, 250);
             break;

@@ -1163,6 +1163,7 @@
  #error Oops!  Make sure you have 'Arduino Mega 2560' selected from the 'Tools -> Boards' menu.
 #endif
 
+// ------------------------------------------------- MOTOR CONTROL AND ENDSTOPS --------------------------------------------------------------------------
 #define     X_STEP_PIN               25
 #define     X_DIR_PIN                23
 #define     X_STOP_PIN               22
@@ -1178,18 +1179,6 @@
 #define     Z_STOP_PIN               29
 #define     Z_ENABLE_PIN             34
 
-#define     HEATER_BED_PIN           4
-#define     TEMP_BED_PIN             10
-
-#define     HEATER_0_PIN             2
-#define     TEMP_0_PIN               8
-
-#define     HEATER_1_PIN             3
-#define     TEMP_1_PIN               9
-
-#define     HEATER_2_PIN             -1
-#define     TEMP_2_PIN               -1
-
 #define     E0_STEP_PIN              42
 #define     E0_DIR_PIN               43
 #define     E0_ENABLE_PIN            37
@@ -1198,21 +1187,9 @@
 #define     E1_DIR_PIN               47
 #define     E1_ENABLE_PIN            48
 
-#define     SDPOWER                  -1
-#define     SDSS                     53
-#define     LED_PIN                  8
-#define     FAN_PIN                  7
-#define     PS_ON_PIN                12
-#define     KILL_PIN                 -1
-#define     SUICIDE_PIN              -1  //PIN that has   to be turned on right after start, to keep power flowing.
-#define     SAFETY_TRIGGERED_PIN     28 //PIN to detect   the safety circuit has triggered
-#define     MAIN_VOLTAGE_MEASURE_PIN 14 //Analogue PIN    to measure the main voltage, with a 100k - 4k7 resitor divider.  Also known as digital pin 68
-
-#define     EXT_VOLTAGE_REF_PIN		 61		// a0
-#define     TEMP_SENSOR_PIN			 60			// a1
-
-#define		HEAD_FAN_PIN			 30
-#define		MOTHERBOARD_FAN			 38
+// ------------------------------------------------- CURRENT CONTROL -----------------------------------------------------------------------------------
+//Motor     current                  PWM conversion, PWM  value = MotorCurrentSetting * 255 / range
+#define     MOTOR_CURRENT_PWM_RANGE  2000
 
 #undef      MOTOR_CURRENT_PWM_XY_PIN
 #undef      MOTOR_CURRENT_PWM_Z_PIN
@@ -1222,10 +1199,38 @@
 #define     MOTOR_CURRENT_PWM_Z_PIN  45
 #define     MOTOR_CURRENT_PWM_E_PIN  46
 
-//Motor     current                  PWM conversion, PWM  value = MotorCurrentSetting * 255 / range
-#define     MOTOR_CURRENT_PWM_RANGE  2000
+// ------------------------------------------------- HEATER CONTROL -----------------------------------------------------------------------------------
+#define     HEATER_BED_PIN           4
+#define     TEMP_BED_PIN             10
+#define     HEATER_0_PIN             2
+#define     TEMP_0_PIN               8
+#define     HEATER_1_PIN             3
+#define     TEMP_1_PIN               9
+#define     HEATER_2_PIN             -1		// not used
+#define     TEMP_2_PIN               -1		// not used
 
-//arduino   pin which                  triggers an piezzo beeper
+// ------------------------------------------------- SD CARD  -----------------------------------------------------------------------------------
+#define     SDPOWER                  -1		// not used
+#define     SDSS                     53
+#define     SDCARDDETECT             39
+
+// ------------------------------------------------- FANS  -----------------------------------------------------------------------------------
+#define     FAN_PIN                  7		// cools the printing part
+#define		HEAD_FAN_PIN			 30		// keeps the extruder cool		J-23
+#define		MOTHERBOARD_FAN			 38		// cools the stepper controllers		J-23
+
+// ------------------------------------------------- POWER MANAGEMENT------------------------------------------------------------------
+#define     PS_ON_PIN                12
+#define     EXT_VOLTAGE_REF_PIN		 61		// A0 -- set to a known voltage level / reference for calibrating the ADC		j-25
+#define     MAIN_VOLTAGE_MEASURE_PIN 14		// Analog PIN    to measure the main voltage, with a 100k - 4k7 resistor divider.  Also known as digital pin 68		j-24
+#define     SAFETY_TRIGGERED_PIN     28		// PIN to detect   the safety circuit has triggered
+
+// ------------------------------------------------- MISC  -----------------------------------------------------------------------------------
+#define     LED_PIN                  8			// LED bed lighting
+#define     TEMP_SENSOR_PIN			 60			// A1 -- ambient environment sensor, such as a DHT11		j-25
+
+// ------------------------------------------------- INTERFACE -----------------------------------------------------------------------------------
+//arduino   pin which                  triggers an piezo beeper
 #define     BEEPER					 18
 
 #define     LCD_PINS_RS              20
@@ -1244,13 +1249,15 @@
 #define     BLEN_B					 1
 #define     BLEN_A					 0
 
-#define     SDCARDDETECT             39
-
 //encoder   rotation values
 #define     encrot0					 0
 #define     encrot1					 1
 #define     encrot2					 3
 #define     encrot3					 2
+
+// ------------------------------------------------- NOT USED -----------------------------------------------------------------------------------
+#define     KILL_PIN                 -1
+#define     SUICIDE_PIN              -1  //PIN that has   to be turned on right after start, to keep power flowing.
 
 
 

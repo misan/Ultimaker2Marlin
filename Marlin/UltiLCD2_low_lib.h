@@ -20,6 +20,10 @@
 #define TEMPERATURE_SEPARATOR '~'
 #define TEMPERATURE_SEPARATOR_S "~"
 
+extern bool i2Ctimeout;
+
+
+void updateI2C();
 void lcd_lib_init();
 void lcd_lib_update_screen();   /* Start sending out the display buffer to the screen. Wait till lcd_lib_update_ready before issuing any draw functions */
 bool lcd_lib_update_ready();

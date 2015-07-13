@@ -159,7 +159,11 @@
 #define HEATER_2_MINTEMP 5
 #define BED_MINTEMP 5
 
+
+#define TEMP_IRQ 1		// use IRQ for reading temperatures  -- safer for lock ups, but can cause ptroblems when moving fast?
+
 #define E3D_HEAD
+
 
 
 // When temperature exceeds max temp, your heater will be switched off.
@@ -563,7 +567,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 // many devices can be clocked at 1Mbit or more
 // 400Khz is the default.  You can increase that here, testing higher values.
 // If the device fails, simply lower the overclocking.
-#define I2C_OVERCLOCK 1.5
+#define I2C_OVERCLOCK 1
 
 // Increase the FAN pwm frequency. Removes the PWM noise but increases heating in the FET/Arduino
 //#define FAST_PWM_FAN

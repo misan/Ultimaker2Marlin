@@ -86,6 +86,8 @@ void microstep_readings();
 
 extern bool SINUSOIDAL_JERK ;
 
+// this will be true if we are currently moving at high speed and should therefore minimize secondary interrupts
+extern bool high_speed;
 
 inline bool raw_xmin_estop ()
 {

@@ -42,7 +42,42 @@
 // gives the accleration an S-curve profile.  The sinusoidal jerk is a close approximation to the fifth
 // order motion and superior to second order (constant acceleration) or third order  (constant jerk)
 // in terms of optimal path, speed, and reduced vibration, machinee stress
-bool SINUSOIDAL_JERK = true;
+bool SINUSOIDAL_JERK = false;// true;
+bool high_speed= false;
+
+
+
+#define MULTISTEP_THRESHOLD 10000  // frequency at which we double our steps per loop -- each doubling of this, doubles the steps per loop (5000,10000,20000, etc) 
+// lower values will cause more steps per loop and lower interrupt freq -- keeping in mind the maximum step rate
+// this helps keep the interrupt frequency from getting too high and overloading the CPU at high motion rates
+// we can only do this a maximum of 7 times before we overflow!
+// also, its not ideal to send steps in bursts -- it would be better if they were evenly spaced
+// but at high speeds, we can get away with it due to inertia 
+// higher voltages / current will give faster movement / more torque, but can overheat the motors
+
+/*
+examples: 
+
+(speed in mm/s for 80steps per mm)
+
+0		2500	1	31.25
+2501	5000	2	62.5
+5001	10000	4	125
+10001	20000	8	250
+20001	40000	16	500
+
+
+0		5000	1	62.5
+5001	10000	2	125
+10001	20000	4	250	
+20001	40000	8	500
+
+0		10000	1	125	
+10000	20000	2	250	
+20000	40000	4	500
+*/		
+
+
 
 //===========================================================================
 //=============================public variables  ============================
@@ -281,21 +316,6 @@ unsigned short cur_lin_acc = 0;
 unsigned short cur_lin_acc_raw = 0;
 #endif
 
-// #define TOP_GEAR 10000
-#define MID_GEAR 2550  // frequency at which we double our steps per loop -- each doubling of this, doubles the steps per loop (5000,10000,20000, etc) 
-// lower values will cause more steps per loop and lower interrupt freq -- keeping in mind the maximum step rate
-// this helps keep the interrupt frequency from getting too high and overloading the CPU at high motion rates
-// we can only do this a maximum of 7 times before we overflow!
-// in practice, 16x is the highest we can support, otherwise we're hitting too many steps in a shot and the motors can't keep up.
-// also you may need to boost the current a little bit.  I found 1400mA to work well -- only 100mA aboce 1300 default -- if it's too high, the motors will stutter
-/*
-0	2500	1	31.25
-2501	5000	2	62.5
-5001	10000	4	125
-10001	20000	8	250
-20001	40000	16	500
-*/
-
 
 FORCE_INLINE unsigned short calc_timer (unsigned short step_rate)
 {
@@ -307,28 +327,12 @@ FORCE_INLINE unsigned short calc_timer (unsigned short step_rate)
     current_speed = step_rate;
 #endif
     step_loops = 1;
-    while (step_rate > MID_GEAR && step_loops < 0x40)
+    while (step_rate > MULTISTEP_THRESHOLD && step_loops < 0x40)
     {
         step_rate = (step_rate >> 1) & 0x7fff;
         step_loops <<= 1;
     }
-    /*
-
-        if(step_rate > TOP_GEAR)   // If steprate > 20kHz >> step 4 times
-            {
-                step_rate = (step_rate >> 2)&0x3fff;
-                step_loops = 4;
-            }
-        else
-            if(step_rate > MID_GEAR)   // If steprate > 10kHz >> step 2 times
-                {
-                    step_rate = (step_rate >> 1)&0x7fff;
-                    step_loops = 2;
-                }
-            else
-                {
-                    step_loops = 1;
-                }*/
+// 	high_speed = (step_loops > 2) ;
 
     if (step_rate < (F_CPU / 500000)) step_rate = (F_CPU / 500000);
     step_rate -= (F_CPU / 500000); // Correct for minimal speed
@@ -370,17 +374,16 @@ static const short  SCurveTable[256] PROGMEM = {1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3,
 
 // it's important that the curve be symmetrical in terms of displacement from the linear value (from 0.0 to 1.0) so the result is equivalent to linear acceleration (same final speed for same given timespan)
 
-unsigned long bins_a[16];
-unsigned long bins_d[16];
-
-
 
 //-----------------------------------------------------------------------------------------------------------------
-void stepLoop ( byte sl2 )
+// DELAYED_STEP_PULSE will delay the second write to the pin happen at the end, to give slightly longer pulses for some drivers
+// the actual delay between on and off would matter on how many axes are being pulsed.
+
+FORCE_INLINE void stepLoop ( byte sl2 )
 {
     for (int8_t i = 0; i < sl2; i++) // Take multiple steps per interrupt (For high speed moves)
     {
-        byte flags = 0 ;
+  //      byte flags = 0 ;
 #ifndef AT90USB
         MSerial.checkRx(); // Check for serial chars.
 #endif
@@ -400,25 +403,33 @@ void stepLoop ( byte sl2 )
         counter_x += current_block->steps_x;
         if (counter_x > 0)
         {
-            flags |= 1;
+            
             WRITE (X_STEP_PIN, !INVERT_X_STEP_PIN);
             counter_x -= current_block->total_steps;
             count_position[X_AXIS] += count_direction[X_AXIS];
+#if DELAYED_STEP_PULSE
+			flags |= 1;
+#else
+			WRITE (X_STEP_PIN, INVERT_X_STEP_PIN);
+#endif
         }
         counter_y += current_block->steps_y;
         if (counter_y > 0)
         {
-            flags |= 2;
             WRITE (Y_STEP_PIN, !INVERT_Y_STEP_PIN);
             counter_y -= current_block->total_steps;
             count_position[Y_AXIS] += count_direction[Y_AXIS];
-
+#if DELAYED_STEP_PULSE
+			flags |= 2;
+#else
+			 WRITE (Y_STEP_PIN, INVERT_Y_STEP_PIN);
+#endif
         }
 
         counter_z += current_block->steps_z;
         if (counter_z > 0)
         {
-            flags |= 4;
+            
             WRITE (Z_STEP_PIN, !INVERT_Z_STEP_PIN);
 
 #ifdef Z_DUAL_STEPPER_DRIVERS
@@ -431,23 +442,37 @@ void stepLoop ( byte sl2 )
 #ifdef Z_DUAL_STEPPER_DRIVERS
             WRITE (Z2_STEP_PIN, INVERT_Z_STEP_PIN);
 #endif
+
+#if DELAYED_STEP_PULSE
+			flags |= 4;
+#else
+			WRITE (Z_STEP_PIN, INVERT_Z_STEP_PIN);
+#endif
+
         }
 
 #ifndef ADVANCE
         counter_e += current_block->steps_e;
         if (counter_e > 0)
         {
-            flags |= 8;
             WRITE_E_STEP (!INVERT_E_STEP_PIN);
             counter_e -= current_block->total_steps;
             count_position[E_AXIS] += count_direction[E_AXIS];
+			
+#if DELAYED_STEP_PULSE
+			 flags |= 8;
+#else
+			 WRITE_E_STEP (INVERT_E_STEP_PIN);
+#endif
         }
 #endif //!ADVANCE
         steps_completed += 1;
-        if (flags & 1)  WRITE (X_STEP_PIN, INVERT_X_STEP_PIN);
+ #if DELAYED_STEP_PULSE
+		if (flags & 1)  WRITE (X_STEP_PIN, INVERT_X_STEP_PIN);
         if (flags & 2)  WRITE (Y_STEP_PIN, INVERT_Y_STEP_PIN);
         if (flags & 4)  WRITE (Z_STEP_PIN, INVERT_Z_STEP_PIN);
         if (flags & 8)  WRITE_E_STEP (INVERT_E_STEP_PIN);
+#endif
         if (steps_completed >= current_block->total_steps) break;
     }
 }
@@ -466,6 +491,8 @@ FORCE_INLINE void trapezoid_generator_reset()
 #endif
     deceleration_time = 0;
     // step_rate to timer interval
+	current_block->peak_velocity2 = current_block->peak_velocity_in_steps_per_sec;	// disable peak vel 2 calc usage
+
     OCR1A_nominal = calc_timer (current_block->peak_velocity2);
     // make a note of the number of step loops required at nominal speed
     step_loops_nominal = step_loops;
@@ -702,11 +729,13 @@ ISR (TIMER1_COMPA_vect)
         count_direction[E_AXIS] = 1;
     }
 #endif //!ADVANCE
-    byte sl2 = step_loops;
-    if (step_loops > 4)
-        sl2 >>= 1;
 
+	// split the pulsed burst betwen our computation, for slightly more even distributions when multistepping
+    byte sl2 = step_loops;
+//     if (step_loops > 1)
+//         sl2 >>= 1;
     stepLoop (sl2);
+
     // Calculare new timer value
     static unsigned short delay_time;
     unsigned  short velocity = 0;
@@ -727,7 +756,8 @@ ISR (TIMER1_COMPA_vect)
                 // from linear acceleration, let's figure out time of accel phase by taking the change in velocity divided by accel)
                 short index;
 
-                if (current_velocity > 4000)index = ( current_velocity  )  / (delta_v_during_acc >> 4);
+                if (current_velocity > 4000) 
+					index = ( current_velocity  )  / (delta_v_during_acc >> 4);
                 else
                     index = ( current_velocity << 4)  /  delta_v_during_acc;
                 if (index < 0 )  index = 255 + index;
@@ -748,7 +778,7 @@ ISR (TIMER1_COMPA_vect)
             if (velocity_accel_phase >= current_block->peak_velocity2)
             {
                 velocity_accel_phase = current_block->peak_velocity2;
-                recalc_accel = false;
+             //   recalc_accel = false;
             }
 
             // step_rate to timer interval
@@ -784,8 +814,10 @@ ISR (TIMER1_COMPA_vect)
                     //		curve_index = (steps_completed << 8 ) / (current_block->total_steps- current_block->decelerate_after);
                     short index;
 
-                    if (current_velocity > 4000) index = ( current_velocity  )  / (delta_v_during_dec >> 4);
-                    else index = ( current_velocity << 4)  /  delta_v_during_dec;
+                    if (current_velocity > 4000) 
+						index = ( current_velocity  )  / (delta_v_during_dec >> 4);
+                    else 
+						index = ( current_velocity << 4)  /  delta_v_during_dec;
 
                     if (index < 0 )  index = 255 + index;
                     if (index > 255) index = 255;
@@ -811,7 +843,7 @@ ISR (TIMER1_COMPA_vect)
                 if (velocity <= current_block->final_velocity)
                 {
                     velocity = current_block->final_velocity;
-                    recalc_decel = false;
+               //     recalc_decel = false;
                 }
 
                 // step_rate to timer interval
@@ -843,13 +875,9 @@ ISR (TIMER1_COMPA_vect)
 #endif
 
         }
-
-
-
-    if (step_loops > 4)
-        stepLoop (sl2);
-
-
+// 
+//     if (step_loops > 1)
+//         stepLoop (sl2);
 
     // If current block is finished, reset pointer
     if (steps_completed >= current_block->total_steps)

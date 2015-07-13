@@ -92,6 +92,8 @@ extern "C" void __cxa_pure_virtual() {;}
 #include <FONT_Standard5x7.h>
 #include <FONT_small4x6.h>
 #include <FONT_smaller.h>
+#include <I2C.cpp>
+#include <I2C.h>
 #include <LiquidCrystalRus.cpp>
 #include <LiquidCrystalRus.h>
 #include <Marlin.cpp>
