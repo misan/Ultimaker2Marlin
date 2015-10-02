@@ -17,3 +17,5 @@ ArduinoAddons/
 MarlinSimulator/
 Marlin/Debug/
 ArduinoAddons/Arduino_1.x.x/sanguino/bootloaders/atmega/ATmegaBOOT_168.c
+Marlin/enqueue_commands.cpp.x
+mega_atmega2560.lnk
