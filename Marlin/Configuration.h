@@ -9,7 +9,7 @@
 // startup. Implementation of an idea by Prof Braino to inform user that any changes made to this
 // build by the user have been successfully uploaded into firmware.
 #define STRING_VERSION_CONFIG_H __DATE__ " " __TIME__ // build date and time
-#define STRING_CONFIG_H_AUTHOR "Version 14.04.1_E" // Who made the changes.
+#define STRING_CONFIG_H_AUTHOR "Version 14.07.1_xK" // Who made the changes.
 // _E version added by Lars Norpchen
 
 
@@ -40,7 +40,7 @@
 // 65 = Azteeg X1
 // 7  = Ultimaker
 // 71 = Ultimaker (Older electronics. Pre 1.5.4. This is rare)
-// 72 = Ultiboard v2.0
+// 72 = Ultiboard v2.0 (includes Ultimaker 2)
 // 77 = 3Drag Controller
 // 8  = Teensylu
 // 80 = Rumba
@@ -136,7 +136,8 @@
 // 52 is 200k thermistor - ATC Semitec 204GT-2 (1k pullup)
 // 55 is 100k thermistor - ATC Semitec 104GT-2 (Used in ParCan) (1k pullup)
 
-#define TEMP_SENSOR_0 20
+#define TEMP_SENSOR_0 99// 20   // 99
+
 #define TEMP_SENSOR_1 20
 #define TEMP_SENSOR_2 0
 #define TEMP_SENSOR_BED 20
@@ -146,8 +147,8 @@
 #define MAX_REDUNDANT_TEMP_SENSOR_DIFF 10
 
 // Actual temperature must be close to target for this long before M109 returns success
-#define TEMP_RESIDENCY_TIME 3   // (seconds)
-#define TEMP_HYSTERESIS 3       // (degC) range of +/- temperatures considered "close" to the target one
+#define TEMP_RESIDENCY_TIME 10   // (seconds)
+#define TEMP_HYSTERESIS 2       // (degC) range of +/- temperatures considered "close" to the target one
 #define TEMP_WINDOW     2       // (degC) Window around target to start the residency timer x degC early.
 
 // The minimal temperature defines the temperature below which the heater will not be enabled It is used
@@ -158,13 +159,29 @@
 #define HEATER_2_MINTEMP 5
 #define BED_MINTEMP 5
 
+
+#define TEMP_IRQ 1		// use IRQ for reading temperatures  -- safer for lock ups, but can cause ptroblems when moving fast?
+
+#define E3D_HEAD
+
+
+
 // When temperature exceeds max temp, your heater will be switched off.
 // This feature exists to protect your hotend from overheating accidentally, but *NOT* from thermistor short/failure!
 // You should use MINTEMP for thermistor short/failure protection.
+#ifdef E3D_HEAD
+#define HEATER_0_MAXTEMP 350
+#endif 
+#ifdef STOCK_UM2_HEAD
 #define HEATER_0_MAXTEMP 275
+#endif 
+
+// uncomment this to have the raw thermistor / temp sensor readings periodically sent to the serial port for calibrating the temp sensor
+// #define REPORT_TEMPS 
+
 #define HEATER_1_MAXTEMP 275
 #define HEATER_2_MAXTEMP 275
-#define BED_MAXTEMP 200
+#define BED_MAXTEMP 140
 
 // If your bed has low resistance e.g. .6 ohm and throws the fuse you can duty cycle it to reduce the
 // average current. The value should be an integer and the heat bed will be turned on for 1 interval of
@@ -179,7 +196,7 @@
 #ifdef PIDTEMP
   //#define PID_DEBUG // Sends debug data to the serial port.
   //#define PID_OPENLOOP 1 // Puts PID in open loop. M104/M140 sets the output power from 0 to PID_MAX
-  #define PID_FUNCTIONAL_RANGE 1000 // If the temperature difference between the target temperature and the actual temperature
+  #define PID_FUNCTIONAL_RANGE 30 // If the temperature difference between the target temperature and the actual temperature
                                   // is more then PID_FUNCTIONAL_RANGE then the PID will be shut off and the heater will be set to min/max.
   #define PID_INTEGRAL_DRIVE_MAX 255  //limit for the integral term
   #define K1 0.99 //smoothing factor within the PID
@@ -192,9 +209,25 @@
     //#define  DEFAULT_Kd 114
 
 // Ultimaker2
-    #define  DEFAULT_Kp 12.15
-    #define  DEFAULT_Ki 1.0
-    #define  DEFAULT_Kd 37.02
+
+#ifdef STOCK_UM2_HEAD
+
+#define  DEFAULT_Kp 12.15
+#define  DEFAULT_Ki 1.0
+#define  DEFAULT_Kd 37.02
+#endif 
+
+#ifdef E3D_HEAD
+
+// 40W heatter with custom  heater block in e3D head
+ #define  DEFAULT_Kp 10
+ #define  DEFAULT_Ki 0.37
+ #define  DEFAULT_Kd 70
+#endif
+
+//#define  DEFAULT_Kp 17.28
+//#define  DEFAULT_Ki 0.86 
+//#define  DEFAULT_Kd 86.91
 
 // Makergear
 //    #define  DEFAULT_Kp 7.0
@@ -247,6 +280,9 @@
 
 // FIND YOUR OWN: "M303 E-1 C8 S90" to run autotune on the bed at 90 degreesC for 8 cycles.
 #endif // PIDTEMPBED
+
+
+#define DHT_ENVIRONMENTAL_SENSOR
 
 
 
@@ -315,7 +351,7 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define INVERT_X_DIR true     // for Mendel set to false, for Orca set to true
 #define INVERT_Y_DIR false    // for Mendel set to true, for Orca set to false
 #define INVERT_Z_DIR true     // for Mendel set to false, for Orca set to true
-#define INVERT_E0_DIR false   // for direct drive extruder v9 set to true, for geared extruder set to false
+#define INVERT_E0_DIR true   // for direct drive extruder v9 set to true, for geared extruder set to false
 #define INVERT_E1_DIR true    // for direct drive extruder v9 set to true, for geared extruder set to false
 #define INVERT_E2_DIR false   // for direct drive extruder v9 set to true, for geared extruder set to false
 
@@ -328,15 +364,19 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define min_software_endstops true // If true, axis won't move to coordinates less than HOME_POS.
 #define max_software_endstops true  // If true, axis won't move to coordinates greater than the defined lengths below.
 // Travel limits after homing
-#define X_MAX_POS 230
+// #define X_MAX_POS 200			// reduced from 230  // commented out to force use of max_pos dynamic setting
 #define X_MIN_POS 0
-#define Y_MAX_POS 230
+// #define Y_MAX_POS 200		// reduced from 230	// commented out to force use of max_pos dynamic setting
 #define Y_MIN_POS 0
 #define Z_MAX_POS 230
 #define Z_MIN_POS 0
 
-#define X_MAX_LENGTH (X_MAX_POS - X_MIN_POS)
-#define Y_MAX_LENGTH (Y_MAX_POS - Y_MIN_POS)
+#define MAX_ADJ_OFFSET 10		// when adjusting XY limits, how far to bring in head from limit before adjustment
+#define BASELINE_XLIMIT 150
+#define BASELINE_YLIMIT 150
+
+// #define X_MAX_LENGTH (X_MAX_POS - X_MIN_POS)
+// #define Y_MAX_LENGTH (Y_MAX_POS - Y_MIN_POS)
 #define Z_MAX_LENGTH (Z_MAX_POS - Z_MIN_POS)
 
 // The position of the homing switches
@@ -352,15 +392,18 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 
 //// MOVEMENT SETTINGS
 #define NUM_AXIS 4 // The axis order in all axis related arrays is X, Y, Z, E
-#define HOMING_FEEDRATE {100*60, 100*60, 40*60, 0}  // set the homing speeds (mm/min)
+#define HOMING_FEEDRATE {150*60, 150*60, 30*60, 0}  // set the homing speeds (mm/min)
 
 // default settings
 
-#define DEFAULT_AXIS_STEPS_PER_UNIT   {80.0,80.0,200,282}  // default steps per unit for ultimaker2
-#define DEFAULT_MAX_FEEDRATE          {300, 300, 40, 45}    // (mm/sec)
+// driver gear MK7 is 10.5mm diameter, which is a circumference of of 33mm
+// 1.8 deg per full step, with 16 micro steps, is 3200 steps per revolution
+// 3200/33  = 97
+#define DEFAULT_AXIS_STEPS_PER_UNIT   {80.0,80.0,200,100.0}  // default steps per unit for ultimaker2
+#define DEFAULT_MAX_FEEDRATE          {280, 280, 40, 80}    // (mm/sec)
 #define DEFAULT_MAX_ACCELERATION      {9000,9000,100,10000}    // X, Y, Z, E maximum start speed for accelerated moves. E default values are good for skeinforge 40+, for older versions raise them a lot.
 
-#define DEFAULT_ACCELERATION          3000    // X, Y, Z and E max acceleration in mm/s^2 for printing moves
+#define DEFAULT_ACCELERATION          2200    // X, Y, Z and E max acceleration in mm/s^2 for printing moves
 #define DEFAULT_RETRACT_ACCELERATION  3000   // X, Y, Z and E max acceleration in mm/s^2 for retracts
 
 // Offset of the extruders (uncomment if using more than one and relying on firmware to position when changing).
@@ -523,6 +566,12 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
   #endif
 #endif
 
+ // I2C has a flexible clocking scheme, unlike serial comm.
+// many devices can be clocked at 1Mbit or more
+// 400Khz is the default.  You can increase that here, testing higher values.
+// If the device fails, simply lower the overclocking.
+#define I2C_OVERCLOCK 1
+
 // Increase the FAN pwm frequency. Removes the PWM noise but increases heating in the FET/Arduino
 //#define FAST_PWM_FAN
 
@@ -569,6 +618,16 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 //#define SERVO_ENDSTOPS {-1, -1, 0} // Servo index for X, Y, Z. Disable with -1
 //#define SERVO_ENDSTOP_ANGLES {0,0, 0,0, 70,0} // X,Y,Z Axis Extend and Retract angles
 
+
+// Configuration of behaviors at the start and end of prints
+#define END_OF_PRINT_RETRACTION 30		// number of mm to retract when printer goes idle
+#define END_OF_PRINT_RECOVERY_SPEED 5 	// speed to recover that assumed retraction at (mm/s)
+#define PRIMING_MM3	30					// number of mm^3 of plastic to extrude when priming
+										// (Ultimaker 2 hot end capacity is approx 80 mm^3)
+#define PRIMING_MM3_PER_SEC 5			// Rate at which to prime head (in mm^3/s)
+										// (Ultimaker 2 upper limit is 8-10)
+#define PRIMING_HEIGHT 20				// Height at which to perform the priming extrusions
+
 #include "Configuration_adv.h"
 #include "thermistortables.h"
 
@@ -577,20 +636,27 @@ const bool Z_ENDSTOPS_INVERTING = true; // set to true to invert the logic of th
 #define EXTENDED_BEEP 1					// enables extened audio feedback
 #define MOODLIGHT 1						// enables M420 and M421 lighting control G-codes
 #define MAX_ENCODER_ACCELERATION 4		// set this to 1 for no acceleration
-#define NOWRAP_MENUS 					// menus don't wrap around if defined
 #define SKIP_FAST_SIZE 3				// let the menu skip when it gets behind on long lists --  set to huge number to disable
 #define SINGLE_STEP_MENU 				//  if defined, this will force scroll menus to step in single steps, which is less disorienting  (esp when WRAP is enabled)
 #define SCROLL_MENU_FAR_DISTANCE 15		// distance which the scrolling menu will do a jump instead of a scroll -- to prevent lag when the selected item is far far away
 
-#define START_FEED_RATE 5				// was 25 -- how fast to extrude when priming the nozzle at the start
-// #define RAISE_BED_ON_START				// define this to have the bed raise up just before the initial extrude
+#define START_FEED_RATE 8				// was 25 -- how fast to extrude when priming the nozzle at the start
+//  #define RAISE_BED_ON_START				// define this to have the bed raise up just before the initial extrude
 #define PRIMING_AMOUNT 25				// how much to extrude when priming at start
+#define PRINT_END_RETRACTION 30			// in mm
 
 #define MILLISECONDS_PER_SECOND 1000UL
 #define MILLISECONDS_PER_MINUTE (MILLISECONDS_PER_SECOND*60UL)
 
-#define LED_DIM_TIME (MILLISECONDS_PER_MINUTE*30UL)		// ten min
+
+// level of LED brightness when idle
 #define DIM_LEVEL 5
 
+// set to 0 to use 24 hour clock / military time
+
+#define USE_12_HOUR_CLOCK_FORMAT  1
+
+#define CASE_FAN_ON_THRESHOLD 40		// temperature at which the case fan will turn on, regardless of motor activity
+#define FAN_CHECK_INTERVAL 10000 // how often to check the case and head fan (not the part cooling fan) -- in milliseconds
 
 #endif //__CONFIGURATION_H

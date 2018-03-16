@@ -4,31 +4,35 @@
 #include "ultralcd.h"
 #include "UltiLCD2.h"
 #include "ConfigurationStore.h"
+#include "gcode.h"
+#include "UltiLCD2_menu_print.h"
 
 void _EEPROM_writeData(int &pos, uint8_t* value, uint8_t size)
 {
     do
-    {
-        eeprom_write_byte((unsigned char*)pos, *value);
-        pos++;
-        value++;
-    }while(--size);
+        {
+            eeprom_write_byte((unsigned char*)pos, *value);
+            pos++;
+            value++;
+        }
+    while(--size);
 }
+
 #define EEPROM_WRITE_VAR(pos, value) _EEPROM_writeData(pos, (uint8_t*)&value, sizeof(value))
+
 void _EEPROM_readData(int &pos, uint8_t* value, uint8_t size)
 {
     do
-    {
-        *value = eeprom_read_byte((unsigned char*)pos);
-        pos++;
-        value++;
-    }while(--size);
+        {
+            *value = eeprom_read_byte((unsigned char*)pos);
+            pos++;
+            value++;
+        }
+    while(--size);
 }
+
 #define EEPROM_READ_VAR(pos, value) _EEPROM_readData(pos, (uint8_t*)&value, sizeof(value))
 //======================================================================================
-
-
-
 
 #define EEPROM_OFFSET 100
 
@@ -38,70 +42,82 @@ void _EEPROM_readData(int &pos, uint8_t* value, uint8_t size)
 // the default values are used whenever there is a change to the data, to prevent
 // wrong data being written to the variables.
 // ALSO:  always make sure the variables in the Store and retrieve sections are in the same order.
-#define EEPROM_VERSION "V10"
+#define EEPROM_VERSION "V12"
 
 #ifdef EEPROM_SETTINGS
-void Config_StoreSettings() 
+void Config_StoreSettings()
 {
-  char ver[4]= "000";
-  int i=EEPROM_OFFSET;
-  EEPROM_WRITE_VAR(i,ver); // invalidate data first 
-  EEPROM_WRITE_VAR(i,axis_steps_per_unit);  
-  EEPROM_WRITE_VAR(i,max_feedrate);  
-  EEPROM_WRITE_VAR(i,max_acceleration_units_per_sq_second);
-  EEPROM_WRITE_VAR(i,acceleration);
-  EEPROM_WRITE_VAR(i,retract_acceleration);
-  EEPROM_WRITE_VAR(i,minimumfeedrate);
-  EEPROM_WRITE_VAR(i,mintravelfeedrate);
-  EEPROM_WRITE_VAR(i,minsegmenttime);
-  EEPROM_WRITE_VAR(i,max_xy_jerk);
-  EEPROM_WRITE_VAR(i,max_z_jerk);
-  EEPROM_WRITE_VAR(i,max_e_jerk);
-  EEPROM_WRITE_VAR(i,add_homeing);
-  #ifndef ULTIPANEL
-  int plaPreheatHotendTemp = PLA_PREHEAT_HOTEND_TEMP, plaPreheatHPBTemp = PLA_PREHEAT_HPB_TEMP, plaPreheatFanSpeed = PLA_PREHEAT_FAN_SPEED;
-  int absPreheatHotendTemp = ABS_PREHEAT_HOTEND_TEMP, absPreheatHPBTemp = ABS_PREHEAT_HPB_TEMP, absPreheatFanSpeed = ABS_PREHEAT_FAN_SPEED;
-  #endif
-  EEPROM_WRITE_VAR(i,plaPreheatHotendTemp);
-  EEPROM_WRITE_VAR(i,plaPreheatHPBTemp);
-  EEPROM_WRITE_VAR(i,plaPreheatFanSpeed);
-  EEPROM_WRITE_VAR(i,absPreheatHotendTemp);
-  EEPROM_WRITE_VAR(i,absPreheatHPBTemp);
-  EEPROM_WRITE_VAR(i,absPreheatFanSpeed);
-  #ifdef PIDTEMP
+    char ver[4]= "000";
+    int i=EEPROM_OFFSET;
+    EEPROM_WRITE_VAR(i,ver); // invalidate data first
+    EEPROM_WRITE_VAR(i,axis_steps_per_unit);
+    EEPROM_WRITE_VAR(i,max_feedrate);
+    EEPROM_WRITE_VAR(i,max_acceleration_units_per_sq_second);
+    EEPROM_WRITE_VAR(i,acceleration);
+    EEPROM_WRITE_VAR(i,retract_acceleration);
+    EEPROM_WRITE_VAR(i,minimumfeedrate);
+    EEPROM_WRITE_VAR(i,mintravelfeedrate);
+    EEPROM_WRITE_VAR(i,minsegmenttime);
+    EEPROM_WRITE_VAR(i,max_xy_jerk);
+    EEPROM_WRITE_VAR(i,max_z_jerk);
+    EEPROM_WRITE_VAR(i,max_e_jerk);
+    EEPROM_WRITE_VAR(i,add_homeing);
+#ifndef ULTIPANEL
+    int plaPreheatHotendTemp = PLA_PREHEAT_HOTEND_TEMP, plaPreheatHPBTemp = PLA_PREHEAT_HPB_TEMP, plaPreheatFanSpeed = PLA_PREHEAT_FAN_SPEED;
+    int absPreheatHotendTemp = ABS_PREHEAT_HOTEND_TEMP, absPreheatHPBTemp = ABS_PREHEAT_HPB_TEMP, absPreheatFanSpeed = ABS_PREHEAT_FAN_SPEED;
+#endif
+    EEPROM_WRITE_VAR(i,plaPreheatHotendTemp);
+    EEPROM_WRITE_VAR(i,plaPreheatHPBTemp);
+    EEPROM_WRITE_VAR(i,plaPreheatFanSpeed);
+    EEPROM_WRITE_VAR(i,absPreheatHotendTemp);
+    EEPROM_WRITE_VAR(i,absPreheatHPBTemp);
+    EEPROM_WRITE_VAR(i,absPreheatFanSpeed);
+#ifdef PIDTEMP
     EEPROM_WRITE_VAR(i,Kp);
     EEPROM_WRITE_VAR(i,Ki);
     EEPROM_WRITE_VAR(i,Kd);
-  #else
-		float dummy = 3000.0f;
+#else
+    float dummy = 3000.0f;
     EEPROM_WRITE_VAR(i,dummy);
-		dummy = 0.0f;
+    dummy = 0.0f;
     EEPROM_WRITE_VAR(i,dummy);
     EEPROM_WRITE_VAR(i,dummy);
-  #endif
-  EEPROM_WRITE_VAR(i,motor_current_setting);
-  #ifdef ENABLE_ULTILCD2
-  EEPROM_WRITE_VAR(i,led_brightness_level);
-  EEPROM_WRITE_VAR(i,led_mode);
-  #else
-  uint8_t dummyByte=0;
-  EEPROM_WRITE_VAR(i,dummyByte);
-  EEPROM_WRITE_VAR(i,dummyByte);
-  #endif
-  EEPROM_WRITE_VAR(i,retract_length);
-  EEPROM_WRITE_VAR(i,retract_feedrate);
-  char ver2[4]=EEPROM_VERSION;
-  i=EEPROM_OFFSET;
-  EEPROM_WRITE_VAR(i,ver2); // validate data
-  SERIAL_ECHO_START;
-  SERIAL_ECHOLNPGM("Settings Stored");
+#endif
+    EEPROM_WRITE_VAR(i,motor_current_setting);
+#ifdef ENABLE_ULTILCD2
+    EEPROM_WRITE_VAR(i,led_brightness_level);
+    EEPROM_WRITE_VAR(i,led_mode);
+#else
+    uint8_t dummyByte=0;
+    EEPROM_WRITE_VAR(i,dummyByte);
+    EEPROM_WRITE_VAR(i,dummyByte);
+#endif
+    EEPROM_WRITE_VAR(i,retract_length);
+    EEPROM_WRITE_VAR(i,retract_feedrate);
+
+    EEPROM_WRITE_VAR(i,max_pos);
+
+    EEPROM_WRITE_VAR(i,retract_zlift);
+    EEPROM_WRITE_VAR(i,LED_DIM_TIME);
+    EEPROM_WRITE_VAR(i,NOWRAP_MENUS);
+    EEPROM_WRITE_VAR(i,old_retraction);
+    EEPROM_WRITE_VAR(i,old_zlift);
+    EEPROM_WRITE_VAR(i,dropsegments);
+
+
+    char ver2[4]=EEPROM_VERSION;
+    i=EEPROM_OFFSET;
+    EEPROM_WRITE_VAR(i,ver2); // validate data
+    SERIAL_ECHO_START;
+    SERIAL_ECHOLNPGM("Settings Stored");
 }
 #endif //EEPROM_SETTINGS
 
 
 #ifdef EEPROM_CHITCHAT
 void Config_PrintSettings()
-{  // Always have this function, even with EEPROM_SETTINGS disabled, the current values will be shown
+{
+    // Always have this function, even with EEPROM_SETTINGS disabled, the current values will be shown
     SERIAL_ECHO_START;
     SERIAL_ECHOLNPGM("Steps per unit:");
     SERIAL_ECHO_START;
@@ -110,41 +126,41 @@ void Config_PrintSettings()
     SERIAL_ECHOPAIR(" Z",axis_steps_per_unit[2]);
     SERIAL_ECHOPAIR(" E",axis_steps_per_unit[3]);
     SERIAL_ECHOLN("");
-      
+
     SERIAL_ECHO_START;
     SERIAL_ECHOLNPGM("Maximum feedrates (mm/s):");
     SERIAL_ECHO_START;
     SERIAL_ECHOPAIR("  M203 X",max_feedrate[0]);
-    SERIAL_ECHOPAIR(" Y",max_feedrate[1] ); 
-    SERIAL_ECHOPAIR(" Z", max_feedrate[2] ); 
+    SERIAL_ECHOPAIR(" Y",max_feedrate[1] );
+    SERIAL_ECHOPAIR(" Z", max_feedrate[2] );
     SERIAL_ECHOPAIR(" E", max_feedrate[3]);
     SERIAL_ECHOLN("");
 
     SERIAL_ECHO_START;
     SERIAL_ECHOLNPGM("Maximum Acceleration (mm/s2):");
     SERIAL_ECHO_START;
-    SERIAL_ECHOPAIR("  M201 X" ,max_acceleration_units_per_sq_second[0] ); 
-    SERIAL_ECHOPAIR(" Y" , max_acceleration_units_per_sq_second[1] ); 
+    SERIAL_ECHOPAIR("  M201 X" ,max_acceleration_units_per_sq_second[0] );
+    SERIAL_ECHOPAIR(" Y" , max_acceleration_units_per_sq_second[1] );
     SERIAL_ECHOPAIR(" Z" ,max_acceleration_units_per_sq_second[2] );
     SERIAL_ECHOPAIR(" E" ,max_acceleration_units_per_sq_second[3]);
     SERIAL_ECHOLN("");
     SERIAL_ECHO_START;
     SERIAL_ECHOLNPGM("Acceleration: S=acceleration, T=retract acceleration");
     SERIAL_ECHO_START;
-    SERIAL_ECHOPAIR("  M204 S",acceleration ); 
+    SERIAL_ECHOPAIR("  M204 S",acceleration );
     SERIAL_ECHOPAIR(" T" ,retract_acceleration);
     SERIAL_ECHOLN("");
 
     SERIAL_ECHO_START;
-    SERIAL_ECHOLNPGM("Advanced variables: S=Min feedrate (mm/s), T=Min travel feedrate (mm/s), B=minimum segment time (ms), X=maximum XY jerk (mm/s),  Z=maximum Z jerk (mm/s),  E=maximum E jerk (mm/s)");
+    SERIAL_ECHOLNPGM("Advanced variables: S=Min feed (mm/s), T=Min travel feed (mm/s), B=min segment time (ms), X=max XY jerk (mm/s),  Z=max Z jerk (mm/s),  E=max E jerk (mm/s)");
     SERIAL_ECHO_START;
-    SERIAL_ECHOPAIR("  M205 S",minimumfeedrate ); 
-    SERIAL_ECHOPAIR(" T" ,mintravelfeedrate ); 
-    SERIAL_ECHOPAIR(" B" ,minsegmenttime ); 
-    SERIAL_ECHOPAIR(" X" ,max_xy_jerk ); 
+    SERIAL_ECHOPAIR("  M205 S",minimumfeedrate );
+    SERIAL_ECHOPAIR(" T" ,mintravelfeedrate );
+    SERIAL_ECHOPAIR(" B" ,minsegmenttime );
+    SERIAL_ECHOPAIR(" X" ,max_xy_jerk );
     SERIAL_ECHOPAIR(" Z" ,max_z_jerk);
     SERIAL_ECHOPAIR(" E" ,max_e_jerk);
-    SERIAL_ECHOLN(""); 
+    SERIAL_ECHOLN("");
 
     SERIAL_ECHO_START;
     SERIAL_ECHOLNPGM("Home offset (mm):");
@@ -157,12 +173,45 @@ void Config_PrintSettings()
     SERIAL_ECHO_START;
     SERIAL_ECHOLNPGM("PID settings:");
     SERIAL_ECHO_START;
-    SERIAL_ECHOPAIR("   M301 P",Kp); 
-    SERIAL_ECHOPAIR(" I" ,unscalePID_i(Ki)); 
+    SERIAL_ECHOPAIR("   M301 P",Kp);
+    SERIAL_ECHOPAIR(" I" ,unscalePID_i(Ki));
     SERIAL_ECHOPAIR(" D" ,unscalePID_d(Kd));
-    SERIAL_ECHOLN(""); 
+    SERIAL_ECHOLN("");
 #endif
-} 
+
+    SERIAL_ECHOLNPGM("Extruders:");
+    SERIAL_ECHO_START;
+    SERIAL_ECHOPAIR(" #1 max temp = " ,(unsigned long ) HEATER_0_MAXTEMP );
+    SERIAL_ECHOLN("");
+#if (EXTRUDERS > 1 	)
+#ifdef HEATER_1_MAXTEMP
+    SERIAL_ECHOPAIR(" #2 max temp = " ,HEATER_1_MAXTEMP );
+#endif
+#if (EXTRUDERS > 2 	)
+#ifdef HEATER_2_MAXTEMP
+    SERIAL_ECHOPAIR(" #3 max temp = " ,HEATER_2_MAXTEMP );
+#endif
+#endif
+#endif
+    SERIAL_ECHOPAIR(" Bed max temp = " ,(unsigned long )  BED_MAXTEMP );
+    SERIAL_ECHOLN("");
+
+	SERIAL_ECHOLNPGM("Maximum Positions (mm):");
+    SERIAL_ECHO_START;
+    SERIAL_ECHOPAIR(" X" ,max_pos[0] );
+    SERIAL_ECHOPAIR(" Y" ,max_pos[1] );
+    SERIAL_ECHOPAIR(" Z" ,max_pos[2] );
+    SERIAL_ECHOLN("");
+
+    SERIAL_ECHO_START;
+    SERIAL_ECHOLNPGM("Retraction:");
+    SERIAL_ECHO_START;
+    SERIAL_ECHOPAIR("  M209 S",retract_length );
+    SERIAL_ECHOPAIR(" F" ,retract_feedrate );
+    SERIAL_ECHOPAIR(" Z" ,retract_zlift );
+    SERIAL_ECHOLN("");
+
+}
 #endif
 
 
@@ -175,62 +224,73 @@ void Config_RetrieveSettings()
     EEPROM_READ_VAR(i,stored_ver); //read stored version
     //  SERIAL_ECHOLN("Version: [" << ver << "] Stored version: [" << stored_ver << "]");
     if (strncmp(ver,stored_ver,3) == 0)
-    {
-        // version number match
-        EEPROM_READ_VAR(i,axis_steps_per_unit);  
-        EEPROM_READ_VAR(i,max_feedrate);  
-        EEPROM_READ_VAR(i,max_acceleration_units_per_sq_second);
-        
-        // steps per sq second need to be updated to agree with the units per sq second (as they are what is used in the planner)
-		reset_acceleration_rates();
-        
-        EEPROM_READ_VAR(i,acceleration);
-        EEPROM_READ_VAR(i,retract_acceleration);
-        EEPROM_READ_VAR(i,minimumfeedrate);
-        EEPROM_READ_VAR(i,mintravelfeedrate);
-        EEPROM_READ_VAR(i,minsegmenttime);
-        EEPROM_READ_VAR(i,max_xy_jerk);
-        EEPROM_READ_VAR(i,max_z_jerk);
-        EEPROM_READ_VAR(i,max_e_jerk);
-        EEPROM_READ_VAR(i,add_homeing);
-        #ifndef ULTIPANEL
-        int plaPreheatHotendTemp, plaPreheatHPBTemp, plaPreheatFanSpeed;
-        int absPreheatHotendTemp, absPreheatHPBTemp, absPreheatFanSpeed;
-        #endif
-        EEPROM_READ_VAR(i,plaPreheatHotendTemp);
-        EEPROM_READ_VAR(i,plaPreheatHPBTemp);
-        EEPROM_READ_VAR(i,plaPreheatFanSpeed);
-        EEPROM_READ_VAR(i,absPreheatHotendTemp);
-        EEPROM_READ_VAR(i,absPreheatHPBTemp);
-        EEPROM_READ_VAR(i,absPreheatFanSpeed);
-        #ifndef PIDTEMP
-        float Kp,Ki,Kd;
-        #endif
-        // do not need to scale PID values as the values in EEPROM are already scaled		
-        EEPROM_READ_VAR(i,Kp);
-        EEPROM_READ_VAR(i,Ki);
-        EEPROM_READ_VAR(i,Kd);
-        EEPROM_READ_VAR(i,motor_current_setting);
-        #ifdef ENABLE_ULTILCD2
-        EEPROM_READ_VAR(i,led_brightness_level);
-        EEPROM_READ_VAR(i,led_mode);
-        #else
-        uint8_t dummyByte;
-        EEPROM_READ_VAR(i,dummyByte);
-        EEPROM_READ_VAR(i,dummyByte);
-        #endif
-        EEPROM_READ_VAR(i,retract_length);
-        EEPROM_READ_VAR(i,retract_feedrate);
+        {
+            // version number match
+            EEPROM_READ_VAR(i,axis_steps_per_unit);
+            EEPROM_READ_VAR(i,max_feedrate);
+            EEPROM_READ_VAR(i,max_acceleration_units_per_sq_second);
 
-		// Call updatePID (similar to when we have processed M301)
-		updatePID();
-        SERIAL_ECHO_START;
-        SERIAL_ECHOLNPGM("Stored settings retrieved");
-    }
+            // steps per sq second need to be updated to agree with the units per sq second (as they are what is used in the planner)
+            reset_acceleration_rates();
+
+            EEPROM_READ_VAR(i,acceleration);
+            EEPROM_READ_VAR(i,retract_acceleration);
+            EEPROM_READ_VAR(i,minimumfeedrate);
+            EEPROM_READ_VAR(i,mintravelfeedrate);
+            EEPROM_READ_VAR(i,minsegmenttime);
+            EEPROM_READ_VAR(i,max_xy_jerk);
+            EEPROM_READ_VAR(i,max_z_jerk);
+            EEPROM_READ_VAR(i,max_e_jerk);
+            EEPROM_READ_VAR(i,add_homeing);
+#ifndef ULTIPANEL
+            int plaPreheatHotendTemp, plaPreheatHPBTemp, plaPreheatFanSpeed;
+            int absPreheatHotendTemp, absPreheatHPBTemp, absPreheatFanSpeed;
+#endif
+            EEPROM_READ_VAR(i,plaPreheatHotendTemp);
+            EEPROM_READ_VAR(i,plaPreheatHPBTemp);
+            EEPROM_READ_VAR(i,plaPreheatFanSpeed);
+            EEPROM_READ_VAR(i,absPreheatHotendTemp);
+            EEPROM_READ_VAR(i,absPreheatHPBTemp);
+            EEPROM_READ_VAR(i,absPreheatFanSpeed);
+#ifndef PIDTEMP
+            float Kp,Ki,Kd;
+#endif
+            // do not need to scale PID values as the values in EEPROM are already scaled
+            EEPROM_READ_VAR(i,Kp);
+            EEPROM_READ_VAR(i,Ki);
+            EEPROM_READ_VAR(i,Kd);
+            EEPROM_READ_VAR(i,motor_current_setting);
+#ifdef ENABLE_ULTILCD2
+            EEPROM_READ_VAR(i,led_brightness_level);
+            EEPROM_READ_VAR(i,led_mode);
+#else
+            uint8_t dummyByte;
+            EEPROM_READ_VAR(i,dummyByte);
+            EEPROM_READ_VAR(i,dummyByte);
+#endif
+            EEPROM_READ_VAR(i,retract_length);
+            EEPROM_READ_VAR(i,retract_feedrate);
+
+            EEPROM_READ_VAR(i,max_pos);
+            X_MAX_LENGTH = max_pos[X_AXIS] - X_MIN_POS;
+            Y_MAX_LENGTH = max_pos[Y_AXIS] - Y_MIN_POS;
+
+            EEPROM_READ_VAR(i,retract_zlift);
+            EEPROM_READ_VAR(i,LED_DIM_TIME);
+            EEPROM_READ_VAR(i,NOWRAP_MENUS);
+
+ 			EEPROM_READ_VAR(i,old_retraction);
+ 			EEPROM_READ_VAR(i,old_zlift);
+ 			EEPROM_READ_VAR(i,dropsegments);
+            // Call updatePID (similar to when we have processed M301)
+            updatePID();
+            SERIAL_ECHO_START;
+            SERIAL_ECHOLNPGM("Stored settings retrieved");
+        }
     else
-    {
-        Config_ResetDefault();
-    }
+        {
+            Config_ResetDefault();
+        }
     Config_PrintSettings();
 }
 #endif
@@ -240,20 +300,30 @@ void Config_ResetDefault()
     float tmp1[]=DEFAULT_AXIS_STEPS_PER_UNIT;
     float tmp2[]=DEFAULT_MAX_FEEDRATE;
     long tmp3[]=DEFAULT_MAX_ACCELERATION;
-    for (short i=0;i<4;i++) 
-    {
-        axis_steps_per_unit[i]=tmp1[i];  
-        max_feedrate[i]=tmp2[i];  
-        max_acceleration_units_per_sq_second[i]=tmp3[i];
-    }
-    
+    for (short i=0; i<4; i++)
+        {
+            axis_steps_per_unit[i]=tmp1[i];
+            max_feedrate[i]=tmp2[i];
+            max_acceleration_units_per_sq_second[i]=tmp3[i];
+        }
+
     // steps per sq second need to be updated to agree with the units per sq second
     reset_acceleration_rates();
-    
+
+	retract_length = 4.5;
+	retract_feedrate = 25*60;
+	retract_zlift = 0.8;
+	NOWRAP_MENUS=1;
+	LED_DIM_TIME=60;
+	max_pos[X_AXIS] = BASELINE_XLIMIT;
+	max_pos[Y_AXIS] = BASELINE_YLIMIT;
+	X_MAX_LENGTH = max_pos[X_AXIS] - X_MIN_POS;
+	Y_MAX_LENGTH = max_pos[Y_AXIS] - Y_MIN_POS;
+
     acceleration=DEFAULT_ACCELERATION;
     retract_acceleration=DEFAULT_RETRACT_ACCELERATION;
     minimumfeedrate=DEFAULT_MINIMUMFEEDRATE;
-    minsegmenttime=DEFAULT_MINSEGMENTTIME;       
+    minsegmenttime=DEFAULT_MINSEGMENTTIME;
     mintravelfeedrate=DEFAULT_MINTRAVELFEEDRATE;
     max_xy_jerk=DEFAULT_XYJERK;
     max_z_jerk=DEFAULT_ZJERK;
@@ -271,10 +341,10 @@ void Config_ResetDefault()
     Kp = DEFAULT_Kp;
     Ki = scalePID_i(DEFAULT_Ki);
     Kd = scalePID_d(DEFAULT_Kd);
-    
+
     // call updatePID (similar to when we have processed M301)
     updatePID();
-    
+
 #ifdef PID_ADD_EXTRUSION_RATE
     Kc = DEFAULT_Kc;
 #endif//PID_ADD_EXTRUSION_RATE
@@ -284,14 +354,12 @@ void Config_ResetDefault()
     motor_current_setting[1] = tmp_motor_current_setting[1];
     motor_current_setting[2] = tmp_motor_current_setting[2];
 
-    #ifdef ENABLE_ULTILCD2
+#ifdef ENABLE_ULTILCD2
     led_brightness_level = 100;
     led_mode = LED_MODE_ALWAYS_ON;
-    #endif
-    retract_length = 4.5;
-    retract_feedrate = 25 * 60;
+#endif
 
-SERIAL_ECHO_START;
-SERIAL_ECHOLNPGM("Hardcoded Default Settings Loaded");
+    SERIAL_ECHO_START;
+    SERIAL_ECHOLNPGM("Hardcoded Default Settings Loaded");
 
 }

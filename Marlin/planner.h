@@ -31,13 +31,17 @@
 typedef struct {
   // Fields used by the bresenham algorithm for tracing the line
   long steps_x, steps_y, steps_z, steps_e;  // Step count along each axis
-  unsigned long step_event_count;           // The number of step events required to complete this block
+  unsigned long total_steps;           // The number of step events required to complete this block
   long accelerate_until;                    // The index of the step event on which to stop acceleration
   long decelerate_after;                    // The index of the step event on which to start decelerating
   long acceleration_rate;                   // The acceleration rate used for acceleration calculation
   unsigned char direction_bits;             // The direction bit set for this block (refers to *_DIRECTION_BIT in config.h)
-  unsigned char active_extruder;            // Selects the active extruder
-  #ifdef ADVANCE
+  unsigned char active_extruder:5;            // Selects the active extruder
+  unsigned char recalculate_flag:1;                    // Planner flag to recalculate trapezoids on entry junction
+  unsigned char nominal_length_flag:1;                 // Planner flag for nominal speed always reached
+  volatile unsigned char busy:1;
+
+#ifdef ADVANCE
     long advance_rate;
     volatile long initial_advance;
     volatile long final_advance;
@@ -46,25 +50,25 @@ typedef struct {
 
   // Fields used by the motion planner to manage acceleration
   float speed_x, speed_y, speed_z, speed_e;        // Nominal mm/sec for each axis
-  float nominal_speed;                               // The nominal speed for this block in mm/sec 
+  float nominal_speed_in_mm_s;                               // The nominal speed for this block in mm/sec 
   float entry_speed;                                 // Entry speed at previous-current junction in mm/sec
   float max_entry_speed;                             // Maximum allowable junction entry speed in mm/sec
   float millimeters;                                 // The total travel of this block in mm
   float acceleration;                                // acceleration mm/sec^2
-  unsigned char recalculate_flag;                    // Planner flag to recalculate trapezoids on entry junction
-  unsigned char nominal_length_flag;                 // Planner flag for nominal speed always reached
 
   // Settings for the trapezoid generator
-  unsigned long nominal_rate;                        // The nominal step rate for this block in step_events/sec 
-  unsigned long initial_rate;                        // The jerk-adjusted step rate at start of block  
-  unsigned long final_rate;                          // The minimal rate at exit
-  unsigned long acceleration_st;                     // acceleration steps/sec^2
-  unsigned long fan_speed;
+  unsigned long peak_velocity_in_steps_per_sec;                        // The nominal step rate for this block in step_events/sec 
+  unsigned long peak_velocity2;                        // The nominal step rate for this block in step_events/sec 
+  unsigned long initial_velocity;                        // The jerk-adjusted step rate at start of block  
+  unsigned long final_velocity;                          // The minimal rate at exit
+  unsigned long acceleration_steps_per_sec2;                     // acceleration steps/sec^2
+//   unsigned long 
+  unsigned char fan_speed;
   #ifdef BARICUDA
   unsigned long valve_pressure;
   unsigned long e_to_p_pressure;
   #endif
-  volatile char busy;
+
 } block_t;
 
 // Initialize the motion plan subsystem      
@@ -72,7 +76,7 @@ void plan_init();
 
 // Add a new linear movement to the buffer. x, y and z is the signed, absolute target position in 
 // millimaters. Feed rate specifies the speed of the motion.
-void plan_buffer_line(const float &x, const float &y, const float &z, const float &e, float feed_rate, const uint8_t &extruder);
+void plan_buffer_line(const float &x, const float &y, const float &z, const float &e, float feed_rate, const uint8_t &extruder, float q=1.0);
 
 // Set position. Used for G92 instructions.
 void plan_set_position(const float &x, const float &y, const float &z, const float &e);
@@ -96,6 +100,11 @@ extern float max_z_jerk;
 extern float max_e_jerk;
 extern float mintravelfeedrate;
 extern unsigned long axis_steps_per_sqr_second[NUM_AXIS];
+extern float true_e_position;
+
+
+extern float quality ;
+extern float next_quality;
 
 #ifdef AUTOTEMP
     extern bool autotemp_enabled;
@@ -105,7 +114,7 @@ extern unsigned long axis_steps_per_sqr_second[NUM_AXIS];
 #endif
 
     
-
+	void clamp_to_software_endstops(float target[3]);
 
 extern block_t block_buffer[BLOCK_BUFFER_SIZE];            // A ring buffer for motion instfructions
 extern volatile unsigned char block_buffer_head;           // Index of the next block to be pushed
@@ -118,6 +127,9 @@ FORCE_INLINE void plan_discard_current_block()
     block_buffer_tail = (block_buffer_tail + 1) & (BLOCK_BUFFER_SIZE - 1);  
   }
 }
+
+
+ void plan_discard_all_blocks ();
 
 // Gets the current block. Returns NULL if buffer empty
 FORCE_INLINE block_t *plan_get_current_block() 
@@ -140,9 +152,20 @@ FORCE_INLINE bool blocks_queued()
     return true;
 }
 
+
+
+inline float extruderPositionInMM (float pos)
+	{
+
+	return ( pos * volume_to_filament_length[active_extruder]);
+	}
+
+
 #ifdef PREVENT_DANGEROUS_EXTRUDE
 void set_extrude_min_temp(float temp);
 #endif
 
 void reset_acceleration_rates();
+byte getFanSpeed ();
+extern byte  fanSpeedOverride;
 #endif

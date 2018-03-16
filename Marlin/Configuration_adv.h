@@ -63,7 +63,7 @@
 //This is for controlling a fan to cool down the stepper drivers
 //it will turn on when any driver is enabled
 //and turn off after the set amount of seconds from last driver being disabled again
-#define CONTROLLERFAN_PIN -1 //Pin used for the fan to cool controller (-1 to disable)
+#define CONTROLLERFAN_PIN MOTHERBOARD_FAN //Pin used for the fan to cool controller (-1 to disable)
 #define CONTROLLERFAN_SECS 60 //How many seconds, after all motors were disabled, the fan should run
 #define CONTROLLERFAN_SPEED 255  // == full speed
 
@@ -77,11 +77,11 @@
 // extruder temperature is above/below EXTRUDER_AUTO_FAN_TEMPERATURE.
 // Multiple extruders can be assigned to the same pin in which case 
 // the fan will turn on when any selected extruder is above the threshold.
-#define EXTRUDER_0_AUTO_FAN_PIN   -1
+// #define HEAD_FAN_PIN   HEAD_FAN_PIN
 #define EXTRUDER_1_AUTO_FAN_PIN   -1
 #define EXTRUDER_2_AUTO_FAN_PIN   -1
-#define EXTRUDER_AUTO_FAN_TEMPERATURE 40
-#define EXTRUDER_AUTO_FAN_SPEED   255  // == full speed
+#define EXTRUDER_AUTO_FAN_TEMPERATURE 50
+#define EXTRUDER_AUTO_FAN_SPEED  255 //  255  // == full speed
 
 
 //===========================================================================
@@ -90,7 +90,7 @@
 
 #define ENDSTOPS_ONLY_FOR_HOMING // If defined the endstops will only be used for homing
 
-
+#if 0 
 //// AUTOSET LOCATIONS OF LIMIT SWITCHES
 //// Added by ZetaPhoenix 09-15-2012
 #ifdef MANUAL_HOME_POSITIONS  // Use manual limit switch locations
@@ -137,6 +137,7 @@
 #endif //End auto min/max positions
 //END AUTOSET LOCATIONS OF LIMIT SWITCHES -ZP
 
+#endif // 0 
 
 //#define Z_LATE_ENABLE // Enable Z the last moment. Needed if your Z driver overheats.
 
@@ -153,14 +154,15 @@
 #endif
 
 //homing hits the endstop, then retracts by this distance, before it tries to slowly bump again:
-#define X_HOME_RETRACT_MM 5
-#define Y_HOME_RETRACT_MM 5
-#define Z_HOME_RETRACT_MM 3
+#define X_HOME_RETRACT_MM 7
+#define Y_HOME_RETRACT_MM 7
+#define Z_HOME_RETRACT_MM 7
 #define QUICK_HOME  //if this is defined, if both x and y are to be homed, a diagonal move will be performed initially.
 
 #define AXIS_RELATIVE_MODES {false, false, false, false}
 
 #define MAX_STEP_FREQUENCY 40000 // Max step frequency for Ultimaker (5000 pps / half step)
+// was 40000
 
 //By default pololu step drivers require an active high signal. However, some high power drivers require an active low signal as step.
 #define INVERT_X_STEP_PIN false
@@ -175,10 +177,11 @@
 #define DEFAULT_MINTRAVELFEEDRATE     0.0
 
 // minimum time in microseconds that a movement needs to take if the buffer is emptied.
-#define DEFAULT_MINSEGMENTTIME        20000
+#define DEFAULT_MINSEGMENTTIME        40000
 
 // If defined the movements slow down when the look ahead buffer is only half full
-#define SLOWDOWN
+// #define SLOWDOWN
+#define OLD_SLOWDOWN
 
 // Frequency limit
 // See nophead's blog for more info
@@ -204,7 +207,8 @@
 #define DIGIPOT_MOTOR_CURRENT {135,135,135,135,135} // Values 0-255 (RAMBO 135 = ~0.75A, 185 = ~1A)
 
 // Default motor current for XY,Z,E in mA
-#define DEFAULT_PWM_MOTOR_CURRENT {1300, 1300, 1250}
+#define DEFAULT_PWM_MOTOR_CURRENT {1300, 1300, 1800}
+//#define DEFAULT_PWM_MOTOR_CURRENT {1300, 1300, 1250}
 
 //===========================================================================
 //=============================Additional Features===========================
@@ -214,14 +218,16 @@
 #define SD_FINISHED_RELEASECOMMAND "M84 X Y Z E" // You might want to keep the z enabled so your bed stays in place.
 
 // The hardware watchdog should reset the Microcontroller disabling all outputs, in case the firmware gets stuck and doesn't do temperature regulation.
+/*
 #define USE_WATCHDOG
 
 #ifdef USE_WATCHDOG
 // If you have a watchdog reboot in an ArduinoMega2560 then the device will hang forever, as a watchdog reset will leave the watchdog on.
 // The "WATCHDOG_RESET_MANUAL" goes around this by not using the hardware reset.
 //  However, THIS FEATURE IS UNSAFE!, as it will only work if interrupts are disabled. And the code could hang in an interrupt routine with interrupts disabled.
-//#define WATCHDOG_RESET_MANUAL
+#define WATCHDOG_RESET_MANUAL
 #endif
+*/
 
 // Enable the option to stop SD printing when hitting and endstops, needs to be enabled from the LCD menu when this option is enabled.
 //#define ABORT_ON_ENDSTOP_HIT_FEATURE_ENABLED
@@ -249,7 +255,7 @@
 #define MM_PER_ARC_SEGMENT 1
 #define N_ARC_CORRECTION 25
 
-const unsigned int dropsegments=5; //everything with less than this number of steps will be ignored as move and joined with the next movement
+extern unsigned int dropsegments; //everything with less than this number of steps will be ignored as move and joined with the next movement
 
 // If you are using a RAMPS board or cheap E-bay purchased boards that do not detect when an SD card is inserted
 // You can get round this by connecting a push button or single throw switch to the pin defined as SDCARDCARDDETECT 
@@ -284,7 +290,7 @@ const unsigned int dropsegments=5; //everything with less than this number of st
 // The number of linear motions that can be in the plan at any give time.  
 // THE BLOCK_BUFFER_SIZE NEEDS TO BE A POWER OF 2, i.g. 8,16,32 because shifts and ors are used to do the ringbuffering.
 #if defined  __AVR_ATmega2560__
-#define BLOCK_BUFFER_SIZE 32   // we got more RAM, lets use it
+#define BLOCK_BUFFER_SIZE 16 // 32 // 16   // we got more RAM, lets use it
 #else 
 #if defined SDSUPPORT
   #define BLOCK_BUFFER_SIZE 16   // SD,LCD,Buttons take more memory, block buffer needs to be smaller
@@ -293,10 +299,14 @@ const unsigned int dropsegments=5; //everything with less than this number of st
 #endif
 #endif
 
+// when pausing, how far to lower the build plate.       WIll not lower past ZMax in any case
+#define PAUSE_HEIGHT_DROP 60
+#define PAUSE_X_POS 100	
+#define PAUSE_Y_POS 50	
 
 //The ASCII buffer for recieving from the serial:
-#define MAX_CMD_SIZE 96
-#define BUFSIZE 3		// reduced since we aren't officially supporting USB printing....we need the RAM elsewhere
+#define MAX_CMD_SIZE 60
+#define BUFSIZE 7		// reduced since we aren't officially supporting USB printing....we need the RAM elsewhere
 
 
 // Firmware based and LCD controled retract
@@ -308,18 +318,18 @@ const unsigned int dropsegments=5; //everything with less than this number of st
 #define FWRETRACT  //ONLY PARTIALLY TESTED
 #define MIN_RETRACT 0.1 //minimum extruded mm to accept a automatic gcode retraction attempt
 
-
+//#define FILAMENTCHANGEENABLE
 //adds support for experimental filament exchange support M600; requires display
 #ifdef ULTIPANEL
   //#define FILAMENTCHANGEENABLE
   #ifdef FILAMENTCHANGEENABLE
-    #define FILAMENTCHANGE_XPOS 3
-    #define FILAMENTCHANGE_YPOS 3
+    #define FILAMENTCHANGE_XPOS 100
+    #define FILAMENTCHANGE_YPOS 30
     #define FILAMENTCHANGE_ZADD 10
     #define FILAMENTCHANGE_FIRSTRETRACT -2
     #define FILAMENTCHANGE_FINALRETRACT -100
   #endif
-#endif
+ #endif
  
 //===========================================================================
 //=============================  Define Defines  ============================

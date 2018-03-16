@@ -2,23 +2,33 @@
 #define ULTI_LCD2_MENU_PRINT_H
 
 #include "cardreader.h"
+#include "SwissArmyCache.h"
 
-#ifdef  __AVR_ATmega2560__
-#define LCD_CACHE_COUNT 16		// we can't show more than 6, but having a bigger buffer makes scrolling through menus faster
-#else
-#define LCD_CACHE_COUNT 6
-#endif 
+// introduce a short delay before reading file details so director listings are more responsive...
+#define FILE_READ_DELAY 35
+extern int file_read_delay_counter;
 
-#define LCD_DETAIL_CACHE_SIZE (5+4*EXTRUDERS)
-#define LCD_CACHE_SIZE (1 + (2 + LONG_FILENAME_LENGTH) * LCD_CACHE_COUNT + LCD_DETAIL_CACHE_SIZE)
-extern uint8_t lcd_cache[LCD_CACHE_SIZE];
+extern float old_zlift;
+extern float old_retraction;
+extern bool last_print_aborted ;
+void lcd_sd_filemenu_doAction();
 
-void lcd_menu_print_select();
-void lcd_clear_cache();
 void doCancelPrint();
+void lcd_menu_maintenance_advanced_bed_heatup();
 
-FORCE_INLINE void ERROR_BEEP() 
-	{
-	lcd_lib_beep_ext(110,400);
-	}
+//-----------------------------------------------------------------------------------------------------------------
+extern char last_print_name[LONG_FILENAME_LENGTH];
+extern unsigned char nozzle_adjust_id;
+void lcd_menu_print_tune_heatup_nozzle();
+void lcd_menu_retraction_getDetails(uint8_t nr);
+char* lcd_menu_retraction_getString(uint8_t nr);
+void lcd_menu_retraction_doAction();
+void lcd_menu_print_ready();
+void lcd_menu_print_classic_warning();
+void lcd_menu_print_error();
+void lcd_menu_print_abort();
+void prepareToPrintUltiGCode();
+void lcd_menu_print_printing();
+void lcd_menu_print_heatup();
+void lcd_menu_print_tune_doAction();
 #endif//ULTI_LCD2_MENU_PRINT_H

@@ -29,6 +29,7 @@
 
 // public functions
 void tp_init();  //initialise the heating
+void manage_bed_temp_control();
 void manage_heater(); //it is critical that this is called periodically.
 
 // low level conversion routines
@@ -47,7 +48,7 @@ extern float current_temperature_bed;
   float scalePID_d(float d);
   float unscalePID_i(float i);
   float unscalePID_d(float d);
-
+  void readTemps();
 #endif
 #ifdef PIDTEMPBED
   extern float bedKp,bedKi,bedKd;
@@ -142,7 +143,16 @@ FORCE_INLINE void autotempShutdown(){
  #endif
 }
 
-void PID_autotune(float temp, int extruder, int ncycles);
+extern byte last_head_temp;
+extern byte last_step_temp;
+extern byte last_mobo_temp;
+void updateAuxTempSensors () ;
+extern volatile unsigned char temp_irq_phase ;
 
+#define POTENTIAL_DIVIDER_RESISTOR 10000.0
+float calculate_temp(unsigned int value, float divider = POTENTIAL_DIVIDER_RESISTOR);
+void PID_autotune(float temp, int extruder, int ncycles);
+void setExtruderAutoFanState(int pin, bool state);
+void checkExtruderAutoFans();
 #endif
 
